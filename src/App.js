@@ -466,9 +466,12 @@ function App() {
         content: res.data.reply || '（无回复）' 
       }]);
     } catch (err) {
+      const data = err.response?.data;
+      let msg = data?.error || err.message || '请求失败';
+      if (data?.hint) msg += '\n\n💡 ' + data.hint;
       setAiMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: '❌ ' + (err.response?.data?.error || err.message || '请求失败') 
+        content: '❌ ' + msg
       }]);
     }
     setAiLoading(false);
