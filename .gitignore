@@ -1,5 +1,4 @@
 # Dependencies
-node_modules/
 client/node_modules/
 server/node_modules/
 
@@ -25,7 +24,7 @@ server/uploads/chunks/
 .DS_Store
 Thumbs.db
 
-# Binary executables
+# Root level
+node_modules/
+package-lock.json
 *.exe
-cloudflared.exe
-ngrok.exe
