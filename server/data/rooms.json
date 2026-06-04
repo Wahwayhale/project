@@ -1,0 +1,664 @@
+{
+  "global": {
+    "id": "global",
+    "name": "全局聊天",
+    "type": "public",
+    "members": [
+      "admin",
+      "马",
+      "www.com",
+      "gyyz",
+      "ycx",
+      "aitest",
+      "aitest2",
+      "。。。"
+    ],
+    "messages": [
+      {
+        "id": "1c6d9af1-ca86-49e7-9424-7f67850d2ef4",
+        "content": "666",
+        "type": "text",
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=admin"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-03T01:18:25.188Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ]
+      },
+      {
+        "id": "e92a89f3-7313-4c07-8e24-3518342ed9ff",
+        "content": "https://www.bilibili.com/video/BV1GJ411x7d7",
+        "type": "text",
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=admin"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-03T01:19:28.695Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ]
+      },
+      {
+        "id": "27b502be-2273-4fc4-b4cd-0b0e62bdda00",
+        "content": "https://www.bilibili.com/video/BV1p2Vt6QEdB/?spm_id_from=333.1007.tianma.1-1-1.click",
+        "type": "text",
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=admin"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-03T01:20:01.784Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ]
+      },
+      {
+        "id": "566e71ef-81ae-405b-b9b7-8214513580af",
+        "content": "https://www.bilibili.com/video/BV1MN4y177PB",
+        "type": "text",
+        "sender": {
+          "id": "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "username": "www.com",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=www.com"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-03T02:01:22.413Z",
+        "readBy": [
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239"
+        ]
+      },
+      {
+        "id": "964005bd-ca44-43fa-a538-9ff4e6dfebb6",
+        "content": "【“非人类演奏”】 https://www.bilibili.com/video/BV1WtqBBuEE9/?share_source=copy_web&vd_source=74a60dc04056850f644e21b514d55adf",
+        "type": "text",
+        "sender": {
+          "id": "3947c8bb-9325-43b2-b196-4fd25f90fb67",
+          "username": "gyyz",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=gyyz"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-03T02:06:24.050Z",
+        "readBy": [
+          "3947c8bb-9325-43b2-b196-4fd25f90fb67"
+        ]
+      },
+      {
+        "id": "cc455bf1-57f7-4894-9660-ff8c823e2818",
+        "content": "【谁他妈动我键位了】 https://www.bilibili.com/video/BV1LZ421p75j/?share_source=copy_web&vd_source=9a3a2fc06512e2affab8481e0ada16fc",
+        "type": "text",
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-03T03:08:37.584Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ]
+      },
+      {
+        "id": "3e837d9f-5cae-44ac-817a-112059793267",
+        "content": "【房间里有个轮船】 https://www.bilibili.com/video/BV1GHwWzVEvq/?share_source=copy_web&vd_source=9a3a2fc06512e2affab8481e0ada16fc",
+        "type": "text",
+        "sender": {},
+        "roomId": "global",
+        "timestamp": "2026-06-03T03:18:03.055Z",
+        "readBy": [
+          null
+        ]
+      },
+      {
+        "id": "5705da48-fda2-4840-8140-d8125214ba6c",
+        "content": "print(\"Hello, World!\")",
+        "type": "text",
+        "sender": {},
+        "roomId": "global",
+        "timestamp": "2026-06-03T03:24:50.440Z",
+        "readBy": [
+          null
+        ]
+      },
+      {
+        "id": "1900a288-afbf-416c-9a8d-b95bd04ce89d",
+        "content": "https://chatgpt.com/?openaicom_referred=true",
+        "type": "text",
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-03T05:33:00.170Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ]
+      },
+      {
+        "id": "02a511d1-8da6-4d18-83f3-18a5ba61cb26",
+        "content": "https://claude.com/",
+        "type": "text",
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-03T05:33:31.618Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ]
+      },
+      {
+        "id": "9129568e-eb83-49bc-8546-a9087b839785",
+        "content": "https://gemini.google.com/app",
+        "type": "text",
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-03T05:33:42.412Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ]
+      },
+      {
+        "id": "3805b127-636f-46a2-80e5-e6523eb96f92",
+        "content": "有人吗",
+        "type": "text",
+        "sender": {
+          "id": "d445102e-cc18-41ec-9325-939f1d274f71",
+          "username": "马",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=马"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-03T06:13:08.791Z",
+        "readBy": [
+          "d445102e-cc18-41ec-9325-939f1d274f71"
+        ]
+      },
+      {
+        "id": "efb903b5-7862-4210-bb81-8f203d210c11",
+        "content": "",
+        "type": "video",
+        "fileUrl": "/uploads/1780467373841-33705415-6d7b-4d2c-8432-e02cd7b1f5f5.mp4",
+        "filename": "05b80427eead51c45fb59c75f22ca8a2.mp4",
+        "fileSize": 376012,
+        "mimeType": "video/mp4",
+        "sender": {
+          "id": "d445102e-cc18-41ec-9325-939f1d274f71",
+          "username": "马",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=马"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-03T06:16:14.475Z",
+        "readBy": [
+          "d445102e-cc18-41ec-9325-939f1d274f71"
+        ]
+      },
+      {
+        "id": "81b02604-8b21-491b-bf2b-a14555a5bdf2",
+        "content": "😺",
+        "type": "text",
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=admin"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-04T01:33:37.242Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "recalled": true
+      },
+      {
+        "id": "52397c65-8704-4a5f-9376-fb3587ad23f4",
+        "type": "dice",
+        "value": 4,
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=admin"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-04T01:51:38.344Z"
+      },
+      {
+        "id": "27500c92-d0b9-47a3-9be9-bfee390deb69",
+        "content": "哈哈哈",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-04T01:56:26.899Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "4bc7521a-8996-422b-a4eb-c56f1b613812",
+        "type": "dice",
+        "value": 2,
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-04T01:56:29.177Z"
+      },
+      {
+        "id": "b34995c2-f2da-45eb-9d39-7130035b4cdb",
+        "type": "rockPaperScissors",
+        "userChoice": "石头",
+        "botChoice": "石头",
+        "result": "平局",
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-04T01:56:41.849Z"
+      },
+      {
+        "id": "6ab452cd-6ddd-4fe2-bec9-9430074c7e77",
+        "type": "poll",
+        "question": "团员选举",
+        "options": [
+          {
+            "text": "崔明慧",
+            "votes": [
+              "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+            ]
+          },
+          {
+            "text": "季培思",
+            "votes": []
+          },
+          {
+            "text": "陈麒安",
+            "votes": []
+          }
+        ],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-04T01:58:42.574Z"
+      },
+      {
+        "id": "9896c782-587c-4c1a-abff-eddba54a0e6c",
+        "content": "",
+        "type": "audio",
+        "fileUrl": "/uploads/1780538343746-a48af07b-58aa-4bc0-b723-cee334b24aa5.webm",
+        "filename": "voice_1780538340002.webm",
+        "fileSize": 53426,
+        "mimeType": "audio/webm",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-04T01:59:04.377Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "e9c2912f-17c5-43be-a5cf-9f75a5326e9f",
+        "content": "👊",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-04T01:59:35.444Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "ace87cf0-8b8f-4f8b-ae97-e1c659766a1a",
+        "type": "redPacket",
+        "amount": 666,
+        "count": 1,
+        "message": "恭喜发财，大吉大利",
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-04T01:59:44.023Z",
+        "claimed": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ],
+        "remaining": 0
+      },
+      {
+        "id": "2fd7f018-85b3-4b1f-a557-111375a95a02",
+        "content": "",
+        "type": "file",
+        "fileUrl": "/uploads/1780538376003-b7ceb853-350b-4c12-a9b4-22015159c251.rar",
+        "filename": "Crack.rar",
+        "fileSize": 1001498,
+        "mimeType": "application/x-compressed",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-04T01:59:57.534Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "ed937064-dc87-4e01-a7dc-42539940ebc3",
+        "type": "redPacket",
+        "amount": 6,
+        "count": 222,
+        "message": "恭喜发财，大吉大利",
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-04T01:59:59.638Z",
+        "claimed": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "remaining": 220
+      },
+      {
+        "id": "10afbed7-d651-4473-8746-39a2f2902bb9",
+        "content": "",
+        "type": "file",
+        "fileUrl": "/uploads/1780538364073-5bb8cd8b-6d21-4899-b942-2e7c6577bc4d.exe",
+        "filename": "Crack.exe",
+        "fileSize": 4049920,
+        "mimeType": "application/x-msdownload",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-04T02:00:47.413Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "c0ca2567-2647-4e91-9b68-f639fd92e970",
+        "content": "666",
+        "type": "text",
+        "replyTo": "10afbed7-d651-4473-8746-39a2f2902bb9",
+        "mentions": [],
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=admin"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-04T02:07:26.147Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "edited": false,
+        "pinned": false
+      }
+    ]
+  },
+  "c38b6b84-71ea-46c2-831b-3b18e17c6808": {
+    "id": "c38b6b84-71ea-46c2-831b-3b18e17c6808",
+    "name": "www.com & admin",
+    "type": "group",
+    "members": [
+      "www.com",
+      "admin"
+    ],
+    "messages": [],
+    "createdBy": "admin",
+    "createdAt": "2026-06-03T02:03:13.379Z"
+  },
+  "15f2b841-9666-4bb8-a12f-40eafc1b1524": {
+    "id": "15f2b841-9666-4bb8-a12f-40eafc1b1524",
+    "name": "www.com",
+    "type": "group",
+    "members": [
+      "admin",
+      "gyyz",
+      "www.com"
+    ],
+    "messages": [
+      {
+        "id": "c7d094f3-9ea8-4b41-b3eb-5d733e1da5fa",
+        "content": "111",
+        "type": "text",
+        "sender": {
+          "id": "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "username": "www.com",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=www.com"
+        },
+        "roomId": "15f2b841-9666-4bb8-a12f-40eafc1b1524",
+        "timestamp": "2026-06-03T02:04:21.773Z",
+        "readBy": [
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239"
+        ]
+      },
+      {
+        "id": "15bfb4da-22ee-48b7-8b48-8afff31de109",
+        "content": "666",
+        "type": "text",
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=admin"
+        },
+        "roomId": "15f2b841-9666-4bb8-a12f-40eafc1b1524",
+        "timestamp": "2026-06-03T02:14:20.637Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ]
+      },
+      {
+        "id": "16bac7d2-d0a4-4d32-8b65-447b5a42adff",
+        "content": "chinaNB",
+        "type": "text",
+        "sender": {},
+        "roomId": "15f2b841-9666-4bb8-a12f-40eafc1b1524",
+        "timestamp": "2026-06-03T03:24:17.775Z",
+        "readBy": [
+          null
+        ]
+      }
+    ],
+    "createdBy": "www.com",
+    "createdAt": "2026-06-03T02:04:16.208Z"
+  },
+  "3f077fe0-8d56-4773-abb9-0ae9f71c8010": {
+    "id": "3f077fe0-8d56-4773-abb9-0ae9f71c8010",
+    "name": "ycx & admin",
+    "type": "group",
+    "members": [
+      "ycx",
+      null
+    ],
+    "messages": [
+      {
+        "id": "4684ad90-ee9f-43f8-a210-526a698931d3",
+        "content": "你好",
+        "type": "text",
+        "sender": {},
+        "roomId": "3f077fe0-8d56-4773-abb9-0ae9f71c8010",
+        "timestamp": "2026-06-03T03:18:03.536Z",
+        "readBy": [
+          null
+        ]
+      },
+      {
+        "id": "b44557df-aeb0-44dc-b4e3-2f981fb9d246",
+        "content": "",
+        "type": "video",
+        "fileUrl": "/uploads/1780456691495-8d0c0e5e-9d6e-4833-a1fc-0e0f832fd5bf.mp4",
+        "filename": "infer_video_666.mp4",
+        "fileSize": 2995647,
+        "mimeType": "video/mp4",
+        "sender": {},
+        "roomId": "3f077fe0-8d56-4773-abb9-0ae9f71c8010",
+        "timestamp": "2026-06-03T03:18:46.280Z",
+        "readBy": [
+          null
+        ]
+      },
+      {
+        "id": "d28a1b4a-7c01-44a7-87b9-7672276f7541",
+        "content": "",
+        "type": "video",
+        "fileUrl": "/uploads/1780456700577-616c89f4-957c-4eaf-8a87-ed6184cec104.mp4",
+        "filename": "infer_video_666.mp4",
+        "fileSize": 2995647,
+        "mimeType": "video/mp4",
+        "sender": {},
+        "roomId": "3f077fe0-8d56-4773-abb9-0ae9f71c8010",
+        "timestamp": "2026-06-03T03:18:52.276Z",
+        "readBy": [
+          null
+        ]
+      },
+      {
+        "id": "e423786a-b260-4ed5-bc8b-9a5840c51bab",
+        "content": "",
+        "type": "video",
+        "fileUrl": "/uploads/1780456705517-1861a3dc-3ea2-4df6-8089-e2ab1cad5f62.mp4",
+        "filename": "infer_video_666.mp4",
+        "fileSize": 2995647,
+        "mimeType": "video/mp4",
+        "sender": {},
+        "roomId": "3f077fe0-8d56-4773-abb9-0ae9f71c8010",
+        "timestamp": "2026-06-03T03:18:52.785Z",
+        "readBy": [
+          null
+        ]
+      },
+      {
+        "id": "e88625a2-dd0c-4cf7-a353-d4b38c452ed9",
+        "content": "【一次拉三辆M1A1坦克，货损会不会坐牢】 https://www.bilibili.com/video/BV1pW596tEpP/?share_source=copy_web&vd_source=9a3a2fc06512e2affab8481e0ada16fc",
+        "type": "text",
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "3f077fe0-8d56-4773-abb9-0ae9f71c8010",
+        "timestamp": "2026-06-03T03:18:55.849Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ]
+      },
+      {
+        "id": "cbc5af41-c4cc-48fd-9275-db74cae937a3",
+        "content": "",
+        "type": "video",
+        "fileUrl": "/uploads/1780456764074-e9870afd-7474-429c-9591-21066d7b2c2a.mp4",
+        "filename": "infer_video_nvidia.mp4",
+        "fileSize": 1160643,
+        "mimeType": "video/mp4",
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "3f077fe0-8d56-4773-abb9-0ae9f71c8010",
+        "timestamp": "2026-06-03T03:19:26.035Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ]
+      },
+      {
+        "id": "1c8e5abe-1c8a-46dc-827b-f1254b89052c",
+        "content": "这是什么",
+        "type": "text",
+        "sender": {
+          "id": "d445102e-cc18-41ec-9325-939f1d274f71",
+          "username": "马",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=马"
+        },
+        "roomId": "3f077fe0-8d56-4773-abb9-0ae9f71c8010",
+        "timestamp": "2026-06-03T06:13:34.216Z",
+        "readBy": [
+          "d445102e-cc18-41ec-9325-939f1d274f71"
+        ]
+      }
+    ],
+    "createdAt": "2026-06-03T03:17:50.328Z"
+  },
+  "9be049cd-32f3-4b74-8ef2-148fcb037a53": {
+    "id": "9be049cd-32f3-4b74-8ef2-148fcb037a53",
+    "name": "admin & ycx",
+    "type": "group",
+    "members": [
+      "admin",
+      "ycx"
+    ],
+    "messages": [
+      {
+        "id": "3f3a7715-dadf-4abd-9956-2b137aec2534",
+        "content": "",
+        "type": "file",
+        "fileUrl": "/uploads/1780457031305-e06bddc7-c995-4244-93c8-f796657ebfd2.rar",
+        "filename": "数据标注244222121杨楚析.rar",
+        "fileSize": 2399838,
+        "mimeType": "application/x-compressed",
+        "sender": {},
+        "roomId": "9be049cd-32f3-4b74-8ef2-148fcb037a53",
+        "timestamp": "2026-06-03T03:23:54.117Z",
+        "readBy": [
+          null
+        ]
+      }
+    ],
+    "createdBy": "ycx",
+    "createdAt": "2026-06-03T03:18:46.427Z"
+  }
+}

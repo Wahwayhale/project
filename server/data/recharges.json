@@ -1,0 +1,11 @@
+{
+  "24af1316-087c-448d-81d0-c05d8446a02a": {
+    "id": "24af1316-087c-448d-81d0-c05d8446a02a",
+    "userId": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+    "username": "admin",
+    "amount": 1,
+    "status": "pending",
+    "createdAt": "2026-06-03T09:20:30.231Z",
+    "confirmedAt": null
+  }
+}

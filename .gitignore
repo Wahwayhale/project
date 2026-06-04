@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Build outputs
+client/build/
+
+# Environment variables (contains secrets)
+.env
+client/.env
+server/.env
+
+# Uploads
+server/uploads/
+server/uploads/chunks/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Binary executables
+*.exe
+cloudflared.exe
+ngrok.exe
