@@ -1,0 +1,30 @@
+# Dependencies
+client/node_modules/
+server/node_modules/
+
+# Build outputs
+client/build/
+
+# Environment variables (contains secrets)
+.env
+client/.env
+server/.env
+
+# Uploads
+server/uploads/
+server/uploads/chunks/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Root level
+node_modules/
+package-lock.json
+*.exe
