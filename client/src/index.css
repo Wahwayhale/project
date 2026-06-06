@@ -3854,11 +3854,27 @@ html.dark .poll-bar {
 
   .main-chat {
     width: 100% !important;
-    height: calc(100vh - 56px) !important;
+    height: calc(100vh - 60px) !important;
+    flex: 0 0 auto !important;
   }
 
   .main-chat.full-view {
     width: 100% !important;
+  }
+
+  .chat-input-area {
+    padding: 8px 12px 16px;
+  }
+
+  .chat-input-wrapper {
+    flex-wrap: wrap;
+  }
+
+  .chat-input-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    margin-bottom: 6px;
   }
 
   .contacts-index {
@@ -3884,6 +3900,11 @@ html.dark .poll-bar {
 
   .app-container.sidebar-hidden .main-chat {
     width: 100% !important;
+  }
+
+  .main-chat {
+    padding-bottom: 60px;
+    min-height: 0;
   }
   
   .mobile-room-list {
