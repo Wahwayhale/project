@@ -6,74 +6,73 @@ $ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ProjectDir
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  自动更新到 GitHub" -ForegroundColor Cyan
+Write-Host "  Auto Push to GitHub" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# 检查 git
+# Check git
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    Write-Host "[错误] 未找到 Git" -ForegroundColor Red
+    Write-Host "[ERROR] Git not found. Please install Git first." -ForegroundColor Red
     pause
     exit 1
 }
 
-# 检查远程仓库
+# Check remote
 $remote = git remote -v
 if (-not $remote) {
-    Write-Host "[错误] 未配置远程仓库" -ForegroundColor Red
-    Write-Host "请先执行: git remote add origin https://github.com/你的用户名/仓库名.git"
+    Write-Host "[ERROR] No remote repository configured." -ForegroundColor Red
+    Write-Host "Run: git remote add origin https://github.com/YOUR_USER/YOUR_REPO.git"
     pause
     exit 1
 }
 
-# 检查变更
+# Check for changes
 $status = git status --porcelain
 if (-not $status) {
-    Write-Host "没有检测到任何变更，无需提交" -ForegroundColor Yellow
+    Write-Host "No changes detected. Nothing to commit." -ForegroundColor Yellow
     pause
     exit 0
 }
 
-# 显示变更
-Write-Host "[1/4] 检测到以下变更:" -ForegroundColor Green
+# Show changes
+Write-Host "[1/4] Detected changes:" -ForegroundColor Green
 git status --short
 Write-Host ""
 
-# 提交信息
+# Commit message
 if ([string]::IsNullOrWhiteSpace($Message)) {
-    $timeStr = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $Message = "update: $timeStr"
+    $Message = "auto-update"
 }
 
-Write-Host "[2/4] 暂存所有变更..." -ForegroundColor Green
+Write-Host "[2/4] Staging changes..." -ForegroundColor Green
 git add -A
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[错误] 暂存失败" -ForegroundColor Red
+    Write-Host "[ERROR] Staging failed" -ForegroundColor Red
     pause
     exit 1
 }
 
-Write-Host "[3/4] 提交变更..." -ForegroundColor Green
+Write-Host "[3/4] Committing..." -ForegroundColor Green
 git commit -m $Message
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[错误] 提交失败" -ForegroundColor Red
+    Write-Host "[ERROR] Commit failed" -ForegroundColor Red
     pause
     exit 1
 }
 
-Write-Host "[4/4] 推送到 GitHub..." -ForegroundColor Green
+Write-Host "[4/4] Pushing to GitHub..." -ForegroundColor Green
 git push
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[错误] 推送失败，请检查网络或权限" -ForegroundColor Red
+    Write-Host "[ERROR] Push failed. Check network or permissions." -ForegroundColor Red
     pause
     exit 1
 }
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  ✅ 成功更新到 GitHub!" -ForegroundColor Green
+Write-Host "  Successfully pushed to GitHub!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "提交信息: $Message" -ForegroundColor Gray
+Write-Host "Commit message: $Message" -ForegroundColor Gray
 Write-Host ""
 pause
