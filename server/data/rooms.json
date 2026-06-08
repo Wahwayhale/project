@@ -1021,5 +1021,29 @@
     "messages": [],
     "createdBy": "admin",
     "createdAt": "2026-06-08T07:15:18.602Z"
+  },
+  "bfd26ff6-a653-4a77-8ba3-baa1eacd7055": {
+    "id": "bfd26ff6-a653-4a77-8ba3-baa1eacd7055",
+    "name": "ycx & admin",
+    "type": "group",
+    "members": [
+      "ycx",
+      "admin"
+    ],
+    "messages": [],
+    "createdBy": "admin",
+    "createdAt": "2026-06-08T07:25:43.289Z"
+  },
+  "f5d1bacf-81bc-4faa-aecc-d0e630df3667": {
+    "id": "f5d1bacf-81bc-4faa-aecc-d0e630df3667",
+    "name": "www.com & admin",
+    "type": "group",
+    "members": [
+      "www.com",
+      "admin"
+    ],
+    "messages": [],
+    "createdBy": "admin",
+    "createdAt": "2026-06-08T07:25:43.806Z"
   }
 }
