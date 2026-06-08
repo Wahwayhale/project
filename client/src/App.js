@@ -223,6 +223,71 @@ function App() {
   // 聊天背景选择
   const [showBgPicker, setShowBgPicker] = useState(false);
 
+  // ===== 新功能状态 =====
+  // 图片查看器
+  const [imageViewer, setImageViewer] = useState(null); // { url, urls[] } or null
+  // 聊天置顶
+  const [pinnedChats, setPinnedChats] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('pinnedChats') || '[]')); } catch { return new Set(); }
+  });
+  // 消息反应
+  const [reactionPicker, setReactionPicker] = useState(null); // { messageId, x, y } or null
+  const REACTION_EMOJIS = ['👍','❤️','😂','😮','😢','😡','🎉','💯','🔥','👏'];
+  // 群接龙
+  const [showSolitaireModal, setShowSolitaireModal] = useState(false);
+  const [solitaireTitle, setSolitaireTitle] = useState('');
+  const [solitaireFormat, setSolitaireFormat] = useState('');
+  const [showSolitaireJoin, setShowSolitaireJoin] = useState(null); // solitaireId or null
+  // AI 摘要
+  const [aiSummary, setAiSummary] = useState(null); // { text } or null
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  // 密码找回
+  const [showResetPw, setShowResetPw] = useState(false);
+  const [resetPwPhone, setResetPwPhone] = useState('');
+  const [resetPwCode, setResetPwCode] = useState('');
+  const [resetPwNewPw, setResetPwNewPw] = useState('');
+  const [resetPwStep, setResetPwStep] = useState(0); // 0=phone, 1=code, 2=newPw
+  const [resetPwCountdown, setResetPwCountdown] = useState(0);
+  // 未读消息数
+  const [unreadCounts, setUnreadCounts] = useState({});
+
+  // ===== 第2代新功能 =====
+  // AI 图片生成
+  const [showImageGen, setShowImageGen] = useState(false);
+  const [genPrompt, setGenPrompt] = useState('');
+  const [genStyle, setGenStyle] = useState('');
+  const [genResult, setGenResult] = useState(null);
+  const [genLoading, setGenLoading] = useState(false);
+  // AI 翻译
+  const [translatingMsg, setTranslatingMsg] = useState(null);
+  const [translations, setTranslations] = useState({});
+  // WebRTC
+  const [callState, setCallState] = useState(null); // { type, roomId, peerId, localStream, remoteStream, status }
+  const peerRef = useRef(null);
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+  // 位置共享
+  const [sharedLocations, setSharedLocations] = useState({});
+  const [isSharingLocation, setIsSharingLocation] = useState(false);
+  const locationWatchId = useRef(null);
+  // 打卡
+  const [checkInData, setCheckInData] = useState(null);
+  const [showCheckIn, setShowCheckIn] = useState(false);
+  const [checkInNote, setCheckInNote] = useState('');
+  const checkInNoteRef = useRef(null);
+  // 增强投票
+  const [pollAnonymous, setPollAnonymous] = useState(false);
+  const [pollDeadline, setPollDeadline] = useState('');
+  const [pollOptionImages, setPollOptionImages] = useState({});
+  // Wrapped
+  const [showWrapped, setShowWrapped] = useState(false);
+  const [wrappedData, setWrappedData] = useState(null);
+  const [wrappedLoading, setWrappedLoading] = useState(false);
+  // Bot
+  const [showBotModal, setShowBotModal] = useState(false);
+  const [bots, setBots] = useState([]);
+  const [botForm, setBotForm] = useState({ name: '', prompt: '', autoReply: false, scheduleCron: '', scheduleMsg: '' });
+
   useEffect(() => {
     localStorage.setItem('chatFontSize', fontSize.toString());
   }, [fontSize]);
@@ -310,7 +375,33 @@ function App() {
     }
     return () => {
       if (socketRef.current) {
+        socketRef.current.off('reactionUpdated');
+        socketRef.current.off('solitaireUpdated');
+        socketRef.current.off('unreadCounts');
+        socketRef.current.off('solitaireError');
+        socketRef.current.off('incomingCall');
+        socketRef.current.off('callAccepted');
+        socketRef.current.off('iceCandidate');
+        socketRef.current.off('callEnded');
+        socketRef.current.off('locationUpdate');
+        socketRef.current.off('locationStopped');
+        socketRef.current.off('locationsList');
+        socketRef.current.off('checkInUpdate');
+        socketRef.current.off('checkInList');
+        socketRef.current.off('checkInError');
         socketRef.current.disconnect();
+      }
+      // 清理位置共享
+      if (locationWatchId.current) {
+        navigator.geolocation?.clearWatch(locationWatchId.current);
+        locationWatchId.current = null;
+      }
+      // 清理通话
+      if (callState?.localStream) {
+        try { callState.localStream.getTracks().forEach(t => t.stop()); } catch(e) {}
+      }
+      if (peerRef.current) {
+        try { peerRef.current.close(); } catch(e) {}
       }
     };
   }, [isAuthenticated, user]);
@@ -404,12 +495,15 @@ function App() {
     if (socketRef.current?.connected) {
       socketRef.current.disconnect();
     }
-    socketRef.current = io(API_URL || window.location.origin, {
-      transports: ['websocket'],
+    const wsUrl = API_URL || window.location.origin;
+    console.log('Socket connecting to:', wsUrl);
+    socketRef.current = io(wsUrl, {
+      transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
-      timeout: 10000
+      reconnectionDelayMax: 5000,
+      timeout: 20000
     });
     socketRef.current.on('connect', () => {
       console.log('Socket connected');
@@ -532,7 +626,7 @@ function App() {
         }
         return msg;
       }));
-      if (userId === socketRef.current?.userId) {
+      if (userId === user?.id) {
         showToast(`抢到红包 ¥${share.toFixed(2)}！`, 'success');
       }
     });
@@ -621,6 +715,82 @@ function App() {
     socketRef.current.on('statsResult', (stats) => {
       setMessageStats(stats);
     });
+
+    // ===== 新功能 Socket 监听 =====
+    // 消息反应更新
+    socketRef.current.on('reactionUpdated', ({ messageId, reactions }) => {
+      setMessages(prev => prev.map(msg =>
+        msg.id === messageId ? { ...msg, reactions } : msg
+      ));
+    });
+
+    // 群接龙更新
+    socketRef.current.on('solitaireUpdated', ({ solitaireId, participants }) => {
+      setMessages(prev => prev.map(msg =>
+        msg.id === solitaireId ? { ...msg, participants } : msg
+      ));
+    });
+
+    // 未读消息计数
+    socketRef.current.on('unreadCounts', (counts) => {
+      setUnreadCounts(counts);
+    });
+
+    // 接龙错误
+    socketRef.current.on('solitaireError', ({ error }) => {
+      showToast(error, 'error');
+    });
+
+    // ===== WebRTC 信令监听 =====
+    socketRef.current.on('incomingCall', ({ from, roomId, signal, callType }) => {
+      setCallState({ type: callType || 'video', status: 'incoming', signal, peerId: from.id, localStream: null, remoteStream: null, roomId, caller: from });
+      showToast(`${from.username} 正在呼叫你...`, 'info');
+    });
+    socketRef.current.on('callAccepted', ({ from, signal }) => {
+      try {
+        if (peerRef.current && peerRef.current.signalingState !== 'closed') {
+          peerRef.current.setRemoteDescription(new RTCSessionDescription(signal)).catch(() => {});
+          setCallState(prev => prev ? { ...prev, status: 'connecting' } : null);
+        }
+      } catch(e) {}
+    });
+    socketRef.current.on('iceCandidate', ({ from, candidate }) => {
+      try {
+        if (peerRef.current && peerRef.current.signalingState !== 'closed' && candidate) {
+          peerRef.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
+        }
+      } catch(e) {}
+    });
+    socketRef.current.on('callEnded', () => {
+      setCallState(prev => {
+        if (!prev) return null;
+        if (prev.localStream) {
+          try { prev.localStream.getTracks().forEach(t => t.stop()); } catch(e) {}
+        }
+        return null;
+      });
+      try { if (peerRef.current) { peerRef.current.close(); peerRef.current = null; } } catch(e) {}
+      showToast('通话已结束', 'info');
+    });
+
+    // ===== 位置 + 打卡监听 =====
+    socketRef.current.on('locationUpdate', ({ userId, username, lat, lng }) => {
+      setSharedLocations(prev => ({ ...prev, [userId]: { lat, lng, username } }));
+    });
+    socketRef.current.on('locationStopped', ({ userId }) => {
+      setSharedLocations(prev => { const n = { ...prev }; delete n[userId]; return n; });
+    });
+    socketRef.current.on('locationsList', (locations) => {
+      const map = {}; locations.forEach(l => { map[l.userId] = l; });
+      setSharedLocations(map);
+    });
+    socketRef.current.on('checkInUpdate', ({ entry, total }) => {
+      showToast(`${entry.username} 打卡成功！今日 ${total} 人已打卡`, 'success');
+    });
+    socketRef.current.on('checkInList', (data) => {
+      setCheckInData(data);
+    });
+    socketRef.current.on('checkInError', ({ error }) => { showToast(error, 'error'); });
   };
 
   const fetchRooms = async () => {
@@ -908,9 +1078,14 @@ function App() {
   const searchUser = async () => {
     if (!searchId.trim()) return;
     try {
-      const response = await axios.get(`${API_URL}/api/users/search/${searchId.trim()}`, {
-        headers: { Authorization: token }
-      });
+      // 支持 6位数字ID 或 用户名搜索
+      const isNumericId = /^\d{6}$/.test(searchId.trim());
+      let response;
+      if (isNumericId) {
+        response = await axios.get(`${API_URL}/api/users/search/${searchId.trim()}`, { headers: { Authorization: token } });
+      } else {
+        response = await axios.get(`${API_URL}/api/users/searchByName/${encodeURIComponent(searchId.trim())}`, { headers: { Authorization: token } });
+      }
       setSearchResult(response.data);
     } catch (err) {
       setSearchResult(null);
@@ -1553,8 +1728,335 @@ function App() {
     setShowQuickReplies(false);
   };
 
+  // 切换聊天置顶
+  const togglePinChat = (roomId, e) => {
+    if (e) e.stopPropagation();
+    setPinnedChats(prev => {
+      const next = new Set(prev);
+      if (next.has(roomId)) {
+        next.delete(roomId);
+        showToast('已取消置顶', 'info');
+      } else {
+        next.add(roomId);
+        showToast('已置顶聊天', 'success');
+      }
+      localStorage.setItem('pinnedChats', JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  // 打开图片查看器
+  const openImageViewer = (url, allUrls) => {
+    setImageViewer({ url, urls: allUrls || [url], index: allUrls ? allUrls.indexOf(url) : 0 });
+  };
+
+  // 图片查看器导航
+  const imageViewerNav = (dir) => {
+    if (!imageViewer?.urls) return;
+    const len = imageViewer.urls.length;
+    const newIdx = ((imageViewer.index || 0) + dir + len) % len;
+    setImageViewer(prev => ({ ...prev, url: prev.urls[newIdx], index: newIdx }));
+  };
+
+  // 下载图片
+  const downloadImage = (url) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = url.split('/').pop() || 'image';
+    a.click();
+  };
+
+  // 消息反应
+  const toggleReaction = (messageId, emoji) => {
+    if (!currentRoomId) return;
+    const msg = messages.find(m => m.id === messageId);
+    if (!msg) return;
+    const hasReacted = msg.reactions?.[emoji]?.includes(user?.id);
+    if (hasReacted) {
+      socketRef.current.emit('removeReaction', { roomId: currentRoomId, messageId, emoji });
+    } else {
+      socketRef.current.emit('addReaction', { roomId: currentRoomId, messageId, emoji });
+    }
+    setReactionPicker(null);
+  };
+
+  // 打开反应选择器
+  const openReactionPicker = (messageId, e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setReactionPicker({ messageId, x: rect.left, y: rect.top - 50 });
+  };
+
+  // AI 摘要
+  const summarizeChat = async () => {
+    if (!currentRoomId || aiSummaryLoading) return;
+    setAiSummaryLoading(true);
+    setAiSummary(null);
+    try {
+      const res = await axios.post(`${API_URL}/api/ai/summarize`,
+        { roomId: currentRoomId, messageCount: 30 },
+        { headers: { Authorization: token } }
+      );
+      setAiSummary({ text: res.data.summary });
+      showToast('AI 摘要完成', 'success');
+    } catch (err) {
+      showToast(err.response?.data?.error || 'AI摘要失败', 'error');
+    } finally {
+      setAiSummaryLoading(false);
+    }
+  };
+
+  // 密码找回流程
+  const handleSendResetCode = async () => {
+    if (!resetPwPhone || !/^1[3-9]\d{9}$/.test(resetPwPhone)) {
+      showToast('请输入正确的手机号', 'error');
+      return;
+    }
+    try {
+      await axios.post(`${API_URL}/api/user/send-reset-code`, { phone: resetPwPhone });
+      setResetPwStep(1);
+      setResetPwCountdown(60);
+      const timer = setInterval(() => {
+        setResetPwCountdown(prev => { if (prev <= 1) { clearInterval(timer); return 0; } return prev - 1; });
+      }, 1000);
+      showToast('验证码已发送', 'success');
+    } catch (err) {
+      showToast(err.response?.data?.error || '发送失败', 'error');
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPwCode || resetPwCode.length !== 6) { showToast('请输入6位验证码', 'error'); return; }
+    if (!resetPwNewPw || resetPwNewPw.length < 3) { showToast('新密码至少3位', 'error'); return; }
+    try {
+      await axios.post(`${API_URL}/api/user/reset-password`, {
+        phone: resetPwPhone, code: resetPwCode, newPassword: resetPwNewPw
+      });
+      showToast('密码重置成功，请登录', 'success');
+      // 重置表单并返回登录
+      setShowResetPw(false);
+      setResetPwPhone(''); setResetPwCode(''); setResetPwNewPw('');
+      setResetPwStep(0); setResetPwCountdown(0);
+      setAuthMode('login');
+    } catch (err) {
+      showToast(err.response?.data?.error || '重置失败', 'error');
+    }
+  };
+
+  // 群接龙
+  const createSolitaire = () => {
+    if (!solitaireTitle.trim() || !currentRoomId) return;
+    socketRef.current.emit('createSolitaire', {
+      roomId: currentRoomId,
+      title: solitaireTitle.trim(),
+      format: solitaireFormat.trim() || '{序号}. {内容}'
+    });
+    setShowSolitaireModal(false);
+    setSolitaireTitle('');
+    setSolitaireFormat('');
+    showToast('接龙已发起', 'success');
+  };
+
+  const joinSolitaire = (solitaireId, content) => {
+    if (!currentRoomId || !content) return;
+    socketRef.current.emit('joinSolitaire', { roomId: currentRoomId, solitaireId, content });
+    setShowSolitaireJoin(null);
+    showToast('已参与接龙', 'success');
+  };
+
   // 切换深色模式
   const toggleDarkMode = () => setDarkMode(prev => !prev);
+
+  // 保存置顶
+  useEffect(() => {
+    localStorage.setItem('pinnedChats', JSON.stringify([...pinnedChats]));
+  }, [pinnedChats]);
+
+  // 获取未读计数
+  useEffect(() => {
+    if (socketRef.current?.connected && isAuthenticated) {
+      socketRef.current.emit('getUnreadCounts');
+      const interval = setInterval(() => {
+        socketRef.current?.emit('getUnreadCounts');
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated]);
+
+  // ===== AI 图片生成 =====
+  const generateImage = async () => {
+    if (!genPrompt.trim() || genLoading) return;
+    setGenLoading(true); setGenResult(null);
+    try {
+      const res = await axios.post(`${API_URL}/api/ai/generate-image`,
+        { prompt: genPrompt.trim(), style: genStyle || '' },
+        { headers: { Authorization: token } }
+      );
+      setGenResult(res.data.imageUrl);
+      showToast('图片生成成功！', 'success');
+    } catch (err) { showToast('生成失败: ' + (err.response?.data?.error || err.message), 'error'); }
+    finally { setGenLoading(false); }
+  };
+
+  const shareGeneratedImage = () => {
+    if (!genResult || !currentRoomId) { showToast('请先选择聊天室', 'error'); return; }
+    socketRef.current.emit('sendMessage', { roomId: currentRoomId, content: '', type: 'image', fileUrl: genResult, filename: 'AI生成图片.jpg', mimeType: 'image/jpeg', fileSize: 0 });
+    setShowImageGen(false); setGenPrompt(''); setGenResult(null);
+    showToast('已分享到聊天', 'success');
+  };
+
+  // ===== 翻译 =====
+  const translateMessage = async (msgId, text) => {
+    if (translations[msgId]) { setTranslations(prev => { const n={...prev}; delete n[msgId]; return n; }); return; }
+    setTranslatingMsg(msgId);
+    try {
+      const res = await axios.post(`${API_URL}/api/ai/translate`, { text, targetLang: 'zh' }, { headers: { Authorization: token } });
+      setTranslations(prev => ({ ...prev, [msgId]: res.data.translation }));
+    } catch (err) { showToast('翻译失败', 'error'); }
+    finally { setTranslatingMsg(null); }
+  };
+
+  // ===== WebRTC 通话 =====
+  const startCall = async (targetUserId, callType) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: true });
+      setCallState({ type: callType, status: 'calling', localStream: stream, remoteStream: null, peerId: targetUserId, roomId: currentRoomId });
+      // Create peer connection
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      pc.onicecandidate = (e) => { if (e.candidate) socketRef.current.emit('iceCandidate', { toUserId: targetUserId, candidate: e.candidate }); };
+      pc.ontrack = (e) => { setCallState(prev => prev ? { ...prev, remoteStream: e.streams[0] } : null); };
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      pc.onconnectionstatechange = () => { if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') hangUp(); };
+      peerRef.current = pc;
+      socketRef.current.emit('callUser', { toUserId: targetUserId, roomId: currentRoomId, signal: offer, callType });
+    } catch (err) { showToast('无法访问摄像头/麦克风', 'error'); }
+  };
+
+  const acceptCall = async () => {
+    if (!callState) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: callState.type === 'video', audio: true });
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      pc.onicecandidate = (e) => { if (e.candidate) socketRef.current.emit('iceCandidate', { toUserId: callState.peerId, candidate: e.candidate }); };
+      pc.ontrack = (e) => { setCallState(prev => prev ? { ...prev, remoteStream: e.streams[0], status: 'connected' } : null); };
+      await pc.setRemoteDescription(new RTCSessionDescription(callState.signal));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socketRef.current.emit('answerCall', { toUserId: callState.peerId, signal: answer });
+      pc.onconnectionstatechange = () => { if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') hangUp(); };
+      peerRef.current = pc;
+      setCallState(prev => prev ? { ...prev, localStream: stream, remoteStream: null, status: 'connecting' } : null);
+    } catch (err) { showToast('无法访问摄像头/麦克风', 'error'); }
+  };
+
+  const hangUp = () => {
+    try {
+      if (peerRef.current) { peerRef.current.close(); peerRef.current = null; }
+    } catch(e) {}
+    if (callState?.localStream) {
+      try { callState.localStream.getTracks().forEach(t => t.stop()); } catch(e) {}
+    }
+    if (callState?.peerId && socketRef.current) {
+      socketRef.current.emit('hangUp', { toUserId: callState.peerId });
+    }
+    setCallState(null);
+  };
+
+  const toggleMute = () => {
+    if (!callState?.localStream) return;
+    try {
+      callState.localStream.getAudioTracks().forEach(t => t.enabled = !t.enabled);
+      setCallState(prev => prev ? { ...prev, muted: !prev.muted } : null);
+    } catch(e) {}
+  };
+
+  // ===== 位置共享 =====
+  const startSharingLocation = () => {
+    if (!currentRoomId) return;
+    if (navigator.geolocation) {
+      locationWatchId.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          socketRef.current.emit('shareLocation', { roomId: currentRoomId, lat: latitude, lng: longitude });
+          setSharedLocations(prev => ({ ...prev, [user?.id]: { lat: latitude, lng: longitude, username: user?.username } }));
+        },
+        (err) => showToast('获取位置失败: ' + err.message, 'error'),
+        { enableHighAccuracy: true, maximumAge: 5000 }
+      );
+      setIsSharingLocation(true);
+      showToast('开始共享位置', 'success');
+    } else { showToast('浏览器不支持定位', 'error'); }
+  };
+
+  const stopSharingLocation = () => {
+    if (locationWatchId.current) { navigator.geolocation.clearWatch(locationWatchId.current); locationWatchId.current = null; }
+    socketRef.current.emit('stopSharingLocation', { roomId: currentRoomId });
+    setIsSharingLocation(false);
+    setSharedLocations({});
+    showToast('已停止位置共享', 'info');
+  };
+
+  const openLocationMap = (lat, lng) => {
+    window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
+  };
+
+  // ===== 打卡 =====
+  const doCheckIn = (note) => {
+    if (!currentRoomId) return;
+    socketRef.current.emit('checkIn', { roomId: currentRoomId, note });
+  };
+
+  const fetchCheckIns = () => {
+    if (!currentRoomId) return;
+    socketRef.current.emit('getCheckIns', { roomId: currentRoomId });
+  };
+
+  // ===== Wrapped =====
+  const fetchWrapped = async () => {
+    setWrappedLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/api/stats/yearly`, { headers: { Authorization: token } });
+      setWrappedData(res.data);
+      setShowWrapped(true);
+    } catch (err) { showToast('获取统计失败', 'error'); }
+    finally { setWrappedLoading(false); }
+  };
+
+  // ===== Bot =====
+  const fetchBots = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/api/bots`, { headers: { Authorization: token } });
+      setBots(res.data);
+    } catch (err) { /* ignore */ }
+  };
+
+  const createBot = async () => {
+    if (!botForm.name.trim()) { showToast('请输入机器人名称', 'error'); return; }
+    try {
+      const schedule = botForm.scheduleCron ? { cron: botForm.scheduleCron, message: botForm.scheduleMsg || '定时消息' } : null;
+      await axios.post(`${API_URL}/api/bots`, { ...botForm, schedule }, { headers: { Authorization: token } });
+      setShowBotModal(false); setBotForm({ name: '', prompt: '', autoReply: false, scheduleCron: '', scheduleMsg: '' });
+      fetchBots(); showToast('机器人已创建', 'success');
+    } catch (err) { showToast(err.response?.data?.error || '创建失败', 'error'); }
+  };
+
+  const deleteBot = async (botId) => {
+    try {
+      await axios.delete(`${API_URL}/api/bots/${botId}`, { headers: { Authorization: token } });
+      fetchBots(); showToast('机器人已删除', 'success');
+    } catch (err) { showToast('删除失败', 'error'); }
+  };
+
+  // ===== 增强投票 =====
+  const createEnhancedPoll = () => {
+    if (!pollQuestion || pollOptions.filter(o => o.trim()).length < 2 || !currentRoomId) return;
+    const opts = pollOptions.filter(o => o.trim()).map((text, i) => ({ text, image: pollOptionImages[i] || null }));
+    socketRef.current.emit('createPollEnhanced', { roomId: currentRoomId, question: pollQuestion, options: opts, anonymous: pollAnonymous, deadline: pollDeadline || null });
+    setShowPollModal(false); setPollQuestion(''); setPollOptions(['', '']); setPollAnonymous(false); setPollDeadline(''); setPollOptionImages({});
+    showToast('投票已创建', 'success');
+  };
 
   // 设置聊天背景
   const setChatBackground = (bg) => {
@@ -1759,6 +2261,11 @@ function App() {
                 <>已有账号？<a onClick={() => setAuthMode('login')}>登录</a></>
               )}
             </div>
+            {authMode === 'login' && (
+              <span className="forgot-pw-link" onClick={() => { setShowResetPw(true); setResetPwStep(0); setResetPwPhone(''); setResetPwCode(''); setResetPwNewPw(''); }}>
+                忘记密码？
+              </span>
+            )}
           </form>
         </div>
       </div>
@@ -1771,7 +2278,10 @@ function App() {
         <div className="sidebar-header">
           <div className="user-info" onClick={() => setShowProfileModal(true)} style={{ cursor: 'pointer' }}>
             <img src={getAvatarUrl(user?.avatar)} alt="" />
-            <span>{user?.username}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>{user?.username}</span>
+              <span style={{ fontSize: 10, opacity: 0.7 }}>ID: {user?.sixDigitId || '...'}</span>
+            </div>
           </div>
            <div className="header-actions">
             <button className="icon-btn" onClick={handleLogout} title="退出登录">🚪</button>
@@ -1791,27 +2301,49 @@ function App() {
           </div>
         </div>
         <div className="room-list">
-          <div className="room-list-header" style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
+          <div className="room-list-header" style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.3px' }}>
             {rooms?.filter(r => r.type !== 'private')?.length || 0} 个聊天
           </div>
-          {rooms?.filter(r => r.type !== 'private')?.filter(room =>
-            !searchQuery || room.name?.toLowerCase().includes(searchQuery.toLowerCase())
-          )?.map(room => (
-            <div
-              key={room.id}
-              className={`room-item ${currentRoomId === room.id ? 'active' : ''}`}
-              onClick={() => handleRoomClick(room)}
-            >
-              <div className="avatar" style={{ width: 42, height: 42, borderRadius: 8, background: '#07c160', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18 }}>{(room.name || '群')[0]}</div>
-              <div className="room-info">
-                <div className="room-name">{room.name}</div>
-                <div className="last-message">{formatMessagePreview(room.lastMessage)}</div>
-              </div>
-              {room.lastMessage?.timestamp && (
-                <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>
-              )}
-            </div>
-          ))}
+          {(() => {
+            const filteredRooms = rooms?.filter(r => r.type !== 'private')?.filter(room =>
+              !searchQuery || room.name?.toLowerCase().includes(searchQuery.toLowerCase())
+            ) || [];
+            const pinnedList = filteredRooms.filter(r => pinnedChats.has(r.id));
+            const unpinnedList = filteredRooms.filter(r => !pinnedChats.has(r.id));
+            return (
+              <>
+                {pinnedList.length > 0 && <div className="pinned-divider">📌 置顶聊天</div>}
+                {pinnedList.map(room => (
+                  <div key={room.id} className={`room-item pinned-chat ${currentRoomId === room.id ? 'active' : ''}`} onClick={() => handleRoomClick(room)}>
+                    <div className="avatar" style={{ width: 42, height: 42, borderRadius: 8, background: 'var(--primary-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18, fontWeight: 700 }}>{(room.name || '群')[0]}</div>
+                    <div className="room-info">
+                      <div className="room-name">{room.name}</div>
+                      <div className="last-message">{formatMessagePreview(room.lastMessage)}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                      {room.lastMessage?.timestamp && <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>}
+                      {unreadCounts[room.id] > 0 && currentRoomId !== room.id && <span className="unread-badge">{unreadCounts[room.id]}</span>}
+                    </div>
+                    <button className="room-pin-btn" onClick={(e) => togglePinChat(room.id, e)} title="取消置顶">📌</button>
+                  </div>
+                ))}
+                {unpinnedList.map(room => (
+                  <div key={room.id} className={`room-item ${currentRoomId === room.id ? 'active' : ''}`} onClick={() => handleRoomClick(room)}>
+                    <div className="avatar" style={{ width: 42, height: 42, borderRadius: 8, background: 'var(--primary-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18, fontWeight: 700 }}>{(room.name || '群')[0]}</div>
+                    <div className="room-info">
+                      <div className="room-name">{room.name}</div>
+                      <div className="last-message">{formatMessagePreview(room.lastMessage)}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                      {room.lastMessage?.timestamp && <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>}
+                      {unreadCounts[room.id] > 0 && currentRoomId !== room.id && <span className="unread-badge">{unreadCounts[room.id]}</span>}
+                    </div>
+                    <button className="room-pin-btn" onClick={(e) => togglePinChat(room.id, e)} title="置顶聊天">📌</button>
+                  </div>
+                ))}
+              </>
+            );
+          })()}
           {(!rooms || rooms.filter(r => r.type !== 'private').length === 0) && (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>
               <div style={{ fontSize: 36, marginBottom: 12 }}>💬</div>
@@ -1927,6 +2459,30 @@ function App() {
                 </div>
                 <span className="discover-arrow">›</span>
               </div>
+              <div className="discover-item" onClick={() => setShowImageGen(true)}>
+                <div className="discover-icon" style={{ background: '#ec4899' }}>🎨</div>
+                <div className="discover-info">
+                  <div className="discover-title">AI 图片生成</div>
+                  <div className="discover-desc">描述你想要的图片，一键生成并分享</div>
+                </div>
+                <span className="discover-arrow">›</span>
+              </div>
+              <div className="discover-item" onClick={() => { setShowBotModal(true); fetchBots(); }}>
+                <div className="discover-icon" style={{ background: '#8b5cf6' }}>🤖</div>
+                <div className="discover-info">
+                  <div className="discover-title">聊天机器人</div>
+                  <div className="discover-desc">创建自定义自动回复机器人</div>
+                </div>
+                <span className="discover-arrow">›</span>
+              </div>
+              <div className="discover-item" onClick={fetchWrapped}>
+                <div className="discover-icon" style={{ background: '#f59e0b' }}>📊</div>
+                <div className="discover-info">
+                  <div className="discover-title">年度聊天报告</div>
+                  <div className="discover-desc">{wrappedLoading ? '加载中...' : '查看你的聊天数据统计'}</div>
+                </div>
+                <span className="discover-arrow">›</span>
+              </div>
               <div className="discover-item" onClick={() => setShowBackupModal(true)}>
                 <div className="discover-icon" style={{ background: '#00b5ad' }}>💾</div>
                 <div className="discover-info">
@@ -1994,17 +2550,17 @@ function App() {
               <button className="back-btn" onClick={() => { setView('chats'); setBottomTab('discover'); }}>← 返回</button>
               <h3>🤖 AI 助手</h3>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>余额: ¥{balance.toFixed(2)}</span>
-                <button onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }} className="header-btn" title="充值">💰</button>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>余额: ¥{balance.toFixed(2)}</span>
+                <button onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }} className="header-btn" title="充值" style={{ fontSize: 14, padding: '4px 10px' }}>💰</button>
                 {user?.username === 'admin' && (
-                  <button onClick={() => { setShowAdminModal(true); fetchPendingRecharges(); }} className="header-btn" title="管理">👑</button>
+                  <button onClick={() => { setShowAdminModal(true); fetchPendingRecharges(); }} className="header-btn" title="管理" style={{ fontSize: 14, padding: '4px 10px' }}>👑</button>
                 )}
-                <button onClick={resetAiChat} className="header-btn" title="新对话">🔄</button>
+                <button onClick={resetAiChat} className="header-btn" title="新对话" style={{ fontSize: 14, padding: '4px 10px' }}>🔄</button>
               </div>
             </div>
             <div className="ai-model-selector" style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>模型：</label>
-              <select value={aiModel} onChange={(e) => setAiModel(e.target.value)} style={{ flex: 1, padding: '4px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 4, background: 'white', maxWidth: 200 }}>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>模型：</label>
+              <select value={aiModel} onChange={(e) => setAiModel(e.target.value)} style={{ flex: 1, padding: '6px 10px', fontSize: 13, border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', maxWidth: 220, outline: 'none', cursor: 'pointer' }}>
                 {aiModels.map(m => (
                   <option key={m.id} value={m.id}>{m.name} {m.free ? '🆓' : '💎'}</option>
                 ))}
@@ -2041,9 +2597,9 @@ function App() {
               )}
               <div ref={aiMessagesEndRef} />
             </div>
-            <div className="ai-input-area" style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, background: 'var(--bg-card)' }}>
-              <textarea className="ai-input" placeholder="输入问题，Enter发送，Shift+Enter换行" value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={handleAiKeyPress} disabled={aiLoading} rows={2} style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 14, resize: 'none', outline: 'none' }} />
-              <button className="ai-send-button" onClick={sendAiMessage} disabled={!aiInput.trim() || aiLoading} style={{ padding: '8px 20px', background: aiInput.trim() && !aiLoading ? 'var(--primary)' : '#ccc', color: 'white', border: 'none', borderRadius: 8, cursor: aiInput.trim() && !aiLoading ? 'pointer' : 'default', fontSize: 14, alignSelf: 'flex-end' }}>{aiLoading ? '思考中' : '发送'}</button>
+            <div className="ai-input-area">
+              <textarea className="ai-input" placeholder="输入问题，Enter发送，Shift+Enter换行" value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={handleAiKeyPress} disabled={aiLoading} rows={2} />
+              <button className="ai-send-button" onClick={sendAiMessage} disabled={!aiInput.trim() || aiLoading}>{aiLoading ? '💭 思考中' : '发送'}</button>
             </div>
           </div>
         ) : view === 'video' ? (
@@ -2053,10 +2609,10 @@ function App() {
               <button className="back-btn" onClick={() => { setView('chats'); setBottomTab('discover'); }}>← 返回</button>
               <h3>📺 B站视频</h3>
             </div>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
               <form onSubmit={searchBilibili} style={{ display: 'flex', gap: 8 }}>
-                <input type="text" placeholder="搜索B站视频..." value={bilibiliQuery} onChange={e => setBilibiliQuery(e.target.value)} style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 14, outline: 'none' }} />
-                <button type="submit" style={{ padding: '8px 16px', background: '#ff6b35', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13 }} disabled={bilibiliLoading}>{bilibiliLoading ? '搜索中' : '搜索'}</button>
+                <input type="text" placeholder="搜索B站视频..." value={bilibiliQuery} onChange={e => setBilibiliQuery(e.target.value)} style={{ flex: 1, padding: '10px 14px', border: '2px solid var(--border)', borderRadius: 10, fontSize: 14, outline: 'none', background: 'var(--bg)', transition: 'border-color 0.2s' }} />
+                <button type="submit" style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #fb7299, #f472b6)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 14, fontWeight: 700 }} disabled={bilibiliLoading}>{bilibiliLoading ? '搜索中' : '搜索'}</button>
               </form>
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -2072,16 +2628,18 @@ function App() {
                   <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
                     <div>👤 {selectedBiliVideo.author} · ▶ {selectedBiliVideo.play}次 · ⏱ {selectedBiliVideo.duration}</div>
                   </div>
-                  <button onClick={() => shareBilibiliToChat(selectedBiliVideo)} style={{ padding: '8px 16px', background: '#07c160', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', width: '100%', fontSize: 14 }}>分享到聊天</button>
+                  <button onClick={() => shareBilibiliToChat(selectedBiliVideo)} style={{ padding: '10px 20px', background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', width: '100%', fontSize: 15, fontWeight: 700 }}>📤 分享到聊天</button>
                 </div>
               ) : bilibiliResults.length > 0 ? (
                 bilibiliResults.map((video, idx) => (
-                  <div key={idx} onClick={() => setSelectedBiliVideo(video)} style={{ display: 'flex', padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', gap: 10 }}>
-                    <img src={video.pic} alt={video.title} style={{ width: 120, height: 68, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
+                  <div key={idx} onClick={() => setSelectedBiliVideo(video)} style={{ display: 'flex', padding: '10px 16px', borderBottom: '1px solid var(--border-light)', cursor: 'pointer', gap: 10, transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <img src={video.pic} alt={video.title} style={{ width: 120, height: 68, objectFit: 'cover', borderRadius: 6, flexShrink: 0, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{video.title}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{video.title}</div>
                       <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{video.author}</div>
-                      <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>▶ {video.play} · {video.duration}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>▶ {video.play} · {video.duration}</div>
                     </div>
                   </div>
                 ))
@@ -2097,12 +2655,42 @@ function App() {
             <div className="chat-header">
               <h3>{currentRoom.name}</h3>
               <div className="header-tools">
+                <button className="ai-summary-btn-inline" onClick={summarizeChat} disabled={aiSummaryLoading} title="AI摘要">
+                  {aiSummaryLoading ? '⏳' : '🤖'}
+                </button>
+                <button onClick={() => setShowImageGen(true)} title="AI图片生成" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 16 }}>🎨</button>
+                <button onClick={isSharingLocation ? stopSharingLocation : startSharingLocation} title={isSharingLocation ? '停止位置共享' : '共享位置'} style={{ background: isSharingLocation ? 'var(--danger)' : 'var(--bg)', color: isSharingLocation ? 'white' : 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 16 }}>
+                  📍
+                </button>
+                <button onClick={() => { setShowCheckIn(true); fetchCheckIns(); }} title="打卡签到" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 16 }}>✅</button>
+                {!currentRoom?.type?.includes('group') && currentRoom?.members?.filter(m => m !== user?.username).length > 0 && (
+                  <button onClick={() => {
+                    const otherUser = allUsers.find(u => currentRoom.members.includes(u.username) && u.username !== user?.username);
+                    if (otherUser) startCall(otherUser.id, 'video');
+                  }} title="视频通话" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 16 }}>📹</button>
+                )}
                 <button onClick={() => setShowSearch(s => !s)} title="搜索消息">
                   {showSearch ? '✕' : '🔍'}
                 </button>
                 <div className="online-badge">在线</div>
               </div>
             </div>
+            {/* AI 摘要结果 */}
+            {aiSummary && (
+              <div className="summary-flash">
+                <div className="sflash-top">
+                  <span className="sflash-title">🤖 AI 聊天摘要</span>
+                  <button className="sflash-close" onClick={() => setAiSummary(null)}>✕</button>
+                </div>
+                <div className="sflash-body">{aiSummary.text}</div>
+              </div>
+            )}
+            {aiSummaryLoading && (
+              <div className="summary-loading">
+                <div className="ai-typing"><span></span><span></span><span></span></div>
+                <span>AI 正在分析聊天记录...</span>
+              </div>
+            )}
             {showSearch && (
               <div className="message-search-bar">
                 <input
@@ -2163,7 +2751,7 @@ function App() {
                         {msg.edited && <span className="edited-tag">（已编辑）</span>}
                       </div>
                     )}
-                    {msg.type === 'image' && <img className="media" src={msg.fileUrl} alt="" onClick={() => window.open(msg.fileUrl)} />}
+                    {msg.type === 'image' && <img className="media" src={msg.fileUrl} alt="" onClick={() => openImageViewer(msg.fileUrl, messages.filter(m => m.type === 'image').map(m => m.fileUrl))} />}
                     {msg.type === 'video' && (
                       <video className="media" src={msg.fileUrl} controls onClick={() => window.open(msg.fileUrl)} />
                     )}
@@ -2200,7 +2788,7 @@ function App() {
                           <div className="red-packet-detail">
                             {msg.remaining > 0 ? `还剩${msg.remaining}个红包` : '红包已被领完'}
                           </div>
-                          {msg.claimed && msg.claimed.includes(socketRef.current?.userId) && (
+                          {msg.claimed && msg.claimed.includes(user?.id) && (
                             <div className="claimed-badge">已领取</div>
                           )}
                         </div>
@@ -2209,11 +2797,13 @@ function App() {
                     {msg.type === 'poll' && (
                       <div className="poll-message">
                         <div className="poll-title">📊 {msg.question}</div>
-                        {msg.options.map((opt, i) => {
+                        {msg.anonymous && <div className="poll-anon-badge">🔒 匿名投票</div>}
+                        {msg.deadline && <div className="poll-deadline">⏰ 截止: {new Date(msg.deadline).toLocaleString()}</div>}
+                        {(msg.options || []).map((opt, i) => {
                           const totalVotes = msg.options.reduce((sum, o) => sum + (o.votes?.length || 0), 0);
                           const voteCount = opt.votes?.length || 0;
                           const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
-                          const hasVoted = msg.options.some(o => o.votes?.includes(socketRef.current?.userId));
+                          const hasVoted = msg.options.some(o => o.votes?.includes(user?.id));
                           return (
                             <div key={i} className="poll-option" onClick={() => !hasVoted && votePoll(msg.id, i)}>
                               <div className="poll-option-text">{opt.text}</div>
@@ -2251,6 +2841,38 @@ function App() {
                     {msg.type === 'announcement' && (
                       <div className="announcement-message">📢 {msg.content}</div>
                     )}
+                    {msg.type === 'solitaire' && (
+                      <div className="solitaire-card">
+                        <div className="solitaire-top">
+                          <span className="solitaire-emoji">🐉</span>
+                          <div>
+                            <div className="solitaire-name">{msg.title}</div>
+                            <div className="solitaire-hint">{msg.format || '{序号}. {内容}'}</div>
+                          </div>
+                        </div>
+                        {msg.participants && msg.participants.length > 0 && (
+                          <div className="solitaire-list">
+                            {msg.participants.map((p, i) => (
+                              <div key={i} className="solitaire-entry">
+                                <span className="solitaire-num">{p.index}</span>
+                                <span style={{ fontWeight: 600, fontSize: 12 }}>{p.username}</span>
+                                <span style={{ color: 'var(--text-secondary)' }}>{p.content}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {!msg.participants?.find(p => p.userId === user?.id) ? (
+                          <button className="solitaire-join" onClick={() => {
+                            const content = prompt('请输入你的接龙内容：');
+                            if (content) joinSolitaire(msg.id, content);
+                          }}>+ 参与接龙</button>
+                        ) : (
+                          <div style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
+                            ✅ 已参与（{(msg.participants || []).length}人）
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {(() => {
                       const bvid = parseBilibiliUrl(msg.content);
                       if (!bvid) return null;
@@ -2279,32 +2901,92 @@ function App() {
                       ) : contentToRender}
                     </div>
                     {!msg.recalled && (
-                      <div className="message-actions">
-                        {isMine && (
-                          <>
-                            <button onClick={() => recallMessage(msg.id)} title="撤回消息">↩️</button>
-                            <button onClick={() => startEditMessage(msg)} title="编辑消息">✏️</button>
-                          </>
+                      <>
+                        {/* 消息反应显示 */}
+                        {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                          <div className="reaction-bar">
+                            {Object.entries(msg.reactions).map(([emoji, userIds]) => (
+                              <span
+                                key={emoji}
+                                className={`reaction-tag ${(userIds || []).includes(user?.id) ? 'me' : ''}`}
+                                onClick={() => toggleReaction(msg.id, emoji)}
+                              >
+                                {emoji} <span className="rcount">{(userIds || []).length}</span>
+                              </span>
+                            ))}
+                          </div>
                         )}
-                        <button onClick={() => startReply(msg)} title="引用回复">💬</button>
-                        <button onClick={() => openForwardModal(msg)} title="转发">📤</button>
-                        <button onClick={() => toggleStarMessage(msg.id)} title={isStarred ? '取消收藏' : '收藏'}>
-                          {isStarred ? '⭐' : '☆'}
-                        </button>
-                        <button onClick={() => togglePinMessage(msg.id)} title={isPinned ? '取消置顶' : '置顶'}>
-                          {isPinned ? '📌' : '📍'}
-                        </button>
-                      </div>
+                        <div className="message-actions">
+                          {isMine && (
+                            <>
+                              <button onClick={() => recallMessage(msg.id)} title="撤回消息">↩️</button>
+                              <button onClick={() => startEditMessage(msg)} title="编辑消息">✏️</button>
+                            </>
+                          )}
+                          <button onClick={(e) => openReactionPicker(msg.id, e)} title="表情回应">😊</button>
+                          <button onClick={() => startReply(msg)} title="引用回复">💬</button>
+                          <button onClick={() => openForwardModal(msg)} title="转发">📤</button>
+                          <button onClick={() => toggleStarMessage(msg.id)} title={isStarred ? '取消收藏' : '收藏'}>
+                            {isStarred ? '⭐' : '☆'}
+                          </button>
+                          <button onClick={() => togglePinMessage(msg.id)} title={isPinned ? '取消置顶' : '置顶'}>
+                            {isPinned ? '📌' : '📍'}
+                          </button>
+                        </div>
+                      </>
                     )}
                     <div className="message-footer">
                       <div className="time">{formatTime(msg.timestamp)}</div>
                       {readInfo && <div className="read-info">{readInfo}</div>}
                     </div>
+                    {/* 翻译按钮 */}
+                    {!isMine && msg.type === 'text' && msg.content && !msg.recalled && (
+                      <span className="translate-badge" onClick={() => translateMessage(msg.id, msg.content)}>
+                        {translatingMsg === msg.id ? '⏳' : translations[msg.id] ? '原文' : '🌐 翻译'}
+                      </span>
+                    )}
+                    {translations[msg.id] && (
+                      <div className="translated-text">{translations[msg.id]}</div>
+                    )}
+                    {/* 位置消息 */}
+                    {msg.type === 'location' && (
+                      <div className="location-bubble" onClick={() => openLocationMap(msg.lat, msg.lng)}>
+                        <div className="loc-header"><span className="loc-icon">📍</span><span className="loc-user">{msg.sender?.username}</span></div>
+                        <div className="loc-coords">{msg.lat?.toFixed(4)}, {msg.lng?.toFixed(4)}</div>
+                        <div className="location-map-preview">🗺️</div>
+                      </div>
+                    )}
+                    {/* 打卡消息 */}
+                    {msg.type === 'checkIn' && (
+                      <div className="checkin-card">
+                        <div className="checkin-day">✅ {new Date(msg.timestamp).toLocaleDateString('zh-CN')}</div>
+                        <div className="checkin-count">{msg.sender?.username} 打卡{msg.note ? `：${msg.note}` : ''}</div>
+                      </div>
+                    )}
+                    {/* 已读回执头像 */}
+                    {isMine && msg.readBy && msg.readBy.length > 1 && (
+                      <div className="read-avatars-row">
+                        {msg.readBy.slice(0, 5).filter(uid => uid !== user?.id).map(uid => {
+                          const u = allUsers.find(x => x.id === uid);
+                          return u ? <img key={uid} className="read-avatar-mini" src={getAvatarUrl(u.avatar)} alt="" title={u.username} /> : null;
+                        })}
+                        {msg.readBy.length - 1 > 5 && <span className="read-more-hint">+{msg.readBy.length - 6}</span>}
+                      </div>
+                    )}
                   </div>
                 </div>
                 );
               })}
               {typingUser && <div className="typing-indicator">{typingUser} 正在输入...</div>}
+              {/* 反应选择器 */}
+              {reactionPicker && (
+                <div className="reaction-picker-popup" style={{ position: 'fixed', top: reactionPicker.y, left: reactionPicker.x, zIndex: 1000 }}>
+                  {REACTION_EMOJIS.map(emoji => (
+                    <button key={emoji} onClick={() => toggleReaction(reactionPicker.messageId, emoji)}>{emoji}</button>
+                  ))}
+                  <button onClick={() => setReactionPicker(null)} style={{ fontSize: 14 }}>✕</button>
+                </div>
+              )}
               <div ref={setMessageEndRef} />
             </div>
             <div className="chat-input-area">
@@ -2340,6 +3022,7 @@ function App() {
                   <button onClick={() => setShowGameModal(true)} title="猜拳">✊</button>
                   <button onClick={() => setShowRedPacketModal(true)} title="红包">🧧</button>
                   <button onClick={() => setShowPollModal(true)} title="投票">📊</button>
+                  <button onClick={() => setShowSolitaireModal(true)} title="群接龙">🐉</button>
                   <button onClick={() => setShowMusicModal(true)} title="音乐">🎵</button>
                   <input
                     type="file"
@@ -2416,23 +3099,37 @@ function App() {
               </div>
             </div>
             <div className="room-list" style={{ flex: 1, overflowY: 'auto' }}>
-              <div className="room-list-header" style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
+              <div className="room-list-header" style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
                 {rooms?.filter(r => r.type !== 'private')?.length || 0} 个聊天
               </div>
-              {rooms?.filter(r => r.type !== 'private')?.filter(room =>
-                !searchQuery || room.name?.toLowerCase().includes(searchQuery.toLowerCase())
-              )?.map(room => (
-                <div key={room.id} className={`room-item ${currentRoomId === room.id ? 'active' : ''}`} onClick={() => handleRoomClick(room)}>
-                  <div className="avatar" style={{ width: 48, height: 48, borderRadius: 10, background: '#07c160', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 20 }}>{(room.name || '群')[0]}</div>
-                  <div className="room-info">
-                    <div className="room-name">{room.name}</div>
-                    <div className="last-message">{formatMessagePreview(room.lastMessage)}</div>
-                  </div>
-                  {room.lastMessage?.timestamp && (
-                    <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>
-                  )}
-                </div>
-              ))}
+              {(() => {
+                const filtered = rooms?.filter(r => r.type !== 'private')?.filter(room =>
+                  !searchQuery || room.name?.toLowerCase().includes(searchQuery.toLowerCase())
+                ) || [];
+                const pinned = filtered.filter(r => pinnedChats.has(r.id));
+                const unpinned = filtered.filter(r => !pinnedChats.has(r.id));
+                return (
+                  <>
+                    {pinned.length > 0 && <div className="pinned-divider">📌 置顶聊天</div>}
+                    {[...pinned, ...unpinned].map(room => {
+                      const isPinned = pinnedChats.has(room.id);
+                      return (
+                        <div key={room.id} className={`room-item ${isPinned ? 'pinned-chat' : ''} ${currentRoomId === room.id ? 'active' : ''}`} onClick={() => handleRoomClick(room)}>
+                          <div className="avatar" style={{ width: 48, height: 48, borderRadius: 10, background: 'var(--primary-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 20, fontWeight: 700 }}>{(room.name || '群')[0]}</div>
+                          <div className="room-info">
+                            <div className="room-name">{room.name}</div>
+                            <div className="last-message">{formatMessagePreview(room.lastMessage)}</div>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                            {room.lastMessage?.timestamp && <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>}
+                            {unreadCounts[room.id] > 0 && currentRoomId !== room.id && <span className="unread-badge">{unreadCounts[room.id]}</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                );
+              })()}
               {(!rooms || rooms.filter(r => r.type !== 'private').length === 0) && (
                 <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>
                   <div style={{ fontSize: 36, marginBottom: 12 }}>💬</div>
@@ -2767,10 +3464,15 @@ function App() {
         <div className="modal-overlay" onClick={() => { setShowSearchModal(false); setSearchId(''); setSearchResult(null); }}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>添加好友</h3>
+            <div style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--primary-bg)', borderRadius: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
+              💡 我的ID：<strong style={{ color: 'var(--primary)', fontSize: 16, letterSpacing: 3 }}>{user?.sixDigitId}</strong>
+              <span style={{ marginLeft: 8, cursor: 'pointer', color: 'var(--primary)' }}
+                onClick={() => { navigator.clipboard?.writeText(user?.sixDigitId || ''); showToast('ID已复制', 'success'); }}>📋复制</span>
+            </div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
               <input
                 type="text"
-                placeholder="输入6位好友ID"
+                placeholder="输入好友用户名或6位ID"
                 value={searchId}
                 onChange={(e) => setSearchId(e.target.value)}
                 maxLength={6}
@@ -2908,25 +3610,22 @@ function App() {
         <div className="modal-overlay" onClick={() => setShowPollModal(false)}>
           <div className="modal poll-modal" onClick={e => e.stopPropagation()}>
             <h3>📊 发起投票</h3>
-            <div className="form-group">
-              <label>投票主题</label>
-              <input type="text" value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} placeholder="输入投票主题" />
-            </div>
+            <div className="form-group"><label>投票主题</label><input type="text" value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} placeholder="输入投票主题" /></div>
             <div className="form-group">
               <label>选项</label>
               {pollOptions.map((opt, i) => (
                 <div key={i} className="poll-option-row">
                   <input type="text" value={opt} onChange={e => updatePollOption(i, e.target.value)} placeholder={`选项 ${i + 1}`} />
-                  {pollOptions.length > 2 && (
-                    <button className="remove-option" onClick={() => removePollOption(i)}>✕</button>
-                  )}
+                  {pollOptions.length > 2 && <button className="remove-option" onClick={() => removePollOption(i)}>✕</button>}
                 </div>
               ))}
               <button className="add-option" onClick={addPollOption}>+ 添加选项</button>
             </div>
+            <div className="form-group"><label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={pollAnonymous} onChange={e => setPollAnonymous(e.target.checked)} style={{ width: 'auto' }} /> 匿名投票</label></div>
+            <div className="form-group"><label>截止时间（可选）</label><input type="datetime-local" value={pollDeadline} onChange={e => setPollDeadline(e.target.value)} /></div>
             <div className="modal-buttons">
               <button className="cancel" onClick={() => setShowPollModal(false)}>取消</button>
-              <button className="confirm" onClick={createPoll}>发起投票</button>
+              <button className="confirm" onClick={createEnhancedPoll}>发起投票</button>
             </div>
           </div>
         </div>
@@ -3134,6 +3833,249 @@ function App() {
         </div>
       )}
 
+      {/* ===== 图片查看器 ===== */}
+      {imageViewer && (
+        <div className="image-viewer-overlay" onClick={() => setImageViewer(null)}>
+          <button className="image-viewer-close" onClick={() => setImageViewer(null)}>✕</button>
+          {imageViewer.urls?.length > 1 && (
+            <>
+              <button className="image-viewer-nav prev" onClick={(e) => { e.stopPropagation(); imageViewerNav(-1); }}>‹</button>
+              <button className="image-viewer-nav next" onClick={(e) => { e.stopPropagation(); imageViewerNav(1); }}>›</button>
+            </>
+          )}
+          <div className="image-viewer-content" onClick={e => e.stopPropagation()}>
+            <img src={imageViewer.url} alt="" />
+          </div>
+          <div className="image-viewer-tools">
+            <button onClick={() => downloadImage(imageViewer.url)}>💾 下载</button>
+            {imageViewer.urls?.length > 1 && (
+              <button disabled>{(imageViewer.index || 0) + 1} / {imageViewer.urls.length}</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== 群接龙弹窗 ===== */}
+      {showSolitaireModal && (
+        <div className="modal-overlay" onClick={() => setShowSolitaireModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>🐉 发起群接龙</h3>
+            <div className="form-group">
+              <label>接龙主题</label>
+              <input type="text" value={solitaireTitle} onChange={e => setSolitaireTitle(e.target.value)} placeholder="例如：今天吃什么？" />
+            </div>
+            <div className="form-group">
+              <label>接龙格式（可选）</label>
+              <input type="text" value={solitaireFormat} onChange={e => setSolitaireFormat(e.target.value)} placeholder="{序号}. {内容}" />
+            </div>
+            <div className="modal-buttons">
+              <button className="cancel" onClick={() => setShowSolitaireModal(false)}>取消</button>
+              <button className="confirm" onClick={createSolitaire}>发起接龙</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 密码找回弹窗 ===== */}
+      {showResetPw && (
+        <div className="modal-overlay" onClick={() => setShowResetPw(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+            <h3>🔑 找回密码</h3>
+            {resetPwStep === 0 && (
+              <>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>输入绑定的手机号，获取验证码</p>
+                <input type="tel" placeholder="请输入手机号" value={resetPwPhone} onChange={e => setResetPwPhone(e.target.value.replace(/\D/g, ''))} maxLength={11} style={{ width: '100%', marginBottom: 12 }} />
+                <div className="modal-buttons">
+                  <button className="cancel" onClick={() => setShowResetPw(false)}>取消</button>
+                  <button className="confirm" onClick={handleSendResetCode}>获取验证码</button>
+                </div>
+              </>
+            )}
+            {resetPwStep === 1 && (
+              <>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, textAlign: 'center' }}>
+                  验证码已发送至 <strong>{resetPwPhone.slice(0,3)}****{resetPwPhone.slice(7)}</strong>
+                </p>
+                <div className="code-grid">
+                  {[0,1,2,3,4,5].map(i => (
+                    <div key={i} className={`cdigit ${resetPwCode.length > i ? 'on' : ''}`}>{resetPwCode[i] || ''}</div>
+                  ))}
+                </div>
+                <input type="text" inputMode="numeric" maxLength={6} value={resetPwCode}
+                  onChange={e => { const v = e.target.value.replace(/\D/g, '').slice(0, 6); setResetPwCode(v); if (v.length === 6) setResetPwStep(2); }}
+                  style={{ width: '100%', padding: '10px 0', fontSize: 18, letterSpacing: 10, textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', position: 'absolute', opacity: 0 }} autoFocus />
+                <div style={{ textAlign: 'center', marginTop: 12 }}>
+                  {resetPwCountdown > 0 ? (
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{resetPwCountdown}s 后重新获取</span>
+                  ) : (
+                    <button onClick={handleSendResetCode} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: 13 }}>重新获取</button>
+                  )}
+                </div>
+                <div className="modal-buttons">
+                  <button className="cancel" onClick={() => setShowResetPw(false)}>取消</button>
+                  <button className="confirm" disabled={resetPwCode.length !== 6} onClick={() => setResetPwStep(2)}>下一步</button>
+                </div>
+              </>
+            )}
+            {resetPwStep === 2 && (
+              <>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>设置新密码（至少3位）</p>
+                <input type="password" placeholder="请输入新密码" value={resetPwNewPw}
+                  onChange={e => setResetPwNewPw(e.target.value)}
+                  style={{ width: '100%', marginBottom: 12 }} autoFocus />
+                <div className="modal-buttons">
+                  <button className="cancel" onClick={() => setShowResetPw(false)}>取消</button>
+                  <button className="confirm" onClick={handleResetPassword}>重置密码</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== AI 图片生成弹窗 ===== */}
+      {showImageGen && (
+        <div className="modal-overlay" onClick={() => setShowImageGen(false)}>
+          <div className="modal ai-image-modal" onClick={e => e.stopPropagation()}>
+            <h3>🎨 AI 图片生成</h3>
+            <div className="form-group"><label>描述词</label><textarea value={genPrompt} onChange={e => setGenPrompt(e.target.value)} placeholder="描述你想生成的图片，例如：a cat wearing sunglasses" rows={2} /></div>
+            <div className="form-group"><label>风格（可选）</label><input type="text" value={genStyle} onChange={e => setGenStyle(e.target.value)} placeholder="例如：anime style, watercolor, realistic" /></div>
+            {genResult && (
+              <div className="image-gen-result">
+                <img src={genResult} alt="生成结果" />
+                <div className="image-gen-actions">
+                  <button className="gen-share-btn" onClick={shareGeneratedImage}>📤 发送到聊天</button>
+                  <button className="gen-retry-btn" onClick={() => setGenResult(null)}>🔄 重新生成</button>
+                </div>
+              </div>
+            )}
+            <div className="modal-buttons">
+              <button className="cancel" onClick={() => { setShowImageGen(false); setGenResult(null); }}>关闭</button>
+              {!genResult && <button className="confirm" onClick={generateImage} disabled={genLoading || !genPrompt.trim()}>{genLoading ? '生成中...' : '生成图片'}</button>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 打卡签到弹窗 ===== */}
+      {showCheckIn && (
+        <div className="modal-overlay" onClick={() => setShowCheckIn(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+            <h3>✅ 每日打卡</h3>
+            {checkInData && (
+              <div style={{ marginBottom: 12 }}>
+                <div className="checkin-card">
+                  <div className="checkin-day">{new Date().toLocaleDateString('zh-CN')}</div>
+                  <div className="checkin-count">今日已打卡: {checkInData.today.length} 人</div>
+                </div>
+                {checkInData.today.length > 0 && (
+                  <div className="checkin-leaderboard" style={{ marginTop: 10 }}>
+                    {checkInData.today.map((c, i) => (
+                      <div key={i} className="lb-row">
+                        <span className={`lb-rank ${i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : ''}`} style={i > 2 ? { background: '#e5e7eb', color: '#6b7280' } : {}}>{i + 1}</span>
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>{c.username}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 'auto' }}>{new Date(c.timestamp).toLocaleTimeString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="form-group"><label>打卡备注（可选）</label><input type="text" value={checkInNote} onChange={e => setCheckInNote(e.target.value)} placeholder="今天做什么了？" /></div>
+            <div className="modal-buttons">
+              <button className="cancel" onClick={() => { setShowCheckIn(false); setCheckInNote(''); }}>关闭</button>
+              <button className="confirm" onClick={() => { doCheckIn(checkInNote); setCheckInNote(''); }}>打卡</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 年度报告弹窗 ===== */}
+      {showWrapped && wrappedData && (
+        <div className="modal-overlay" onClick={() => setShowWrapped(false)}>
+          <div className="modal wrapped-modal" onClick={e => e.stopPropagation()}>
+            <div className="wrapped-hero">📊</div>
+            <h3>你的聊天年度报告</h3>
+            <div className="wrapped-stat"><div className="wstat-num">{wrappedData.total}</div><div className="wstat-label">📨 总消息数</div></div>
+            <div className="wrapped-stat"><div className="wstat-num">{wrappedData.totalSent}</div><div className="wstat-label">📤 发送 / 📥 {wrappedData.totalReceived} 接收</div></div>
+            <div className="wrapped-stat"><div className="wstat-num">{wrappedData.activeHour}:00</div><div className="wstat-label">🕐 最活跃时间段</div></div>
+            {wrappedData.topFriend && (
+              <div className="wrapped-friend">
+                <span>❤️ 最亲密好友：</span><strong>{wrappedData.topFriend.name}</strong>
+                <span style={{ marginLeft: 'auto', color: 'var(--text-secondary)', fontSize: 12 }}>{wrappedData.topFriend.count} 条消息</span>
+              </div>
+            )}
+            <div className="modal-buttons">
+              <button className="confirm" onClick={() => setShowWrapped(false)}>知道了</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Bot 管理弹窗 ===== */}
+      {showBotModal && (
+        <div className="modal-overlay" onClick={() => setShowBotModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460, maxHeight: '80vh', overflowY: 'auto' }}>
+            <h3>🤖 聊天机器人</h3>
+            {bots.map(bot => (
+              <div key={bot.id} className="bot-card">
+                <div className="bot-info">
+                  <div className="bot-name">🤖 {bot.name}</div>
+                  <div className="bot-status">{bot.autoReply ? '自动回复中' : '已关闭回复'} {bot.schedule ? `| ⏰ ${bot.schedule.cron}` : ''}</div>
+                </div>
+                <button onClick={() => deleteBot(bot.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>🗑️</button>
+              </div>
+            ))}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
+              <div className="form-group"><label>机器人名称</label><input type="text" value={botForm.name} onChange={e => setBotForm(f => ({ ...f, name: e.target.value }))} placeholder="例如：早安助手" /></div>
+              <div className="form-group"><label>人设提示词</label><textarea value={botForm.prompt} onChange={e => setBotForm(f => ({ ...f, prompt: e.target.value }))} placeholder="你是一个友好的早安助手..." rows={2} /></div>
+              <div className="form-group"><label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={botForm.autoReply} onChange={e => setBotForm(f => ({ ...f, autoReply: e.target.checked }))} style={{ width: 'auto' }} /> 自动回复群聊消息</label></div>
+            </div>
+            <div className="modal-buttons">
+              <button className="cancel" onClick={() => setShowBotModal(false)}>关闭</button>
+              <button className="confirm" onClick={createBot}>创建机器人</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== WebRTC 通话界面 ===== */}
+      {callState && callState.status && callState.status !== 'incoming' && (
+        <div className="call-overlay">
+          <div className="call-remote-video">
+            {callState.remoteStream ? (
+              <video ref={el => { if (el && callState?.remoteStream) { try { el.srcObject = callState.remoteStream; el.play().catch(() => {}); } catch(e) {} } }} autoPlay playsInline />
+            ) : (
+              <div className="call-waiting">
+                {(callState.status === 'calling' || callState.status === 'connecting') ? (callState.status === 'calling' ? '📞 正在呼叫...' : '🔗 连接中...') : '📞'}
+              </div>
+            )}
+          </div>
+          {callState.localStream && (
+            <div className="call-local-video">
+              <video ref={el => { if (el && callState?.localStream) { try { el.srcObject = callState.localStream; el.play().catch(() => {}); } catch(e) {} } }} autoPlay playsInline muted />
+            </div>
+          )}
+          <div className="call-controls">
+            <button className="call-btn mute" onClick={toggleMute}>{callState?.muted ? '🔇' : '🎤'}</button>
+            <button className="call-btn hangup" onClick={hangUp}>📴</button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 来电提醒 ===== */}
+      {callState && callState.status === 'incoming' && (
+        <div className="call-incoming-overlay">
+          <div style={{ fontSize: 36, marginBottom: 8 }}>📞</div>
+          <div style={{ fontWeight: 700 }}>{callState.caller?.username} 邀请你{callState.type === 'video' ? '视频' : '语音'}通话</div>
+          <div className="call-incoming-actions">
+            <button className="call-btn hangup" onClick={hangUp} style={{ width: 48, height: 48 }}>📴</button>
+            <button className="call-btn" onClick={acceptCall} style={{ background: '#10b981', color: 'white', width: 48, height: 48, boxShadow: '0 4px 16px rgba(16,185,129,0.4)' }}>📞</button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Toast ===== */}
       {toast && (
         <div className={`toast toast-${toast.type}`}>
           {toast.type === 'success' && '✅ '}

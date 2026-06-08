@@ -25,18 +25,6 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Serve frontend build as static files
-const clientBuildPath = path.join(__dirname, '..', 'client', 'build');
-if (fs.existsSync(clientBuildPath)) {
-  app.use(express.static(clientBuildPath));
-  // SPA fallback: serve index.html for all non-API routes
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api') && !req.path.startsWith('/socket.io') && !req.path.startsWith('/uploads')) {
-      res.sendFile(path.join(clientBuildPath, 'index.html'));
-    }
-  });
-}
-
 const JWT_SECRET = 'wechat-secret-key-2024';
 const PORT = 3001;
 
@@ -178,6 +166,9 @@ app.get('/api/users/search/:sixDigitId', verifyToken, (req, res) => {
   }
   const userFriends = friends.get(req.user.id) || [];
   const isFriend = userFriends.includes(user.username);
+  // 检查是否已发送好友请求
+  const targetRequests = friendRequests.get(user.id) || [];
+  const requestSent = targetRequests.includes(req.user.username);
   res.json({
     id: user.id,
     username: user.username,
@@ -185,7 +176,31 @@ app.get('/api/users/search/:sixDigitId', verifyToken, (req, res) => {
     sixDigitId: user.sixDigitId,
     bio: user.bio,
     online: onlineUsers.has(user.id),
-    isFriend
+    isFriend,
+    requestSent
+  });
+});
+
+// 按用户名搜索
+app.get('/api/users/searchByName/:username', verifyToken, (req, res) => {
+  const { username } = req.params;
+  const user = users.get(username);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  const userFriends = friends.get(req.user.id) || [];
+  const isFriend = userFriends.includes(user.username);
+  const targetRequests = friendRequests.get(user.id) || [];
+  const requestSent = targetRequests.includes(req.user.username);
+  res.json({
+    id: user.id,
+    username: user.username,
+    avatar: user.avatar,
+    sixDigitId: user.sixDigitId,
+    bio: user.bio,
+    online: onlineUsers.has(user.id),
+    isFriend,
+    requestSent
   });
 });
 
@@ -1263,6 +1278,83 @@ app.get('/api/user/phone', verifyToken, (req, res) => {
   });
 });
 
+// ========== 密码找回 ==========
+app.post('/api/user/send-reset-code', (req, res) => {
+  const { phone } = req.body;
+  if (!phone || !isValidPhone(phone)) {
+    return res.status(400).json({ error: '请输入正确的手机号' });
+  }
+  const user = Array.from(users.values()).find(u => u.phone === phone);
+  if (!user) {
+    return res.status(404).json({ error: '该手机号未绑定任何账号' });
+  }
+  const existing = verificationCodes.get(phone);
+  if (existing && Date.now() < existing.expiresAt - 4 * 60 * 1000) {
+    return res.status(429).json({ error: '请 60 秒后再试' });
+  }
+  const code = generateCode();
+  verificationCodes.set(phone, { code, expiresAt: Date.now() + 5 * 60 * 1000, userId: user.id });
+  sendSms(phone, code).catch(err => console.error('短信发送失败:', err.message));
+  res.json({ success: true, message: '验证码已发送' });
+});
+
+app.post('/api/user/reset-password', async (req, res) => {
+  const { phone, code, newPassword } = req.body;
+  if (!phone || !code || !newPassword) {
+    return res.status(400).json({ error: '缺少参数' });
+  }
+  if (newPassword.length < 3) {
+    return res.status(400).json({ error: '密码至少3位' });
+  }
+  const user = Array.from(users.values()).find(u => u.phone === phone);
+  if (!user) {
+    return res.status(404).json({ error: '该手机号未绑定任何账号' });
+  }
+  const stored = verificationCodes.get(phone);
+  if (!stored || stored.code !== code || Date.now() > stored.expiresAt) {
+    return res.status(400).json({ error: '验证码错误或已过期' });
+  }
+  user.password = await bcrypt.hash(newPassword, 10);
+  users.set(user.username, user);
+  verificationCodes.delete(phone);
+  res.json({ success: true, message: '密码已重置，请使用新密码登录' });
+});
+
+// ========== AI 聊天摘要 ==========
+app.post('/api/ai/summarize', verifyToken, (req, res) => {
+  const { roomId, messageCount } = req.body;
+  if (!roomId) return res.status(400).json({ error: '缺少房间ID' });
+  const room = rooms.get(roomId);
+  if (!room) return res.status(404).json({ error: '聊天室不存在' });
+  const count = Math.min(messageCount || 30, 100);
+  const recentMessages = room.messages.slice(-count);
+  const chatText = recentMessages
+    .filter(m => m.type === 'text' && !m.recalled)
+    .map(m => `${m.sender?.username || '匿名'}: ${m.content}`)
+    .join('\n');
+  if (!chatText || chatText.trim().length < 10) return res.status(400).json({ error: '消息太少，无法生成摘要。请先发送一些消息再试。' });
+  const messages = [
+    { role: 'system', content: '你是一个聊天记录总结助手。请用简洁的中文总结以下聊天记录，包含：1)主要话题 2)关键决定/结论 3)参与人员。用要点形式列出，不超过300字。' },
+    { role: 'user', content: `总结以下聊天记录：\n${chatText}` }
+  ];
+  // Try ZHIPU first, fallback to Pollinations
+  if (ZHIPU_API_KEY) {
+    return callAI(messages, 'glm-4-flash', (err, json) => {
+      if (!err && json?.choices?.[0]?.message?.content) {
+        return res.json({ summary: json.choices[0].message.content, model: 'glm-4-flash' });
+      }
+      callPollinations(messages, (err2, result) => {
+        if (err2) return res.status(500).json({ error: 'AI摘要失败' });
+        res.json({ summary: result.reply, model: 'pollinations' });
+      });
+    });
+  }
+  callPollinations(messages, (err, result) => {
+    if (err) return res.status(500).json({ error: 'AI摘要失败' });
+    res.json({ summary: result.reply, model: 'pollinations' });
+  });
+});
+
 // ========== 头像上传 ==========
 app.post('/api/upload/avatar', verifyToken, upload.single('avatar'), (req, res) => {
   if (!req.file) {
@@ -1275,6 +1367,204 @@ app.post('/api/upload/avatar', verifyToken, upload.single('avatar'), (req, res) 
   }
   res.json({ avatar: `/uploads/${req.file.filename}` });
 });
+
+// ========== AI 图片生成 ==========
+app.post('/api/ai/generate-image', verifyToken, (req, res) => {
+  const { prompt, style } = req.body || {};
+  if (!prompt || typeof prompt !== 'string') {
+    return res.status(400).json({ error: '请输入图片描述词' });
+  }
+  const fullPrompt = `${prompt} ${style || ''}`.trim();
+
+  // Lorem Flickr: 免费、无需 key、支持搜索词
+  const imageUrl = `https://loremflickr.com/512/512/${encodeURIComponent(prompt)}?random=${Date.now()}`;
+  res.json({
+    imageUrl,
+    prompt: fullPrompt,
+    provider: 'loremflickr'
+  });
+});
+
+// ========== AI 翻译 ==========
+app.post('/api/ai/translate', verifyToken, (req, res) => {
+  const { text, targetLang } = req.body || {};
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: '请输入要翻译的文字' });
+  }
+  const lang = targetLang || 'zh';
+  const langNames = { zh: '中文', en: '英文', ja: '日文', ko: '韩文', fr: '法文', de: '德文', es: '西班牙文', ru: '俄文', ar: '阿拉伯文', pt: '葡萄牙文' };
+  const langName = langNames[lang] || lang;
+  const messages = [
+    { role: 'system', content: `你是一个翻译助手。将用户输入的文字翻译成${langName}。只输出翻译结果，不要加任何解释。` },
+    { role: 'user', content: text }
+  ];
+  const doTranslate = () => {
+    if (ZHIPU_API_KEY) {
+      return callAI(messages, 'glm-4-flash', (err, json) => {
+        if (!err && json?.choices?.[0]?.message?.content) {
+          return res.json({ translation: json.choices[0].message.content, source: text, targetLang: lang });
+        }
+        callPollinations(messages, (err2, result) => {
+          if (err2) return res.status(500).json({ error: '翻译失败' });
+          res.json({ translation: result.reply, source: text, targetLang: lang });
+        });
+      });
+    }
+    callPollinations(messages, (err, result) => {
+      if (err) return res.status(500).json({ error: '翻译失败' });
+      res.json({ translation: result.reply, source: text, targetLang: lang });
+    });
+  };
+  doTranslate();
+});
+
+// ========== 年度统计 ==========
+app.get('/api/stats/yearly', verifyToken, (req, res) => {
+  const userId = req.user.id;
+  const username = req.user.username;
+  let totalSent = 0, totalReceived = 0;
+  const byType = {}, byHour = {}, byFriend = {}, byDay = {};
+  rooms.forEach(room => {
+    // 只统计用户参与的聊天室
+    if (!room.members || !room.members.includes(username)) return;
+    room.messages.forEach(m => {
+      if (m.recalled || m.isBot) return;
+      const d = new Date(m.timestamp);
+      const hour = d.getHours();
+      const day = d.toDateString();
+      byHour[hour] = (byHour[hour] || 0) + 1;
+      byDay[day] = (byDay[day] || 0) + 1;
+      if (m.sender?.id === userId) {
+        totalSent++;
+        byType[m.type || 'text'] = (byType[m.type || 'text'] || 0) + 1;
+      } else if (m.sender?.username) {
+        totalReceived++;
+        byFriend[m.sender.username] = (byFriend[m.sender.username] || 0) + 1;
+      }
+    });
+  });
+  const topFriend = Object.entries(byFriend).sort((a,b) => b[1] - a[1])[0];
+  const topHour = Object.entries(byHour).sort((a,b) => b[1] - a[1])[0];
+  const mostType = Object.entries(byType).sort((a,b) => b[1] - a[1])[0];
+  const activeDays = Object.keys(byDay).length;
+  res.json({
+    totalSent, totalReceived, total: totalSent + totalReceived,
+    topFriend: topFriend ? { name: topFriend[0], count: topFriend[1] } : { name: '暂无', count: 0 },
+    activeHour: topHour ? parseInt(topHour[0]) : 9,
+    activeDays: activeDays || 1,
+    favoriteType: mostType ? mostType[0] : 'text',
+    byType, byHour, byFriend
+  });
+});
+
+// ========== Bot 系统 ==========
+const bots = new Map(); // botId -> { id, name, ownerId, ownerName, prompt, commands, enabled, createdAt }
+const botTimers = new Map(); // botId -> interval timer
+
+// 获取用户的机器人
+app.get('/api/bots', verifyToken, (req, res) => {
+  const userBots = Array.from(bots.values()).filter(b => b.ownerId === req.user.id);
+  res.json(userBots);
+});
+
+// 创建机器人
+app.post('/api/bots', verifyToken, (req, res) => {
+  const { name, prompt, autoReply, schedule } = req.body || {};
+  if (!name) return res.status(400).json({ error: '机器人名称不能为空' });
+  const bot = {
+    id: uuidv4(),
+    name,
+    prompt: prompt || '你是一个友好的聊天助手',
+    autoReply: autoReply || false,
+    schedule: schedule || null, // { cron: '0 9 * * *', message: '早上好！' }
+    enabled: true,
+    ownerId: req.user.id,
+    ownerName: req.user.username,
+    createdAt: new Date()
+  };
+  bots.set(bot.id, bot);
+  // 自动加入全局聊天室
+  const globalRoom = rooms.get('global');
+  if (globalRoom && !globalRoom.members.includes(bot.name)) {
+    globalRoom.members.push(bot.name);
+    rooms.set('global', globalRoom);
+  }
+  // Start scheduled messages if configured
+  if (bot.schedule) startBotSchedule(bot);
+  res.json(bot);
+});
+
+// 删除机器人
+app.delete('/api/bots/:botId', verifyToken, (req, res) => {
+  const bot = bots.get(req.params.botId);
+  if (!bot || bot.ownerId !== req.user.id) return res.status(404).json({ error: '机器人不存在' });
+  stopBotSchedule(bot.id);
+  bots.delete(bot.id);
+  res.json({ success: true });
+});
+
+// 机器人自动回复（被socket事件触发）
+function triggerBotReply(bot, roomId, triggerMessage) {
+  if (!bot.enabled) return;
+  const messages = [
+    { role: 'system', content: bot.prompt },
+    { role: 'user', content: triggerMessage }
+  ];
+  const reply = (text) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const msg = {
+      id: uuidv4(), type: 'text', content: text,
+      sender: { id: bot.id, username: bot.name, avatar: null },
+      roomId, timestamp: new Date(), readBy: [], isBot: true
+    };
+    room.messages.push(msg);
+    rooms.set(roomId, room);
+    io.to(roomId).emit('newMessage', msg);
+  };
+  if (ZHIPU_API_KEY) {
+    callAI(messages, 'glm-4-flash', (err, json) => {
+      if (!err && json?.choices?.[0]?.message?.content) {
+        reply(`🤖 ${json.choices[0].message.content}`);
+      } else {
+        reply(`🤖 你好！我是 ${bot.name}，主人暂时不在，我来陪你聊天~`);
+      }
+    });
+  } else {
+    callPollinations(messages, (err, result) => {
+      if (!err) reply(`🤖 ${result.reply}`);
+      else reply(`🤖 你好！我是 ${bot.name}~`);
+    });
+  }
+}
+
+function startBotSchedule(bot) {
+  if (!bot.schedule) return;
+  // Simple interval-based scheduling (每分钟检查)
+  const timer = setInterval(() => {
+    const now = new Date();
+    const [min, hour] = (bot.schedule.cron || '').split(' ').slice(0, 2);
+    if (parseInt(min) === now.getMinutes() && parseInt(hour) === now.getHours()) {
+      const globalRoom = rooms.get('global');
+      if (globalRoom) {
+        const msg = {
+          id: uuidv4(), type: 'text', content: `🤖 ${bot.schedule.message || '定时消息'}`,
+          sender: { id: bot.id, username: bot.name, avatar: null },
+          roomId: 'global', timestamp: new Date(), readBy: [], isBot: true
+        };
+        globalRoom.messages.push(msg);
+        rooms.set('global', globalRoom);
+        io.to('global').emit('newMessage', msg);
+      }
+    }
+  }, 60000);
+  botTimers.set(bot.id, timer);
+}
+
+function stopBotSchedule(botId) {
+  const timer = botTimers.get(botId);
+  if (timer) { clearInterval(timer); botTimers.delete(botId); }
+}
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
@@ -1310,6 +1600,19 @@ io.on('connection', (socket) => {
     if (room) {
       socket.join(roomId);
       socket.currentRoom = roomId;
+      // Auto mark all as read when joining room
+      let hasUnread = false;
+      room.messages.forEach(msg => {
+        if (!msg.readBy) msg.readBy = [];
+        if (!msg.readBy.includes(socket.userId)) {
+          msg.readBy.push(socket.userId);
+          hasUnread = true;
+        }
+      });
+      if (hasUnread) {
+        rooms.set(roomId, room);
+        io.to(roomId).emit('allMessagesRead', { roomId, userId: socket.userId });
+      }
       socket.emit('joinedRoom', { roomId, messages: room.messages.slice(-100) });
     }
   });
@@ -1349,8 +1652,23 @@ io.on('connection', (socket) => {
       room.messages = room.messages.slice(-500);
     }
     rooms.set(roomId, room);
+    rooms.save(); // 立即持久化
     io.to(roomId).emit('newMessage', message);
-    
+
+    // 触发房间内的自动回复机器人（限频：每个bot每10秒最多回复一次）
+    try {
+      const now = Date.now();
+      bots.forEach(bot => {
+        if (bot.enabled && bot.autoReply && message.sender?.id !== bot.id) {
+          const lastReply = bot._lastReplyTime || 0;
+          if (now - lastReply > 10000) {
+            bot._lastReplyTime = now;
+            triggerBotReply(bot, roomId, message.content || '[非文本消息]');
+          }
+        }
+      });
+    } catch(e) { console.error('Bot trigger error:', e.message); }
+
     // 通知被@的用户
     if (mentions && mentions.length > 0) {
       mentions.forEach(mentionId => {
@@ -1404,6 +1722,7 @@ io.on('connection', (socket) => {
     if (!room) return;
     const msg = room.messages.find(m => m.id === messageId);
     if (!msg) return;
+    if (!msg.readBy) msg.readBy = [];
     if (!msg.readBy.includes(socket.userId)) {
       msg.readBy.push(socket.userId);
       rooms.set(roomId, room);
@@ -1416,6 +1735,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(roomId);
     if (!room) return;
     room.messages.forEach(msg => {
+      if (!msg.readBy) msg.readBy = [];
       if (!msg.readBy.includes(socket.userId)) {
         msg.readBy.push(socket.userId);
       }
@@ -1784,6 +2104,193 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ===== 消息反应 =====
+  socket.on('addReaction', ({ roomId, messageId, emoji }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const msg = room.messages.find(m => m.id === messageId);
+    if (!msg) return;
+    if (!msg.reactions) msg.reactions = {};
+    if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
+    if (!msg.reactions[emoji].includes(socket.userId)) {
+      msg.reactions[emoji].push(socket.userId);
+    }
+    rooms.set(roomId, room);
+    io.to(roomId).emit('reactionUpdated', { messageId, reactions: msg.reactions });
+  });
+
+  socket.on('removeReaction', ({ roomId, messageId, emoji }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const msg = room.messages.find(m => m.id === messageId);
+    if (!msg || !msg.reactions || !msg.reactions[emoji]) return;
+    msg.reactions[emoji] = msg.reactions[emoji].filter(id => id !== socket.userId);
+    if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji];
+    rooms.set(roomId, room);
+    io.to(roomId).emit('reactionUpdated', { messageId, reactions: msg.reactions || {} });
+  });
+
+  // ===== 群接龙 =====
+  socket.on('createSolitaire', ({ roomId, title, format }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const solitaire = {
+      id: uuidv4(),
+      type: 'solitaire',
+      title,
+      format: format || '{序号}. {内容}',
+      participants: [],
+      sender: { id: socket.userId, username: socket.username, avatar: users.get(socket.username)?.avatar },
+      roomId,
+      timestamp: new Date()
+    };
+    room.messages.push(solitaire);
+    rooms.set(roomId, room);
+    io.to(roomId).emit('newMessage', solitaire);
+  });
+
+  socket.on('joinSolitaire', ({ roomId, solitaireId, content }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const solitaire = room.messages.find(m => m.id === solitaireId);
+    if (!solitaire || solitaire.type !== 'solitaire') return;
+    if (solitaire.participants.find(p => p.userId === socket.userId)) {
+      socket.emit('solitaireError', { error: '你已经接过龙了' });
+      return;
+    }
+    const participant = {
+      userId: socket.userId,
+      username: socket.username,
+      avatar: users.get(socket.username)?.avatar,
+      content,
+      index: solitaire.participants.length + 1,
+      timestamp: new Date()
+    };
+    solitaire.participants.push(participant);
+    rooms.set(roomId, room);
+    io.to(roomId).emit('solitaireUpdated', { solitaireId, participants: solitaire.participants });
+  });
+
+  // ===== WebRTC 信令 =====
+  socket.on('callUser', ({ toUserId, roomId, signal, callType }) => {
+    const targetSocket = userSockets.get(toUserId);
+    if (targetSocket) {
+      targetSocket.emit('incomingCall', {
+        from: { id: socket.userId, username: socket.username, avatar: users.get(socket.username)?.avatar },
+        roomId, signal, callType: callType || 'video'
+      });
+    }
+  });
+
+  socket.on('answerCall', ({ toUserId, signal }) => {
+    const targetSocket = userSockets.get(toUserId);
+    if (targetSocket) {
+      targetSocket.emit('callAccepted', { from: socket.userId, signal });
+    }
+  });
+
+  socket.on('iceCandidate', ({ toUserId, candidate }) => {
+    const targetSocket = userSockets.get(toUserId);
+    if (targetSocket) {
+      targetSocket.emit('iceCandidate', { from: socket.userId, candidate });
+    }
+  });
+
+  socket.on('hangUp', ({ toUserId }) => {
+    const targetSocket = userSockets.get(toUserId);
+    if (targetSocket) {
+      targetSocket.emit('callEnded', { from: socket.userId });
+    }
+  });
+
+  // ===== 位置共享 =====
+  const locationShares = new Map(); // userId -> { lat, lng, roomId, timestamp }
+  socket.on('shareLocation', ({ roomId, lat, lng }) => {
+    locationShares.set(socket.userId, { lat, lng, roomId, timestamp: new Date(), username: socket.username });
+    io.to(roomId).emit('locationUpdate', {
+      userId: socket.userId, username: socket.username, lat, lng, timestamp: new Date()
+    });
+  });
+
+  socket.on('stopSharingLocation', ({ roomId }) => {
+    locationShares.delete(socket.userId);
+    io.to(roomId).emit('locationStopped', { userId: socket.userId });
+  });
+
+  socket.on('getLocations', ({ roomId }) => {
+    const locations = [];
+    locationShares.forEach((v, k) => {
+      if (v.roomId === roomId) locations.push({ userId: k, ...v });
+    });
+    socket.emit('locationsList', locations);
+  });
+
+  // ===== 打卡签到 =====
+  const checkIns = new Map(); // roomId -> [{ userId, username, timestamp, note }]
+  socket.on('checkIn', ({ roomId, note }) => {
+    if (!checkIns.has(roomId)) checkIns.set(roomId, []);
+    const today = new Date().toDateString();
+    const list = checkIns.get(roomId);
+    if (list.find(c => c.userId === socket.userId && new Date(c.timestamp).toDateString() === today)) {
+      socket.emit('checkInError', { error: '今天已打卡' });
+      return;
+    }
+    const entry = { userId: socket.userId, username: socket.username, timestamp: new Date(), note: note || '' };
+    list.push(entry);
+    checkIns.set(roomId, list);
+    io.to(roomId).emit('checkInUpdate', { roomId, entry, total: list.filter(c => new Date(c.timestamp).toDateString() === today).length });
+  });
+
+  socket.on('getCheckIns', ({ roomId }) => {
+    const list = checkIns.get(roomId) || [];
+    const today = new Date().toDateString();
+    socket.emit('checkInList', {
+      today: list.filter(c => new Date(c.timestamp).toDateString() === today),
+      history: list.slice(-50)
+    });
+  });
+
+  // ===== 增强投票 (覆盖原有 createPoll) =====
+  socket.on('createPollEnhanced', ({ roomId, question, options, anonymous, deadline, image }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const poll = {
+      id: uuidv4(),
+      type: 'poll',
+      question,
+      options: options.map(opt => ({ text: opt.text || opt, votes: [], image: opt.image || null })),
+      sender: { id: socket.userId, username: socket.username, avatar: users.get(socket.username)?.avatar },
+      roomId, timestamp: new Date(),
+      anonymous: anonymous || false,
+      deadline: deadline || null, // ISO string
+      totalVoters: 0
+    };
+    room.messages.push(poll);
+    rooms.set(roomId, room);
+    io.to(roomId).emit('newMessage', poll);
+  });
+
+  // ===== Bot 触发回复 =====
+  socket.on('triggerBot', ({ botId, roomId, message }) => {
+    const bot = bots.get(botId);
+    if (bot && bot.autoReply) triggerBotReply(bot, roomId, message);
+  });
+
+  // ===== 未读消息计数 =====
+  socket.on('getUnreadCounts', () => {
+    const counts = {};
+    rooms.forEach(room => {
+      if (room.members && room.members.includes(socket.username)) {
+        const unread = room.messages.filter(m =>
+          m.sender?.id !== socket.userId &&
+          !m.readBy?.includes(socket.userId)
+        ).length;
+        if (unread > 0) counts[room.id] = unread;
+      }
+    });
+    socket.emit('unreadCounts', counts);
+  });
+
   socket.on('disconnect', () => {
     if (socket.userId) {
       onlineUsers.delete(socket.userId);
@@ -1807,13 +2314,28 @@ setInterval(() => {
   }
 }, 300000);
 
-app.use(express.static(path.join(__dirname, '../client/build')));
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/build/index.html'));
-});
+// 静态文件 + SPA 路由（在所有 API 路由之后，确保 API 优先匹配）
+const clientBuildPath = path.join(__dirname, '..', 'client', 'build');
+if (fs.existsSync(clientBuildPath)) {
+  app.use(express.static(clientBuildPath));
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api') && !req.path.startsWith('/socket.io') && !req.path.startsWith('/uploads')) {
+      res.sendFile(path.join(clientBuildPath, 'index.html'));
+    }
+  });
+}
 
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+});
+
+// 全局错误处理，防止服务器崩溃
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err.message, err.stack?.split('\n')[1]);
+  // 不让进程退出，记录错误继续运行
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason?.message || reason);
 });
 
 process.on('SIGINT', () => {
