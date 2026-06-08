@@ -26,7 +26,10 @@
         "roomId": "global",
         "timestamp": "2026-06-03T01:18:25.188Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -41,7 +44,10 @@
         "roomId": "global",
         "timestamp": "2026-06-03T01:19:28.695Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -56,7 +62,10 @@
         "roomId": "global",
         "timestamp": "2026-06-03T01:20:01.784Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -72,7 +81,9 @@
         "timestamp": "2026-06-03T02:01:22.413Z",
         "readBy": [
           "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -88,7 +99,10 @@
         "timestamp": "2026-06-03T02:06:24.050Z",
         "readBy": [
           "3947c8bb-9325-43b2-b196-4fd25f90fb67",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -104,7 +118,9 @@
         "timestamp": "2026-06-03T03:08:37.584Z",
         "readBy": [
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -116,7 +132,10 @@
         "timestamp": "2026-06-03T03:18:03.055Z",
         "readBy": [
           null,
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -128,7 +147,10 @@
         "timestamp": "2026-06-03T03:24:50.440Z",
         "readBy": [
           null,
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -144,7 +166,9 @@
         "timestamp": "2026-06-03T05:33:00.170Z",
         "readBy": [
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -160,7 +184,9 @@
         "timestamp": "2026-06-03T05:33:31.618Z",
         "readBy": [
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -176,7 +202,9 @@
         "timestamp": "2026-06-03T05:33:42.412Z",
         "readBy": [
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -192,7 +220,9 @@
         "timestamp": "2026-06-03T06:13:08.791Z",
         "readBy": [
           "d445102e-cc18-41ec-9325-939f1d274f71",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239"
         ]
       },
       {
@@ -212,7 +242,9 @@
         "timestamp": "2026-06-03T06:16:14.475Z",
         "readBy": [
           "d445102e-cc18-41ec-9325-939f1d274f71",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239"
         ]
       },
       {
@@ -227,7 +259,10 @@
         "roomId": "global",
         "timestamp": "2026-06-04T01:33:37.242Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "recalled": true
       },
@@ -243,7 +278,10 @@
         "roomId": "global",
         "timestamp": "2026-06-04T01:51:38.344Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -261,7 +299,9 @@
         "timestamp": "2026-06-04T01:56:26.899Z",
         "readBy": [
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -278,7 +318,10 @@
         "roomId": "global",
         "timestamp": "2026-06-04T01:56:29.177Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -295,7 +338,10 @@
         "roomId": "global",
         "timestamp": "2026-06-04T01:56:41.849Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -325,7 +371,10 @@
         "roomId": "global",
         "timestamp": "2026-06-04T01:58:42.574Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -347,7 +396,9 @@
         "timestamp": "2026-06-04T01:59:04.377Z",
         "readBy": [
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -367,7 +418,9 @@
         "timestamp": "2026-06-04T01:59:35.444Z",
         "readBy": [
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -389,7 +442,10 @@
         ],
         "remaining": 0,
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -411,7 +467,9 @@
         "timestamp": "2026-06-04T01:59:57.534Z",
         "readBy": [
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -430,11 +488,15 @@
         "timestamp": "2026-06-04T01:59:59.638Z",
         "claimed": [
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
-        "remaining": 220,
+        "remaining": 219,
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -456,7 +518,9 @@
         "timestamp": "2026-06-04T02:00:47.413Z",
         "readBy": [
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -475,7 +539,10 @@
         "roomId": "global",
         "timestamp": "2026-06-04T02:07:26.147Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -495,7 +562,9 @@
         "timestamp": "2026-06-06T02:41:44.608Z",
         "readBy": [
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -514,7 +583,10 @@
         "roomId": "global",
         "timestamp": "2026-06-06T03:19:57.744Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -533,7 +605,10 @@
         "roomId": "global",
         "timestamp": "2026-06-06T04:46:25.712Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -552,7 +627,10 @@
         "roomId": "global",
         "timestamp": "2026-06-06T04:46:45.538Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -567,7 +645,10 @@
         "roomId": "global",
         "timestamp": "2026-06-06T04:48:09.112Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -580,7 +661,10 @@
         "roomId": "global",
         "timestamp": "2026-06-06T04:48:12.713Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -591,7 +675,10 @@
         "roomId": "global",
         "timestamp": "2026-06-06T04:48:15.664Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -602,7 +689,10 @@
         "roomId": "global",
         "timestamp": "2026-06-06T04:48:18.324Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -613,7 +703,10 @@
         "roomId": "global",
         "timestamp": "2026-06-06T04:48:18.512Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -624,7 +717,10 @@
         "roomId": "global",
         "timestamp": "2026-06-06T04:48:18.677Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -635,7 +731,10 @@
         "roomId": "global",
         "timestamp": "2026-06-06T04:48:18.840Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -649,7 +748,10 @@
         "timestamp": "2026-06-06T04:48:20.834Z",
         "readBy": [
           null,
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -662,7 +764,10 @@
         "roomId": "global",
         "timestamp": "2026-06-06T04:50:59.687Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -676,7 +781,10 @@
         "timestamp": "2026-06-06T04:51:19.891Z",
         "readBy": [
           null,
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -691,7 +799,10 @@
         "roomId": "global",
         "timestamp": "2026-06-06T04:54:57.503Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ]
       },
       {
@@ -705,7 +816,10 @@
         "timestamp": "2026-06-06T04:55:01.461Z",
         "readBy": [
           null,
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -724,7 +838,10 @@
         "roomId": "global",
         "timestamp": "2026-06-06T05:01:01.005Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -743,7 +860,10 @@
         "roomId": "global",
         "timestamp": "2026-06-06T06:17:11.608Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -762,7 +882,194 @@
         "roomId": "global",
         "timestamp": "2026-06-08T07:16:44.765Z",
         "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "b2dc10f0-c1a4-4ed2-a26f-8c91bfa9ca39",
+        "content": "",
+        "type": "file",
+        "fileUrl": "/uploads/1780903773173-7ef3d29b-6a95-466f-8552-61e4181f5e7e.html",
+        "filename": "api.html",
+        "fileSize": 37438,
+        "mimeType": "text/html",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-08T07:29:33.504Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71",
           "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "4cf42646-4a12-4a76-9246-ec1922871ee4",
+        "content": "？",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "d445102e-cc18-41ec-9325-939f1d274f71",
+          "username": "马",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=马"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-08T07:31:30.783Z",
+        "readBy": [
+          "d445102e-cc18-41ec-9325-939f1d274f71",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "262df1a2-e003-4fc5-aa90-b106e4296f35",
+        "type": "solitaire",
+        "title": "www.com",
+        "format": "网站",
+        "participants": [
+          {
+            "userId": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+            "username": "admin",
+            "avatar": "/uploads/1780722892167-c748e576-146c-46ec-a830-25c9b6528eb0.jpg",
+            "content": "6666",
+            "index": 1,
+            "timestamp": "2026-06-08T07:31:48.620Z"
+          },
+          {
+            "userId": "d445102e-cc18-41ec-9325-939f1d274f71",
+            "username": "马",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=马",
+            "content": "ycx",
+            "index": 2,
+            "timestamp": "2026-06-08T07:31:52.612Z"
+          }
+        ],
+        "sender": {
+          "id": "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "username": "www.com",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=www.com"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-08T07:31:40.785Z",
+        "readBy": [
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "d445102e-cc18-41ec-9325-939f1d274f71",
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ]
+      },
+      {
+        "id": "e9956e90-f92c-44fc-b459-e977aa1b4988",
+        "content": "😡",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "/uploads/1780722892167-c748e576-146c-46ec-a830-25c9b6528eb0.jpg"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-08T07:32:31.306Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "0d76c548-1b88-49f3-8424-37f95b47b8ac",
+        "content": "💩",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-08T07:32:55.137Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "37d6b799-8aea-47fe-a38f-a15fd675f871",
+        "content": "有人知道老师还有多少￥吗",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-08T07:34:58.666Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "05b80d5b-d221-47a7-a957-3604ae397204",
+        "content": "不知道",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "d445102e-cc18-41ec-9325-939f1d274f71",
+          "username": "马",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=马"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-08T07:35:44.341Z",
+        "readBy": [
+          "d445102e-cc18-41ec-9325-939f1d274f71"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "7322a0ff-d90f-4d5a-888f-fe3bd99e52f9",
+        "content": "刚才看还剩下172",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "d445102e-cc18-41ec-9325-939f1d274f71",
+          "username": "马",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=马"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-08T07:35:58.846Z",
+        "readBy": [
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -777,7 +1084,50 @@
       "www.com",
       "admin"
     ],
-    "messages": [],
+    "messages": [
+      {
+        "id": "152b69ad-4bdd-4c55-9657-e7ab80f74936",
+        "content": "？",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "c38b6b84-71ea-46c2-831b-3b18e17c6808",
+        "timestamp": "2026-06-08T07:31:04.129Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "71798f1d-1bb8-4beb-ba35-0e2a2d3e75ac",
+        "content": "这几把啥群",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "c38b6b84-71ea-46c2-831b-3b18e17c6808",
+        "timestamp": "2026-06-08T07:31:41.322Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "edited": false,
+        "pinned": false
+      }
+    ],
     "createdBy": "admin",
     "createdAt": "2026-06-03T02:03:13.379Z"
   },
@@ -804,7 +1154,8 @@
         "timestamp": "2026-06-03T02:04:21.773Z",
         "readBy": [
           "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
         ]
       },
       {
@@ -819,7 +1170,9 @@
         "roomId": "15f2b841-9666-4bb8-a12f-40eafc1b1524",
         "timestamp": "2026-06-03T02:14:20.637Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239"
         ]
       },
       {
@@ -831,8 +1184,30 @@
         "timestamp": "2026-06-03T03:24:17.775Z",
         "readBy": [
           null,
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239"
         ]
+      },
+      {
+        "id": "55382a85-0f31-450e-9ddc-f022348c9b57",
+        "content": "加油华为",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "15f2b841-9666-4bb8-a12f-40eafc1b1524",
+        "timestamp": "2026-06-08T07:30:53.498Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239"
+        ],
+        "edited": false,
+        "pinned": false
       }
     ],
     "createdBy": "www.com",
@@ -856,7 +1231,9 @@
         "timestamp": "2026-06-03T03:18:03.536Z",
         "readBy": [
           null,
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
         ]
       },
       {
@@ -872,7 +1249,9 @@
         "timestamp": "2026-06-03T03:18:46.280Z",
         "readBy": [
           null,
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
         ]
       },
       {
@@ -888,7 +1267,9 @@
         "timestamp": "2026-06-03T03:18:52.276Z",
         "readBy": [
           null,
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
         ]
       },
       {
@@ -904,7 +1285,9 @@
         "timestamp": "2026-06-03T03:18:52.785Z",
         "readBy": [
           null,
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
         ]
       },
       {
@@ -920,7 +1303,8 @@
         "timestamp": "2026-06-03T03:18:55.849Z",
         "readBy": [
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239"
         ]
       },
       {
@@ -940,7 +1324,8 @@
         "timestamp": "2026-06-03T03:19:26.035Z",
         "readBy": [
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239"
         ]
       },
       {
@@ -956,7 +1341,9 @@
         "timestamp": "2026-06-03T06:13:34.216Z",
         "readBy": [
           "d445102e-cc18-41ec-9325-939f1d274f71",
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
         ]
       },
       {
@@ -973,7 +1360,28 @@
         "roomId": "3f077fe0-8d56-4773-abb9-0ae9f71c8010",
         "timestamp": "2026-06-08T07:16:34.808Z",
         "readBy": [
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "f582dde3-2d97-48e6-9ab4-43322966cd3d",
+        "content": "🤑",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "3f077fe0-8d56-4773-abb9-0ae9f71c8010",
+        "timestamp": "2026-06-08T07:32:35.435Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
         ],
         "edited": false,
         "pinned": false
@@ -1003,8 +1411,28 @@
         "timestamp": "2026-06-03T03:23:54.117Z",
         "readBy": [
           null,
-          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
         ]
+      },
+      {
+        "id": "55a3d283-c0bc-4819-8513-3a46bfdedef0",
+        "content": "你好",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "9be049cd-32f3-4b74-8ef2-148fcb037a53",
+        "timestamp": "2026-06-08T07:30:21.077Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ],
+        "edited": false,
+        "pinned": false
       }
     ],
     "createdBy": "ycx",
@@ -1018,7 +1446,27 @@
       "ycx",
       "admin"
     ],
-    "messages": [],
+    "messages": [
+      {
+        "id": "637bbf11-1b80-4325-a23d-f53d4debefda",
+        "content": "你好",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "d2de4e5c-b1a3-4087-a26d-6bdff9f8d41f",
+        "timestamp": "2026-06-08T07:30:27.783Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ],
+        "edited": false,
+        "pinned": false
+      }
+    ],
     "createdBy": "admin",
     "createdAt": "2026-06-08T07:15:18.602Z"
   },
@@ -1030,7 +1478,27 @@
       "ycx",
       "admin"
     ],
-    "messages": [],
+    "messages": [
+      {
+        "id": "c74e9fbe-5a3d-4f01-ae2a-1e683784c104",
+        "content": "不好",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "bfd26ff6-a653-4a77-8ba3-baa1eacd7055",
+        "timestamp": "2026-06-08T07:30:34.525Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ],
+        "edited": false,
+        "pinned": false
+      }
+    ],
     "createdBy": "admin",
     "createdAt": "2026-06-08T07:25:43.289Z"
   },
@@ -1045,5 +1513,17 @@
     "messages": [],
     "createdBy": "admin",
     "createdAt": "2026-06-08T07:25:43.806Z"
+  },
+  "bd6f84b2-7478-4cda-b54b-9e89091e5a06": {
+    "id": "bd6f84b2-7478-4cda-b54b-9e89091e5a06",
+    "name": "admin & ycx",
+    "type": "group",
+    "members": [
+      "admin",
+      "ycx"
+    ],
+    "messages": [],
+    "createdBy": "ycx",
+    "createdAt": "2026-06-08T07:30:09.402Z"
   }
 }

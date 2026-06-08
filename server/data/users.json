@@ -26,7 +26,8 @@
     "sixDigitId": "285184",
     "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=www.com",
     "bio": "www.com",
-    "createdAt": "2026-06-03T02:01:00.184Z"
+    "createdAt": "2026-06-03T02:01:00.184Z",
+    "balance": 1e+27
   },
   "gyyz": {
     "id": "3947c8bb-9325-43b2-b196-4fd25f90fb67",

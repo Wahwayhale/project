@@ -363,13 +363,14 @@ app.post('/api/admin/recharge/confirm', verifyToken, (req, res) => {
   recharge.confirmedAt = new Date().toISOString();
   recharges.set(rechargeId, recharge);
   
-  // 增加用户余额
+  // 增加用户余额（立即持久化）
   const targetUser = Array.from(users.values()).find(u => u.id === recharge.userId);
   if (targetUser) {
     targetUser.balance = (targetUser.balance || 0) + recharge.amount;
     users.set(targetUser.username, targetUser);
+    users.save(); // 立即写入磁盘，防止数据丢失
   }
-  
+
   res.json({ success: true, recharge, newBalance: targetUser?.balance });
 });
 
@@ -805,6 +806,7 @@ app.post('/api/ai/chat', verifyToken, (req, res) => {
       if (user && !isAdmin) {
         user.balance = (user.balance || 0) - AI_CALL_PRICE;
         users.set(user.username, user);
+        users.save();
       }
       
       res.json({ reply, model: useModel, provider: 'kimi', usage: json.usage || null, balance: user?.balance || 0 });
@@ -865,6 +867,7 @@ app.post('/api/ai/chat', verifyToken, (req, res) => {
       if (user && !isAdmin) {
         user.balance = (user.balance || 0) - AI_CALL_PRICE;
         users.set(user.username, user);
+        users.save();
       }
       
       res.json({ reply, model: useModel, provider: 'deepseek', usage: json.usage || null, balance: user?.balance || 0 });
@@ -1805,6 +1808,7 @@ io.on('connection', (socket) => {
     // 扣减余额
     user.balance = parseFloat((user.balance - amount).toFixed(2));
     users.set(socket.username, user);
+    users.save();
     
     const packet = {
       id: uuidv4(),
@@ -1864,6 +1868,7 @@ io.on('connection', (socket) => {
     if (user) {
       user.balance = parseFloat((user.balance + share).toFixed(2));
       users.set(socket.username, user);
+      users.save();
     }
     
     rooms.set(roomId, room);
