@@ -88,12 +88,15 @@ const upload = multer({
 });
 
 function verifyToken(req, res, next) {
-  const token = req.headers['authorization'];
+  // 支持大小写不敏感的 Authorization header
+  const token = req.headers['authorization'] || req.headers['Authorization'];
   if (!token) {
+    console.log('No token in headers:', req.headers);
     return res.status(401).json({ error: 'No token provided' });
   }
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) {
+      console.log('Token verification failed:', err.message);
       return res.status(401).json({ error: 'Invalid token' });
     }
     req.user = decoded;
@@ -1099,6 +1102,168 @@ app.post('/api/upload/simple', verifyToken, upload.single('file'), (req, res) =>
   res.json({ url: fileUrl, filename: req.file.originalname });
 });
 
+// ========== 手机号绑定（验证码流程） ==========
+
+// 手机号格式校验（中国手机号）
+function isValidPhone(phone) {
+  return /^1[3-9]\d{9}$/.test(phone);
+}
+
+// 脱敏手机号
+function maskPhone(phone) {
+  if (!phone) return null;
+  return phone.slice(0, 3) + '****' + phone.slice(7);
+}
+
+// 验证码存储: Map<phone, { code, expiresAt, userId }>
+const verificationCodes = new Map();
+
+// 生成 6 位随机码
+function generateCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+// 清理过期验证码（定时）
+setInterval(() => {
+  const now = Date.now();
+  for (const [phone, data] of verificationCodes.entries()) {
+    if (now > data.expiresAt) {
+      verificationCodes.delete(phone);
+    }
+  }
+}, 60000);
+
+// 发送验证码
+app.post('/api/user/send-code', verifyToken, (req, res) => {
+  const { phone } = req.body;
+  if (!phone || !isValidPhone(phone)) {
+    return res.status(400).json({ error: '请输入正确的手机号' });
+  }
+  const user = Array.from(users.values()).find(u => u.id === req.user.id);
+  if (!user) {
+    return res.status(404).json({ error: '用户不存在' });
+  }
+  // 检查手机号是否已被其他用户绑定
+  const existingUser = Array.from(users.values()).find(u => u.phone === phone && u.id !== user.id);
+  if (existingUser) {
+    return res.status(400).json({ error: '该手机号已被绑定' });
+  }
+  // 检查频率限制（60 秒内只能发一次）
+  const existing = verificationCodes.get(phone);
+  if (existing && Date.now() < existing.expiresAt - 4 * 60 * 1000) {
+    return res.status(429).json({ error: '请 60 秒后再试' });
+  }
+  
+  const code = generateCode();
+  verificationCodes.set(phone, {
+    code,
+    expiresAt: Date.now() + 5 * 60 * 1000, // 5 分钟有效
+    userId: user.id
+  });
+  
+  // 尝试发送短信（可配置，失败不影响流程）
+  sendSms(phone, code).catch(err => console.error('短信发送失败(不影响验证):', err.message));
+  
+  // 始终返回成功，前端只需提示用户查看手机
+  res.json({ success: true, message: '验证码已发送' });
+});
+
+// 可配置的短信发送函数（从 .env 读取配置）
+async function sendSms(phone, code) {
+  const smsApiUrl = process.env.SMS_API_URL;
+  const smsApiKey = process.env.SMS_API_KEY;
+  const smsTemplate = process.env.SMS_TEMPLATE || '您的验证码是: {code}，5分钟内有效。';
+  
+  if (!smsApiUrl || !smsApiKey) {
+    // 未配置短信服务 → 打印到控制台 + 写入文件，供用户手动发送
+    const content = smsTemplate.replace(/\{code\}/g, code).replace(/\{phone\}/g, phone);
+    const logLine = `\n[${new Date().toLocaleString()}] 📱 收件人: ${phone}  验证码: ${code}  内容: ${content}`;
+    console.log(logLine);
+    // 同时写入 codes.log 文件，方便直接打开查看
+    try {
+      fs.appendFileSync(path.join(__dirname, 'codes.log'), logLine);
+    } catch (e) { /* ignore */ }
+    console.log('========================================\n');
+    return;
+  }
+  
+  // 已配置短信服务 → 调用 API
+  const axios = require('axios');
+  const content = smsTemplate.replace(/\{code\}/g, code).replace(/\{phone\}/g, phone);
+  await axios.post(smsApiUrl, {
+    phone,
+    content,
+    code
+  }, {
+    headers: { 'Authorization': `Bearer ${smsApiKey}` }
+  });
+}
+
+// 校验验证码并绑定手机号
+app.post('/api/user/verify-and-bind', verifyToken, (req, res) => {
+  const { phone, code } = req.body;
+  if (!phone || !isValidPhone(phone)) {
+    return res.status(400).json({ error: '请输入正确的手机号' });
+  }
+  if (!code || !/^\d{6}$/.test(code)) {
+    return res.status(400).json({ error: '请输入 6 位验证码' });
+  }
+  const user = Array.from(users.values()).find(u => u.id === req.user.id);
+  if (!user) {
+    return res.status(404).json({ error: '用户不存在' });
+  }
+  const stored = verificationCodes.get(phone);
+  if (!stored) {
+    return res.status(400).json({ error: '请先获取验证码' });
+  }
+  if (Date.now() > stored.expiresAt) {
+    verificationCodes.delete(phone);
+    return res.status(400).json({ error: '验证码已过期，请重新获取' });
+  }
+  if (stored.code !== code) {
+    return res.status(400).json({ error: '验证码错误' });
+  }
+  if (stored.userId !== user.id) {
+    return res.status(400).json({ error: '验证码与用户不匹配' });
+  }
+  
+  // 校验通过，绑定手机号
+  verificationCodes.delete(phone);
+  user.phone = phone;
+  user.phoneBoundAt = new Date().toISOString();
+  users.set(user.username, user);
+  res.json({ phone: maskPhone(phone), phoneBoundAt: user.phoneBoundAt });
+});
+
+// 解绑手机号
+app.post('/api/user/unbind-phone', verifyToken, (req, res) => {
+  const user = Array.from(users.values()).find(u => u.id === req.user.id);
+  if (!user) {
+    return res.status(404).json({ error: '用户不存在' });
+  }
+  if (!user.phone) {
+    return res.status(400).json({ error: '未绑定手机号' });
+  }
+  user.phone = undefined;
+  user.phoneBoundAt = undefined;
+  users.set(user.username, user);
+  res.json({ success: true });
+});
+
+// 获取绑定的手机号（脱敏）
+app.get('/api/user/phone', verifyToken, (req, res) => {
+  const user = Array.from(users.values()).find(u => u.id === req.user.id);
+  if (!user) {
+    return res.status(404).json({ error: '用户不存在' });
+  }
+  res.json({ 
+    phone: maskPhone(user.phone),
+    phoneBound: !!user.phone,
+    phoneBoundAt: user.phoneBoundAt || null
+  });
+});
+
+// ========== 头像上传 ==========
 app.post('/api/upload/avatar', verifyToken, upload.single('avatar'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });

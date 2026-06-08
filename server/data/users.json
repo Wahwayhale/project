@@ -4,9 +4,11 @@
     "username": "admin",
     "password": "$2a$10$y4hEtLMH98VqqIwAB0ji/OVkQOGWueFnkiggq1MCD/WzBdQOdecUK",
     "sixDigitId": "427669",
-    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=admin",
+    "avatar": "/uploads/1780722892167-c748e576-146c-46ec-a830-25c9b6528eb0.jpg",
     "bio": "",
-    "createdAt": "2026-06-03T01:09:50.993Z"
+    "createdAt": "2026-06-03T01:09:50.993Z",
+    "phone": "19512240964",
+    "phoneBoundAt": "2026-06-06T05:58:30.909Z"
   },
   "马": {
     "id": "d445102e-cc18-41ec-9325-939f1d274f71",

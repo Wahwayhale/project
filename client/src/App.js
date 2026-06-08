@@ -2,8 +2,22 @@ import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 import axios from 'axios';
 
-const API_URL = '';
+const isCapacitor = typeof window !== 'undefined' && window.Capacitor?.isNativePlatform;
+// OTA 模式下 APP 从服务器加载，API 用相对路径即可
+// 本地模式（file://）才需要指定服务器公网地址
+const isLocalApp = isCapacitor && window.location.protocol === 'file:';
+const SERVER_URL = 'https://parakeet-nimble-cage.ngrok-free.dev';
+const API_URL = isLocalApp ? SERVER_URL : '';
+const DEFAULT_AVATAR = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="50" fill="#e0e0e0"/><text x="50" y="58" text-anchor="middle" font-size="40" fill="#999">👤</text></svg>');
 const CHUNK_SIZE = 2 * 1024 * 1024;
+
+// 修复头像 URL：补全地址 + 兜底默认头像
+function getAvatarUrl(avatar) {
+  if (!avatar) return DEFAULT_AVATAR;
+  if (avatar.startsWith('http://') || avatar.startsWith('https://')) return avatar;
+  if (avatar.startsWith('/')) return `${API_URL}${avatar}`;
+  return avatar;
+}
 
 function formatFileSize(bytes) {
   if (!bytes || bytes === 0) return '';
@@ -78,6 +92,8 @@ function App() {
   const [profileEdit, setProfileEdit] = useState({ bio: '', payCode: '' });
   const [uploadProgress, setUploadProgress] = useState(null);
   const [messageEndRef, setMessageEndRef] = useState(null);
+  const messagesContainerRef = useRef(null);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [view, setView] = useState('chats');
   
   // 深色模式
@@ -140,6 +156,21 @@ function App() {
   
   // 文件传输助手
   const [fileTransferRoom, setFileTransferRoom] = useState(null);
+  
+  // OTA 更新
+  const [otaInfo, setOtaInfo] = useState(null);
+  const [showOtaModal, setShowOtaModal] = useState(false);
+  const appVersion = '1.0.0';
+  
+  // 手机号绑定（验证码流程）
+  const [phoneInfo, setPhoneInfo] = useState({ phone: null, phoneBound: false, phoneBoundAt: null });
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [codeInput, setCodeInput] = useState('');
+  const [phoneStep, setPhoneStep] = useState('input'); // input | code | done
+  const [codeCountdown, setCodeCountdown] = useState(0);
+  const [phoneBinding, setPhoneBinding] = useState(false);
+  const [phoneSendingCode, setPhoneSendingCode] = useState(false);
   
   // 群公告
   const [roomAnnouncements, setRoomAnnouncements] = useState(() => {
@@ -275,6 +306,7 @@ function App() {
       fetchUsers();
       fetchPopularVideos();
       fetchAiModels();
+      fetchPhoneInfo();
     }
     return () => {
       if (socketRef.current) {
@@ -286,7 +318,7 @@ function App() {
   useEffect(() => {
     if (currentRoomId && socketRef.current) {
       socketRef.current.emit('joinRoom', currentRoomId);
-      setMessages([]);
+      setMessagesLoading(true);
     }
   }, [currentRoomId]);
 
@@ -321,9 +353,33 @@ function App() {
     localStorage.setItem('roomAnnouncements', JSON.stringify(roomAnnouncements));
   }, [roomAnnouncements]);
 
+  // 消息加载后滚动到底部
   useEffect(() => {
-    messageEndRef?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (!messagesLoading && messages.length > 0 && messageEndRef) {
+      setTimeout(() => messageEndRef.scrollIntoView({ behavior: 'smooth' }), 100);
+    }
+  }, [messages, messagesLoading, messageEndRef]);
+
+  // OTA 版本检查 (仅 Capacitor 原生 App 中执行，网页版跳过)
+  useEffect(() => {
+    if (!isCapacitor) return;
+    const checkUpdate = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/ota-version.json`, { timeout: 5000 });
+        const serverVersion = res.data;
+        setOtaInfo(serverVersion);
+        const savedVersion = localStorage.getItem('appVersion');
+        if (!savedVersion || serverVersion.buildNumber > parseInt(savedVersion)) {
+          setShowOtaModal(true);
+        }
+      } catch (e) {
+        // 离线或服务器不可用时忽略
+      }
+    };
+    if (isAuthenticated) {
+      checkUpdate();
+    }
+  }, [isAuthenticated]);
 
   const validateToken = async () => {
     try {
@@ -345,8 +401,28 @@ function App() {
   };
 
   const connectSocket = () => {
-    socketRef.current = io(API_URL);
-    socketRef.current.emit('authenticate', token);
+    if (socketRef.current?.connected) {
+      socketRef.current.disconnect();
+    }
+    socketRef.current = io(API_URL || window.location.origin, {
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      timeout: 10000
+    });
+    socketRef.current.on('connect', () => {
+      console.log('Socket connected');
+      socketRef.current.emit('authenticate', token);
+    });
+    socketRef.current.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason);
+      showToast('连接已断开，正在重连...', 'info');
+    });
+    socketRef.current.on('connect_error', (err) => {
+      console.error('Socket connect error:', err.message);
+      showToast('网络连接异常，请检查服务器是否运行', 'error');
+    });
     socketRef.current.on('authenticated', (data) => {
       console.log('Socket authenticated', data);
     });
@@ -369,6 +445,7 @@ function App() {
     });
     socketRef.current.on('joinedRoom', (data) => {
       setMessages(data.messages || []);
+      setMessagesLoading(false);
     });
     socketRef.current.on('userTyping', ({ username }) => {
       setTypingUser(username);
@@ -885,6 +962,101 @@ function App() {
     }
   };
 
+  // 获取手机号信息
+  const fetchPhoneInfo = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/api/user/phone`, {
+        headers: { Authorization: token }
+      });
+      setPhoneInfo(res.data);
+    } catch (err) {
+      console.error('获取手机号信息失败', err);
+    }
+  };
+
+  // 发送验证码
+  const handleSendCode = async () => {
+    if (phoneSendingCode) return;
+    if (!token) {
+      showToast('请先登录', 'error');
+      return;
+    }
+    if (!phoneInput || !/^1[3-9]\d{9}$/.test(phoneInput)) {
+      showToast('请输入正确的11位手机号', 'error');
+      return;
+    }
+    setPhoneSendingCode(true);
+    try {
+      const res = await axios.post(`${API_URL}/api/user/send-code`,
+        { phone: phoneInput },
+        { headers: { Authorization: token } }
+      );
+      setPhoneStep('code');
+      // 开始倒计时
+      setCodeCountdown(60);
+      const timer = setInterval(() => {
+        setCodeCountdown(prev => {
+          if (prev <= 1) { clearInterval(timer); return 0; }
+          return prev - 1;
+        });
+      }, 1000);
+      showToast('验证码已发送', 'success');
+    } catch (err) {
+      showToast(err.response?.data?.error || '发送失败', 'error');
+    } finally {
+      setPhoneSendingCode(false);
+    }
+  };
+
+  // 校验验证码并绑定
+  const handleVerifyAndBind = async () => {
+    if (!codeInput || codeInput.length !== 6) {
+      showToast('请输入6位验证码', 'error');
+      return;
+    }
+    setPhoneBinding(true);
+    try {
+      const res = await axios.post(`${API_URL}/api/user/verify-and-bind`,
+        { phone: phoneInput, code: codeInput },
+        { headers: { Authorization: token } }
+      );
+      setPhoneInfo({ ...phoneInfo, phone: res.data.phone, phoneBound: true, phoneBoundAt: res.data.phoneBoundAt });
+      setPhoneStep('done');
+      showToast('手机号绑定成功', 'success');
+    } catch (err) {
+      showToast(err.response?.data?.error || '绑定失败', 'error');
+    } finally {
+      setPhoneBinding(false);
+    }
+  };
+
+  // 解绑手机号
+  const handleUnbindPhone = async () => {
+    if (!window.confirm('确定要解绑手机号吗？')) return;
+    try {
+      await axios.post(`${API_URL}/api/user/unbind-phone`, {}, {
+        headers: { Authorization: token }
+      });
+      setPhoneInfo({ phone: null, phoneBound: false, phoneBoundAt: null });
+      setPhoneInput('');
+      setCodeInput('');
+      setPhoneStep('input');
+      setCodeCountdown(0);
+      showToast('手机号已解绑', 'success');
+    } catch (err) {
+      showToast(err.response?.data?.error || '解绑失败', 'error');
+    }
+  };
+
+  // 关闭手机号弹窗
+  const closePhoneModal = () => {
+    setShowPhoneModal(false);
+    setPhoneInput('');
+    setCodeInput('');
+    setPhoneStep('input');
+    setCodeCountdown(0);
+  };
+
   const sendAiMessage = async () => {
     const text = aiInput.trim();
     if (!text || aiLoading) return;
@@ -1161,7 +1333,9 @@ function App() {
           'Content-Type': 'multipart/form-data'
         }
       });
-      const newAvatar = `${API_URL}${response.data.avatar}`;
+      // 存储相对路径，渲染时由 getAvatarUrl 自动补全
+      const avatarPath = response.data.avatar;
+      const newAvatar = avatarPath.startsWith('http') ? avatarPath : avatarPath;
       setUser(prev => ({ ...prev, avatar: newAvatar }));
       await axios.put(`${API_URL}/api/profile`, { avatar: newAvatar }, {
         headers: { Authorization: token }
@@ -1596,10 +1770,10 @@ function App() {
       <div className="sidebar">
         <div className="sidebar-header">
           <div className="user-info" onClick={() => setShowProfileModal(true)} style={{ cursor: 'pointer' }}>
-            <img src={user?.avatar} alt="" />
+            <img src={getAvatarUrl(user?.avatar)} alt="" />
             <span>{user?.username}</span>
           </div>
-          <div className="header-actions">
+           <div className="header-actions">
             <button className="icon-btn" onClick={handleLogout} title="退出登录">🚪</button>
           </div>
         </div>
@@ -1673,7 +1847,7 @@ function App() {
                   <div className="contacts-section-title">新的好友 <span className="badge">{friendRequests.length}</span></div>
                   {friendRequests.map(r => (
                     <div key={r.id} className="contact-item request-item">
-                      <img src={r.avatar} alt="" className="contact-avatar" />
+                      <img src={getAvatarUrl(r.avatar)} alt="" className="contact-avatar" />
                       <div className="contact-info">
                         <div className="contact-name">{r.username}</div>
                         <div className="contact-desc">想加你为好友</div>
@@ -1693,7 +1867,7 @@ function App() {
                     <div className="contacts-section-title">{letter}</div>
                     {groups[letter].map(friend => (
                       <div key={friend.id || friend.username} className="contact-item" onClick={() => { if (!friend.isRequest) startChatWithFriend(friend); }}>
-                        <img src={friend.avatar} alt="" className="contact-avatar" />
+                        <img src={getAvatarUrl(friend.avatar)} alt="" className="contact-avatar" />
                         <div className="contact-info">
                           <div className="contact-name">{friend.username}</div>
                           {!friend.isRequest && <div className="contact-desc">在线</div>}
@@ -1767,7 +1941,7 @@ function App() {
           /* ===== 我的页面 ===== */
           <div className="me-page">
             <div className="me-header" onClick={() => setShowProfileModal(true)}>
-              <img src={user?.avatar} alt="" className="me-avatar" />
+              <img src={getAvatarUrl(user?.avatar)} alt="" className="me-avatar" />
               <div className="me-info">
                 <div className="me-name">{user?.username}</div>
                 <div className="me-id">ID: {user?.sixDigitId || '000000'}</div>
@@ -1789,6 +1963,11 @@ function App() {
               <div className="me-menu-item" onClick={() => setShowBackupModal(true)}>
                 <div className="menu-icon" style={{ background: '#00b5ad' }}>💾</div>
                 <span>聊天记录管理</span>
+                <span className="menu-arrow">›</span>
+              </div>
+              <div className="me-menu-item" onClick={() => { fetchPhoneInfo(); setShowPhoneModal(true); }}>
+                <div className="menu-icon" style={{ background: '#1890ff' }}>📱</div>
+                <span>{phoneInfo.phoneBound ? phoneInfo.phone : '绑定手机号'}</span>
                 <span className="menu-arrow">›</span>
               </div>
               <div className="me-menu-item" onClick={() => { setShowProfileModal(true); }}>
@@ -1841,7 +2020,7 @@ function App() {
               )}
               {aiMessages.map((msg, idx) => (
                 <div key={idx} className={`ai-message ${msg.role}`}>
-                  <div className="ai-avatar">{msg.role === 'user' ? (user?.avatar ? <img src={user.avatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} /> : '🧑') : '🤖'}</div>
+                  <div className="ai-avatar">{msg.role === 'user' ? (user?.avatar ? <img src={getAvatarUrl(user.avatar)} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} /> : '🧑') : '🤖'}</div>
                   <div className="ai-bubble">
                     {msg.role === 'user' ? msg.content : (
                       <>
@@ -2085,7 +2264,7 @@ function App() {
                 );
                 return (
                 <div key={msg.id || index} id={`msg-${msg.id}`} className={`message ${isMine ? 'sent' : 'received'} ${isSearchMatch ? 'highlighted' : ''} ${isPinned ? 'pinned' : ''}`}>
-                  <img className="avatar" src={msg.sender?.avatar || user?.avatar} alt="" />
+                  <img className="avatar" src={getAvatarUrl(msg.sender?.avatar || user?.avatar)} alt="" />
                   <div className="message-content">
                     {isPinned && <div className="pinned-badge">📌 置顶</div>}
                     {msg.sender?.username !== user?.username && !msg.recalled && (
@@ -2199,7 +2378,7 @@ function App() {
                     <div className="mention-list">
                       {getFilteredMentionUsers().map(u => (
                         <button key={u.id} className="mention-item" onClick={() => insertMention(u.username)}>
-                          <img src={u.avatar} alt="" className="mention-avatar" />
+                          <img src={getAvatarUrl(u.avatar)} alt="" className="mention-avatar" />
                           <span>{u.username}</span>
                         </button>
                       ))}
@@ -2265,13 +2444,117 @@ function App() {
         )}
       </div>
 
+      {showPhoneModal && (
+        <div className="modal-overlay" onClick={closePhoneModal}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 380 }}>
+            {phoneInfo.phoneBound ? (
+              /* 已绑定 → 显示信息 + 解绑 */
+              <>
+                <h3>📱 手机号</h3>
+                <div style={{ textAlign: 'center', padding: '30px 0' }}>
+                  <div style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 8 }}>{phoneInfo.phone}</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                    绑定时间：{phoneInfo.phoneBoundAt ? new Date(phoneInfo.phoneBoundAt).toLocaleString() : ''}
+                  </div>
+                </div>
+                <div className="modal-buttons">
+                  <button className="cancel" onClick={closePhoneModal}>关闭</button>
+                  <button className="danger" onClick={handleUnbindPhone}>解绑</button>
+                </div>
+              </>
+            ) : phoneStep === 'done' ? (
+              /* 绑定成功 */
+              <>
+                <h3>✅ 绑定成功</h3>
+                <div style={{ textAlign: 'center', padding: '30px 0' }}>
+                  <div style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 8, color: 'var(--primary)' }}>{phoneInfo.phone}</div>
+                  <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>手机号绑定成功</div>
+                </div>
+                <div className="modal-buttons">
+                  <button className="confirm" onClick={closePhoneModal}>完成</button>
+                </div>
+              </>
+            ) : phoneStep === 'code' ? (
+              /* 第二步：输入验证码 */
+              <>
+                <h3>📱 输入验证码</h3>
+                <div style={{ padding: '10px 0 5px' }}>
+                  <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                    验证码已发送至 <strong>{phoneInput.slice(0,3) + '****' + phoneInput.slice(7)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }}>
+                    {[0,1,2,3,4,5].map(i => (
+                      <div key={i} style={{
+                        width: 44, height: 54, borderRadius: 8, border: '2px solid ' + (codeInput.length > i ? 'var(--primary)' : 'var(--border)'),
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 24, fontWeight: 'bold', background: '#f5f5f5', transition: 'border 0.2s'
+                      }}>
+                        {codeInput[i] || ''}
+                      </div>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength="6"
+                    value={codeInput}
+                    onChange={e => setCodeInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    autoFocus
+                    style={{ width: '100%', padding: '12px 16px', fontSize: 20, letterSpacing: 8, textAlign: 'center',
+                      border: '1px solid var(--border)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' }}
+                    placeholder="请输入验证码"
+                  />
+                  <div style={{ textAlign: 'center', marginTop: 12 }}>
+                    {codeCountdown > 0 ? (
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{codeCountdown}s 后重新获取</span>
+                    ) : (
+                      <button onClick={handleSendCode} disabled={phoneSendingCode} style={{
+                        background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: 13
+                      }}>重新获取验证码</button>
+                    )}
+                  </div>
+                </div>
+                <div className="modal-buttons">
+                  <button className="cancel" onClick={closePhoneModal}>取消</button>
+                  <button className="confirm" onClick={handleVerifyAndBind} disabled={phoneBinding || codeInput.length !== 6}>
+                    {phoneBinding ? '验证中...' : '确认绑定'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* 第一步：输入手机号 */
+              <>
+                <h3>📱 绑定手机号</h3>
+                <div style={{ padding: '20px 0' }}>
+                  <input
+                    type="tel"
+                    placeholder="请输入手机号"
+                    maxLength="11"
+                    value={phoneInput}
+                    onChange={e => setPhoneInput(e.target.value.replace(/\D/g, ''))}
+                    style={{ width: '100%', padding: '12px 16px', fontSize: 16, border: '1px solid var(--border)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' }}
+                  />
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>绑定后可用于账号找回和安全验证</div>
+                </div>
+                <div className="modal-buttons">
+                  <button className="cancel" onClick={closePhoneModal}>取消</button>
+                  <button className="confirm" onClick={handleSendCode} disabled={phoneSendingCode || !/^1[3-9]\d{9}$/.test(phoneInput)}>
+                    {phoneSendingCode ? '发送中...' : '获取验证码'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {showProfileModal && (
         <div className="modal-overlay" onClick={() => setShowProfileModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 360 }}>
             <h3>个人资料</h3>
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
               <div style={{ position: 'relative', display: 'inline-block' }}>
-                <img src={user?.avatar} alt="" style={{ width: 80, height: 80, borderRadius: '50%' }} />
+                <img src={getAvatarUrl(user?.avatar)} alt="" style={{ width: 80, height: 80, borderRadius: '50%' }} />
                 <button 
                   onClick={() => avatarInputRef.current?.click()}
                   style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'var(--primary-color)', color: 'white', cursor: 'pointer', fontSize: 16 }}
@@ -2498,7 +2781,7 @@ function App() {
             {searchResult && (
               <div style={{ padding: 16, background: 'var(--bg-color)', borderRadius: 8, marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <img src={searchResult.avatar} alt="" style={{ width: 50, height: 50, borderRadius: '50%' }} />
+                  <img src={getAvatarUrl(searchResult.avatar)} alt="" style={{ width: 50, height: 50, borderRadius: '50%' }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold' }}>{searchResult.username}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>ID: {searchResult.sixDigitId}</div>
@@ -2519,7 +2802,7 @@ function App() {
                 <div style={{ fontWeight: 'bold', marginBottom: 8 }}>好友请求 ({friendRequests.length})</div>
                 {friendRequests?.map(request => (
                   <div key={request.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'var(--bg-color)', borderRadius: 8, marginBottom: 8 }}>
-                    <img src={request.avatar} alt="" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+                    <img src={getAvatarUrl(request.avatar)} alt="" style={{ width: 40, height: 40, borderRadius: '50%' }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 'bold' }}>{request.username}</div>
                       <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>ID: {request.sixDigitId}</div>
@@ -2551,7 +2834,7 @@ function App() {
                 {friends.map(friend => (
                   <label key={friend.id} className="user-checkbox">
                     <input type="checkbox" />
-                    <img src={friend.avatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', marginRight: 8 }} />
+                    <img src={getAvatarUrl(friend.avatar)} alt="" style={{ width: 32, height: 32, borderRadius: '50%', marginRight: 8 }} />
                     <span>{friend.username}</span>
                   </label>
                 ))}
@@ -2704,7 +2987,7 @@ function App() {
               {moments.map(m => (
                 <div key={m.id} className="moment-item">
                   <div className="moment-header">
-                    <img src={m.author?.avatar} alt="" />
+                    <img src={getAvatarUrl(m.author?.avatar)} alt="" />
                     <span>{m.author?.username}</span>
                     <span className="moment-time">{formatTime(m.timestamp)}</span>
                   </div>
@@ -2822,6 +3105,35 @@ function App() {
           </div>
         </div>
       )}
+      {/* OTA 更新弹窗 */}
+      {showOtaModal && otaInfo && (
+        <div className="modal-overlay" onClick={() => { setShowOtaModal(false); localStorage.setItem('appVersion', String(otaInfo.buildNumber)); }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 380, textAlign: 'center' }}>
+            <div style={{ fontSize: 48, margin: '12px 0' }}>📦</div>
+            <h3>发现新版本</h3>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '12px 0' }}>
+              <div>当前版本: v{appVersion}</div>
+              <div>最新版本: v{otaInfo.version}</div>
+              {otaInfo.releaseNotes && (
+                <div style={{ marginTop: 8, padding: 8, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 12 }}>
+                  {otaInfo.releaseNotes}
+                </div>
+              )}
+            </div>
+            <div className="modal-buttons" style={{ flexDirection: 'column', gap: 8 }}>
+              <button className="confirm" onClick={() => { window.open(otaInfo.updateUrl, '_blank'); }}>
+                {otaInfo.forceUpdate ? '立即更新' : '前往下载'}
+              </button>
+              {!otaInfo.forceUpdate && (
+                <button className="cancel" onClick={() => { setShowOtaModal(false); localStorage.setItem('appVersion', String(otaInfo.buildNumber)); }}>
+                  稍后再说
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div className={`toast toast-${toast.type}`}>
           {toast.type === 'success' && '✅ '}

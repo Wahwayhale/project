@@ -446,6 +446,243 @@
         ],
         "edited": false,
         "pinned": false
+      },
+      {
+        "id": "c433de2c-2460-4213-8119-9dca9e954b75",
+        "content": "hello world",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-06T02:41:44.608Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "2ad74f30-40e2-4069-9741-4d243dd851db",
+        "content": "八格牙露",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=admin"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-06T03:19:57.744Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "0ac13569-e156-4e7f-9415-bc72e6f9745c",
+        "content": "你好",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=admin"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-06T04:46:25.712Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "734556d9-0627-4080-b39c-b26bc44453a4",
+        "content": "666",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=admin"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-06T04:46:45.538Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "2b83660b-6535-45fe-bdba-638f6f37e4c8",
+        "type": "rockPaperScissors",
+        "userChoice": "石头",
+        "botChoice": "布",
+        "result": "你输了",
+        "sender": {},
+        "roomId": "global",
+        "timestamp": "2026-06-06T04:48:09.112Z"
+      },
+      {
+        "id": "54530f47-cbc1-467c-aff0-ae13bf2d950e",
+        "type": "rockPaperScissors",
+        "userChoice": "石头",
+        "botChoice": "剪刀",
+        "result": "你赢了",
+        "sender": {},
+        "roomId": "global",
+        "timestamp": "2026-06-06T04:48:12.713Z"
+      },
+      {
+        "id": "3d5daaac-05ec-44e3-87b4-47d7df84d9c9",
+        "type": "dice",
+        "value": 3,
+        "sender": {},
+        "roomId": "global",
+        "timestamp": "2026-06-06T04:48:15.664Z"
+      },
+      {
+        "id": "877429fd-1a33-4c5e-b237-d9e6af205b0a",
+        "type": "dice",
+        "value": 5,
+        "sender": {},
+        "roomId": "global",
+        "timestamp": "2026-06-06T04:48:18.324Z"
+      },
+      {
+        "id": "92194741-cab9-4479-a5b7-c80b674915dc",
+        "type": "dice",
+        "value": 1,
+        "sender": {},
+        "roomId": "global",
+        "timestamp": "2026-06-06T04:48:18.512Z"
+      },
+      {
+        "id": "fca95440-8714-4173-bdae-990ec7f3f209",
+        "type": "dice",
+        "value": 2,
+        "sender": {},
+        "roomId": "global",
+        "timestamp": "2026-06-06T04:48:18.677Z"
+      },
+      {
+        "id": "92e37d2f-c21c-4307-ab92-93ab5fb6dd5d",
+        "type": "dice",
+        "value": 2,
+        "sender": {},
+        "roomId": "global",
+        "timestamp": "2026-06-06T04:48:18.840Z"
+      },
+      {
+        "id": "29d68f89-b15c-4585-b1bd-bc30bc0beaea",
+        "content": "😒",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {},
+        "roomId": "global",
+        "timestamp": "2026-06-06T04:48:20.834Z",
+        "readBy": [
+          null
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "76d25018-d40c-4c40-81f2-438d537af06d",
+        "type": "dice",
+        "value": 6,
+        "sender": {},
+        "roomId": "global",
+        "timestamp": "2026-06-06T04:50:59.687Z"
+      },
+      {
+        "id": "cdddb54d-0d36-498c-9cf7-f604d0167ea7",
+        "content": "666",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {},
+        "roomId": "global",
+        "timestamp": "2026-06-06T04:51:19.891Z",
+        "readBy": [
+          null
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "3f2baa1a-6615-424e-b5ae-47855faefc52",
+        "type": "rockPaperScissors",
+        "userChoice": "石头",
+        "botChoice": "剪刀",
+        "result": "你赢了",
+        "sender": {},
+        "roomId": "global",
+        "timestamp": "2026-06-06T04:54:57.503Z"
+      },
+      {
+        "id": "ca223dd5-180b-49a1-89e4-05d28e68bdde",
+        "content": "好的",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {},
+        "roomId": "global",
+        "timestamp": "2026-06-06T04:55:01.461Z",
+        "readBy": [
+          null
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "e091e038-341d-43aa-aa1f-26bb94383e75",
+        "content": "666",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=admin"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-06T05:01:01.005Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "fe220fe1-5927-433b-b6cb-8d6b91a1f7ef",
+        "content": "🤩",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "/uploads/1780722892167-c748e576-146c-46ec-a830-25c9b6528eb0.jpg"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-06T06:17:11.608Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "edited": false,
+        "pinned": false
       }
     ]
   },

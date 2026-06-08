@@ -505,6 +505,8 @@ body {
 .room-list {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 4px 0;
 }
 
@@ -515,6 +517,8 @@ body {
   cursor: pointer;
   transition: all 0.15s;
   position: relative;
+  content-visibility: auto;
+  contain-intrinsic-size: 64px;
 }
 
 .room-item:hover {
@@ -634,6 +638,7 @@ body {
   background: var(--bg);
   position: relative;
   min-width: 0;
+  transform: translateZ(0);
 }
 
 .chat-header {
@@ -705,20 +710,27 @@ body {
 .messages-container {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 20px 24px;
   display: flex;
   flex-direction: column;
+  will-change: transform;
   background: 
     radial-gradient(ellipse at 20% 50%, rgba(91, 110, 247, 0.03) 0%, transparent 50%),
     radial-gradient(ellipse at 80% 50%, rgba(139, 92, 246, 0.03) 0%, transparent 50%),
     var(--bg);
 }
 
+/* 开启 GPU 渲染，提升滑动帧率 */
 .message {
   margin-bottom: 18px;
   display: flex;
   align-items: flex-end;
   animation: messageIn 0.3s var(--ease);
+  content-visibility: auto;
+  contain-intrinsic-size: 72px;
+  transform: translateZ(0);
 }
 
 @keyframes messageIn {
@@ -3370,6 +3382,8 @@ html.dark .poll-bar {
 .contacts-body {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding-bottom: 20px;
 }
 

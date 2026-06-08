@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "buildNumber": 1,
+  "minSupportedVersion": "1.0.0",
+  "releaseNotes": "初始版本",
+  "forceUpdate": false,
+  "updateUrl": "https://github.com/Wahwayhale/project/releases"
+}
