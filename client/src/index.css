@@ -3506,6 +3506,8 @@ html.dark .poll-bar {
 }
 
 .discover-list {
+  flex: 1;
+  overflow-y: auto;
   margin-top: 12px;
   background: var(--bg-card);
   border-radius: 0;

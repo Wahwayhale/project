@@ -322,6 +322,7 @@ function App() {
       { id: 'glm-4-flash', name: '智谱 GLM-4-Flash（免费）', free: true },
       { id: 'deepseek-v4-flash', name: 'DeepSeek V4-Flash', free: false },
       { id: 'deepseek-v4-pro', name: 'DeepSeek V4-Pro', free: false },
+      { id: 'deepseek-r1', name: 'DeepSeek R1（独立Key）', free: false },
       { id: 'moonshot-v1-8k', name: 'Kimi Moonshot-8K', free: false },
       { id: 'moonshot-v1-32k', name: 'Kimi Moonshot-32K', free: false },
       { id: 'moonshot-v1-128k', name: 'Kimi Moonshot-128K', free: false },
@@ -334,6 +335,62 @@ function App() {
   const [rechargeHistory, setRechargeHistory] = useState([]);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [pendingRecharges, setPendingRecharges] = useState([]);
+
+  // ===== AI 增强功能 =====
+  const [smartReplies, setSmartReplies] = useState([]);
+  const [smartRepliesLoading, setSmartRepliesLoading] = useState(false);
+  const [showPolishModal, setShowPolishModal] = useState(false);
+  const [polishText, setPolishText] = useState('');
+  const [polishResult, setPolishResult] = useState('');
+  const [polishTone, setPolishTone] = useState('casual');
+  const [polishLoading, setPolishLoading] = useState(false);
+  const [dailyDigest, setDailyDigest] = useState(null);
+  const [dailyDigestLoading, setDailyDigestLoading] = useState(false);
+  const [showDailyDigest, setShowDailyDigest] = useState(false);
+
+  // ===== 音乐播放器 =====
+  const [musicSearch, setMusicSearch] = useState('');
+  const [musicResults, setMusicResults] = useState([]);
+  const [musicLoading, setMusicLoading] = useState(false);
+  const [currentSong, setCurrentSong] = useState(null); // { id, name, artist, pic, url }
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showMusicPanel, setShowMusicPanel] = useState(false);
+  const [musicLyric, setMusicLyric] = useState('');
+  const audioRef = useRef(null);
+
+  // 视频离开视口自动暂停
+  const videoObserverRef = useRef(null);
+  const observeVideo = (el) => {
+    if (el && videoObserverRef.current) {
+      videoObserverRef.current.observe(el);
+    }
+  };
+
+  useEffect(() => {
+    videoObserverRef.current = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) {
+          // 离开视口 → 暂停视频
+          const video = entry.target.tagName === 'VIDEO' ? entry.target : entry.target.querySelector('video');
+          if (video && !video.paused) video.pause();
+          // 离开视口 → 卸载 B站 iframe
+          const iframe = entry.target.tagName === 'IFRAME' ? entry.target : entry.target.querySelector('iframe');
+          if (iframe && iframe.src && iframe.src.includes('bilibili')) {
+            iframe.setAttribute('data-src', iframe.src);
+            iframe.removeAttribute('src');
+          }
+        } else {
+          // 回到视口 → 恢复 B站 iframe
+          const iframe = entry.target.tagName === 'IFRAME' ? entry.target : entry.target.querySelector('iframe');
+          if (iframe && !iframe.src && iframe.getAttribute('data-src')) {
+            iframe.src = iframe.getAttribute('data-src');
+          }
+        }
+      });
+    }, { rootMargin: '200px' });
+    return () => videoObserverRef.current?.disconnect();
+  }, []);
+
   const aiMessagesEndRef = useRef(null);
   const socketRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -595,7 +652,7 @@ function App() {
       if (userId === socketRef.current.userId) return;
       setMessages(prev => prev.map(msg => ({
         ...msg,
-        readBy: msg.readBy.includes(userId) ? msg.readBy : [...msg.readBy, userId]
+        readBy: (msg.readBy || []).includes(userId) ? msg.readBy : [...(msg.readBy || []), userId]
       })));
     });
 
@@ -1284,7 +1341,139 @@ function App() {
     }
   };
 
-  // 简易 markdown 渲染（粗体 + 代码块 + 换行）
+  // ===== AI 增强功能函数 =====
+
+  // 智能快捷回复
+  const fetchSmartReplies = async () => {
+    if (!currentRoomId || smartRepliesLoading) return;
+    setSmartRepliesLoading(true);
+    try {
+      const recentMsgs = messages.slice(-5).filter(m => m.type === 'text' && !m.recalled);
+      if (recentMsgs.length === 0) { setSmartReplies([]); setSmartRepliesLoading(false); return; }
+      const context = recentMsgs.map(m => `${m.sender?.username}: ${m.content}`).join('\n');
+      const res = await axios.post(`${API_URL}/api/ai/smart-reply`,
+        { roomId: currentRoomId, context },
+        { headers: { Authorization: token } }
+      );
+      setSmartReplies(res.data.replies || []);
+    } catch (err) {
+      setSmartReplies([]);
+    } finally {
+      setSmartRepliesLoading(false);
+    }
+  };
+
+  // 消息润色
+  const polishMessage = async () => {
+    if (!polishText.trim() || polishLoading) return;
+    setPolishLoading(true);
+    try {
+      const res = await axios.post(`${API_URL}/api/ai/polish-message`,
+        { text: polishText.trim(), tone: polishTone },
+        { headers: { Authorization: token } }
+      );
+      setPolishResult(res.data.polished);
+    } catch (err) {
+      showToast('润色失败', 'error');
+    } finally {
+      setPolishLoading(false);
+    }
+  };
+
+  // 应用润色结果到输入框
+  const applyPolish = () => {
+    setNewMessage(polishResult);
+    setShowPolishModal(false);
+    setPolishText('');
+    setPolishResult('');
+    showToast('已应用润色', 'success');
+  };
+
+  // AI 每日摘要
+  const fetchDailyDigest = async () => {
+    setDailyDigestLoading(true);
+    setShowDailyDigest(true);
+    try {
+      const res = await axios.post(`${API_URL}/api/ai/daily-digest`,
+        {},
+        { headers: { Authorization: token } }
+      );
+      setDailyDigest(res.data);
+    } catch (err) {
+      showToast('摘要生成失败', 'error');
+      setShowDailyDigest(false);
+    } finally {
+      setDailyDigestLoading(false);
+    }
+  };
+
+  // ===== 音乐播放器 =====
+  const searchMusic = async (e) => {
+    e?.preventDefault();
+    if (!musicSearch.trim() || musicLoading) return;
+    setMusicLoading(true);
+    setMusicResults([]);
+    try {
+      const res = await axios.get(`${API_URL}/api/music/search`, {
+        params: { keyword: musicSearch.trim() },
+        headers: { Authorization: token }
+      });
+      setMusicResults(res.data.songs || []);
+    } catch (err) {
+      showToast('搜索失败', 'error');
+    } finally {
+      setMusicLoading(false);
+    }
+  };
+
+  const playSong = async (song) => {
+    try {
+      const res = await axios.get(`${API_URL}/api/music/url/${song.id}`, {
+        headers: { Authorization: token }
+      });
+      const url = res.data.url;
+      if (!url) { showToast('暂无播放地址', 'error'); return; }
+      setCurrentSong({ ...song, url });
+      setIsPlaying(true);
+      // 延迟播放，等 audio 元素挂载
+      setTimeout(() => {
+        if (audioRef.current) {
+          audioRef.current.src = url;
+          audioRef.current.play().catch(() => showToast('播放失败', 'error'));
+        }
+      }, 100);
+      // 获取歌词
+      axios.get(`${API_URL}/api/music/lyric/${song.id}`, { headers: { Authorization: token } })
+        .then(r => setMusicLyric(r.data.lyric || ''))
+        .catch(() => setMusicLyric(''));
+    } catch (err) {
+      showToast('获取播放地址失败', 'error');
+    }
+  };
+
+  const shareSongToChat = (song) => {
+    if (!currentRoomId) { showToast('请先选择聊天室', 'error'); return; }
+    const content = `🎵 ${song.name} - ${song.artist}\n${song.url || ''}`;
+    socketRef.current?.emit('sendMessage', {
+      roomId: currentRoomId,
+      content,
+      type: 'text'
+    });
+    showToast('已分享到聊天', 'success');
+  };
+
+  const togglePlay = () => {
+    if (!audioRef.current || !currentSong) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().catch(() => {});
+      setIsPlaying(true);
+    }
+  };
+
+  // ===== 简易 markdown 渲染（粗体 + 代码块 + 换行）
   const renderMarkdown = (text) => {
     if (!text) return null;
     const lines = text.split('\n');
@@ -1575,7 +1764,7 @@ function App() {
     
     // 检查余额
     if (balance < amount) {
-      showToast(`余额不足，当前余额：¥${balance.toFixed(2)}，需要：¥${amount.toFixed(2)}`, 'error');
+      showToast(`余额不足，当前余额：¥${(balance || 0).toFixed(2)}，需要：¥${amount.toFixed(2)}`, 'error');
       return;
     }
     
@@ -2491,6 +2680,22 @@ function App() {
                 </div>
                 <span className="discover-arrow">›</span>
               </div>
+              <div className="discover-item" onClick={fetchDailyDigest}>
+                <div className="discover-icon" style={{ background: '#6366f1' }}>📰</div>
+                <div className="discover-info">
+                  <div className="discover-title">AI 每日摘要</div>
+                  <div className="discover-desc">AI 总结你今天的聊天内容</div>
+                </div>
+                <span className="discover-arrow">›</span>
+              </div>
+              <div className="discover-item" onClick={() => setShowMusicPanel(true)}>
+                <div className="discover-icon" style={{ background: '#ec4141' }}>🎵</div>
+                <div className="discover-info">
+                  <div className="discover-title">网易云音乐</div>
+                  <div className="discover-desc">搜歌、听歌、分享给好友</div>
+                </div>
+                <span className="discover-arrow">›</span>
+              </div>
             </div>
           </div>
         ) : bottomTab === 'me' ? (
@@ -2514,7 +2719,7 @@ function App() {
               <div className="me-menu-item" onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }}>
                 <div className="menu-icon" style={{ background: '#fa5151' }}>💰</div>
                 <span>钱包</span>
-                <span className="menu-badge">¥{balance.toFixed(2)}</span>
+                <span className="menu-badge">¥{(balance || 0).toFixed(2)}</span>
               </div>
               <div className="me-menu-item" onClick={() => setShowBackupModal(true)}>
                 <div className="menu-icon" style={{ background: '#00b5ad' }}>💾</div>
@@ -2550,7 +2755,7 @@ function App() {
               <button className="back-btn" onClick={() => { setView('chats'); setBottomTab('discover'); }}>← 返回</button>
               <h3>🤖 AI 助手</h3>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>余额: ¥{balance.toFixed(2)}</span>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>余额: ¥{(balance || 0).toFixed(2)}</span>
                 <button onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }} className="header-btn" title="充值" style={{ fontSize: 14, padding: '4px 10px' }}>💰</button>
                 {user?.username === 'admin' && (
                   <button onClick={() => { setShowAdminModal(true); fetchPendingRecharges(); }} className="header-btn" title="管理" style={{ fontSize: 14, padding: '4px 10px' }}>👑</button>
@@ -2663,6 +2868,7 @@ function App() {
                   📍
                 </button>
                 <button onClick={() => { setShowCheckIn(true); fetchCheckIns(); }} title="打卡签到" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 16 }}>✅</button>
+                <button onClick={() => setShowMusicPanel(true)} title="听歌" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 16 }}>🎵</button>
                 {!currentRoom?.type?.includes('group') && currentRoom?.members?.filter(m => m !== user?.username).length > 0 && (
                   <button onClick={() => {
                     const otherUser = allUsers.find(u => currentRoom.members.includes(u.username) && u.username !== user?.username);
@@ -2751,9 +2957,16 @@ function App() {
                         {msg.edited && <span className="edited-tag">（已编辑）</span>}
                       </div>
                     )}
+                    {/* AI 翻译结果 */}
+                    {translations[msg.id] && (
+                      <div className="translation-text" style={{ fontSize: 13, color: 'var(--text-secondary)', fontStyle: 'italic', padding: '6px 0', borderTop: '1px dashed var(--border)' }}>
+                        🌐 {translations[msg.id]}
+                      </div>
+                    )}
                     {msg.type === 'image' && <img className="media" src={msg.fileUrl} alt="" onClick={() => openImageViewer(msg.fileUrl, messages.filter(m => m.type === 'image').map(m => m.fileUrl))} />}
                     {msg.type === 'video' && (
-                      <video className="media" src={msg.fileUrl} controls onClick={() => window.open(msg.fileUrl)} />
+                      <video className="media" ref={observeVideo} src={msg.fileUrl} controls preload="none"
+                        onClick={() => window.open(msg.fileUrl)} />
                     )}
                     {msg.type === 'audio' && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 200 }}>
@@ -2877,7 +3090,7 @@ function App() {
                       const bvid = parseBilibiliUrl(msg.content);
                       if (!bvid) return null;
                       return (
-                        <div className="bilibili-embed">
+                        <div className="bilibili-embed" ref={observeVideo}>
                           <iframe src={`https://player.bilibili.com/player.html?bvid=${bvid}`} title="Bilibili video" allowFullScreen />
                         </div>
                       );
@@ -3077,16 +3290,45 @@ function App() {
                     ))}
                   </div>
                 )}
-                <textarea
-                  className="chat-input"
-                  placeholder="输入消息... 输入 @ 提及用户"
-                  value={newMessage}
-                  onChange={handleInputChange}
-                  onKeyPress={handleKeyPress}
-                />
-                <button className="send-button" onClick={sendMessage} disabled={!newMessage.trim() && !editingMessage}>
-                  {editingMessage ? '保存' : '发送'}
-                </button>
+                {/* AI 智能快捷回复 */}
+                {smartReplies.length > 0 && (
+                  <div className="smart-replies-bar">
+                    <span className="smart-replies-label">🤖 AI建议：</span>
+                    {smartReplies.map((reply, i) => (
+                      <button key={i} className="smart-reply-btn" onClick={() => { setNewMessage(reply); setSmartReplies([]); }}>
+                        {reply}
+                      </button>
+                    ))}
+                    <button className="smart-reply-close" onClick={() => setSmartReplies([])}>✕</button>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
+                  <button
+                    className="action-btn small"
+                    onClick={fetchSmartReplies}
+                    disabled={smartRepliesLoading || !currentRoomId}
+                    title="AI智能回复建议"
+                    style={{ padding: '6px 10px', fontSize: 14, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >{smartRepliesLoading ? '⏳' : '💡'}</button>
+                  <button
+                    className="action-btn small"
+                    onClick={() => { setPolishText(newMessage); setPolishResult(''); setShowPolishModal(true); }}
+                    disabled={!newMessage.trim()}
+                    title="AI润色文字"
+                    style={{ padding: '6px 10px', fontSize: 14, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >✨</button>
+                  <textarea
+                    className="chat-input"
+                    placeholder="输入消息... 输入 @ 提及用户"
+                    value={newMessage}
+                    onChange={handleInputChange}
+                    onKeyPress={handleKeyPress}
+                    style={{ flex: 1 }}
+                  />
+                  <button className="send-button" onClick={sendMessage} disabled={!newMessage.trim() && !editingMessage}>
+                    {editingMessage ? '保存' : '发送'}
+                  </button>
+                </div>
               </div>
             </div>
           </>
@@ -3578,7 +3820,7 @@ function App() {
             <h3>🧧 发红包</h3>
             <div className="balance-info">
               <span>当前余额：</span>
-              <span className="balance-amount">¥{balance.toFixed(2)}</span>
+              <span className="balance-amount">¥{(balance || 0).toFixed(2)}</span>
             </div>
             <div className="form-group">
               <label>红包金额（元）</label>
@@ -4074,6 +4316,161 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* ===== AI 润色弹窗 ===== */}
+      {showPolishModal && (
+        <div className="modal-overlay" onClick={() => { setShowPolishModal(false); setPolishResult(''); }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+            <h3>✨ AI 文字润色</h3>
+            <div className="form-group">
+              <label>原始文字</label>
+              <textarea value={polishText} onChange={e => setPolishText(e.target.value)} rows={3} placeholder="输入要润色的文字..." />
+            </div>
+            <div className="form-group">
+              <label>风格</label>
+              <select value={polishTone} onChange={e => setPolishTone(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 14 }}>
+                <option value="casual">💬 口语化</option>
+                <option value="formal">👔 正式</option>
+                <option value="funny">😄 幽默</option>
+                <option value="concise">📝 简洁</option>
+              </select>
+            </div>
+            {polishResult && (
+              <div className="form-group">
+                <label>润色结果</label>
+                <div style={{ padding: 12, background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, lineHeight: 1.6 }}>{polishResult}</div>
+              </div>
+            )}
+            <div className="modal-buttons">
+              <button className="cancel" onClick={() => { setShowPolishModal(false); setPolishResult(''); }}>取消</button>
+              {!polishResult ? (
+                <button className="confirm" onClick={polishMessage} disabled={!polishText.trim() || polishLoading}>
+                  {polishLoading ? '润色中...' : '开始润色'}
+                </button>
+              ) : (
+                <button className="confirm" onClick={applyPolish}>应用到输入框</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== AI 每日摘要弹窗 ===== */}
+      {showDailyDigest && (
+        <div className="modal-overlay" onClick={() => { setShowDailyDigest(false); setDailyDigest(null); }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480, maxHeight: '80vh', overflowY: 'auto' }}>
+            <h3>📰 AI 每日摘要</h3>
+            {dailyDigestLoading ? (
+              <div style={{ textAlign: 'center', padding: '30px 0' }}>
+                <div style={{ fontSize: 36, marginBottom: 12 }}>🤖</div>
+                <div>AI 正在分析你今天的聊天记录...</div>
+              </div>
+            ) : dailyDigest ? (
+              <>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                  <div className="stat-chip" style={{ flex: 1, textAlign: 'center', padding: 8, background: 'var(--bg)', borderRadius: 8 }}>
+                    <div style={{ fontSize: 20, fontWeight: 700 }}>{dailyDigest.stats?.totalMessages || 0}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>今日消息</div>
+                  </div>
+                  <div className="stat-chip" style={{ flex: 1, textAlign: 'center', padding: 8, background: 'var(--bg)', borderRadius: 8 }}>
+                    <div style={{ fontSize: 20, fontWeight: 700 }}>{dailyDigest.stats?.activeRooms || 0}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>活跃群聊</div>
+                  </div>
+                </div>
+                <div style={{ background: 'var(--bg)', padding: 14, borderRadius: 10, marginBottom: 14, lineHeight: 1.7, fontSize: 14 }}>
+                  {dailyDigest.digest}
+                </div>
+                {dailyDigest.highlightMessages?.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>📌 最新消息</div>
+                    {dailyDigest.highlightMessages.map((m, i) => (
+                      <div key={i} style={{ padding: '6px 0', borderTop: '1px solid var(--border)', fontSize: 13 }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>[{m.room}]</span> <strong>{m.sender}</strong>: {m.content?.slice(0, 40)}{(m.content?.length > 40) ? '...' : ''}
+                        <span style={{ float: 'right', color: 'var(--text-secondary)', fontSize: 11 }}>{m.time}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: 30, color: 'var(--text-secondary)' }}>生成失败</div>
+            )}
+            <div className="modal-buttons">
+              <button className="confirm" onClick={() => { setShowDailyDigest(false); setDailyDigest(null); }}>关闭</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 音乐播放器面板 ===== */}
+      {showMusicPanel && (
+        <div className="modal-overlay" onClick={() => setShowMusicPanel(false)}>
+          <div className="modal music-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: 480, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="music-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h3 style={{ margin: 0 }}>🎵 网易云音乐</h3>
+              <button onClick={() => setShowMusicPanel(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>✕</button>
+            </div>
+            {/* 搜索框 */}
+            <form onSubmit={searchMusic} style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input
+                type="text"
+                value={musicSearch}
+                onChange={e => setMusicSearch(e.target.value)}
+                placeholder="搜索歌曲、歌手..."
+                style={{ flex: 1, padding: '10px 14px', border: '2px solid var(--border)', borderRadius: 10, fontSize: 14, outline: 'none', background: 'var(--bg)' }}
+              />
+              <button type="submit" disabled={musicLoading} style={{ padding: '10px 18px', background: 'linear-gradient(135deg, #ec4141, #e03a3a)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                {musicLoading ? '搜索中...' : '搜索'}
+              </button>
+            </form>
+            {/* 迷你播放器 */}
+            {currentSong && (
+              <div className="mini-player" style={{ background: 'linear-gradient(135deg, #1a1a2e, #16213e)', borderRadius: 12, padding: 12, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <img src={currentSong.pic || ''} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: '#fff', fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentSong.name}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{currentSong.artist}</div>
+                </div>
+                <button onClick={togglePlay} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 20, width: 36, height: 36, cursor: 'pointer', fontSize: 16, color: '#fff' }}>
+                  {isPlaying ? '⏸' : '▶️'}
+                </button>
+                <button onClick={() => shareSongToChat(currentSong)} title="分享到聊天" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, padding: '4px 8px', color: '#fff' }}>📤</button>
+              </div>
+            )}
+            {/* 歌词 */}
+            {musicLyric && isPlaying && (
+              <div className="lyric-box" style={{ background: 'var(--bg)', borderRadius: 10, padding: 12, marginBottom: 12, maxHeight: 120, overflowY: 'auto', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                {musicLyric.split('\n').slice(0, 10).join('\n')}
+              </div>
+            )}
+            {/* 搜索结果 */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {musicResults.length === 0 && !musicLoading && (
+                <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>🎵</div>
+                  <div>输入关键词搜索歌曲</div>
+                </div>
+              )}
+              {musicResults.map((song, i) => (
+                <div key={song.id || i} className="music-item" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 8px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: currentSong?.id === song.id ? 'var(--hover)' : 'transparent', borderRadius: 8 }}
+                  onClick={() => playSong(song)}
+                >
+                  <img src={song.pic || ''} alt="" style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', background: 'var(--bg)' }} onError={e => { e.target.style.display = 'none'; }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{song.artist}{song.album ? ` · ${song.album}` : ''}</div>
+                  </div>
+                  <button onClick={(e) => { e.stopPropagation(); playSong(song); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }} title="播放">▶️</button>
+                  <button onClick={(e) => { e.stopPropagation(); shareSongToChat(song); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }} title="分享">📤</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 隐藏的音频元素 */}
+      <audio ref={audioRef} onEnded={() => setIsPlaying(false)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} style={{ display: 'none' }} />
 
       {/* ===== Toast ===== */}
       {toast && (

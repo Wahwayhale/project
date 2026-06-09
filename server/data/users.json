@@ -1,4 +1,14 @@
 {
+  "123": {
+    "id": "18cb273d-061d-448a-bbde-f8e71d10a219",
+    "username": "123",
+    "password": "$2a$10$OUa0FYMVHkuW.pU8Jv9FAOPw.kXW3qsD7k0IktQSL5kdrxq8J.lnm",
+    "sixDigitId": "233708",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=123",
+    "bio": "",
+    "createdAt": "2026-06-08T08:15:57.695Z",
+    "balance": 0.01
+  },
   "admin": {
     "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
     "username": "admin",
@@ -8,7 +18,8 @@
     "bio": "",
     "createdAt": "2026-06-03T01:09:50.993Z",
     "phone": "19512240964",
-    "phoneBoundAt": "2026-06-06T05:58:30.909Z"
+    "phoneBoundAt": "2026-06-06T05:58:30.909Z",
+    "balance": null
   },
   "马": {
     "id": "d445102e-cc18-41ec-9325-939f1d274f71",
@@ -17,7 +28,8 @@
     "sixDigitId": "815952",
     "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=马",
     "bio": "",
-    "createdAt": "2026-06-03T01:58:26.644Z"
+    "createdAt": "2026-06-03T01:58:26.644Z",
+    "balance": null
   },
   "www.com": {
     "id": "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
@@ -45,7 +57,8 @@
     "sixDigitId": "445610",
     "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx",
     "bio": "",
-    "createdAt": "2026-06-03T02:49:13.925Z"
+    "createdAt": "2026-06-03T02:49:13.925Z",
+    "balance": null
   },
   "aitest": {
     "id": "8102beab-9005-4871-b07e-491a60d9eff4",
@@ -73,5 +86,14 @@
     "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=。。。",
     "bio": "",
     "createdAt": "2026-06-04T01:12:23.651Z"
+  },
+  "🐴": {
+    "id": "02e80f93-d30e-4fb7-94fb-ab4298ee02b3",
+    "username": "🐴",
+    "password": "$2a$10$cMrUkI9zxuzOCbJ1tklEtu9IX13NLPzq7d1MJx2efPDmCJutrSZQK",
+    "sixDigitId": "967402",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=🐴",
+    "bio": "",
+    "createdAt": "2026-06-08T12:03:54.437Z"
   }
 }

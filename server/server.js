@@ -52,6 +52,25 @@ const onlineUsers = new Map();
 const userSockets = new Map();
 const chunksStore = new Map();
 
+// 更新用户余额并通知前端
+function updateUserBalance(username, newBalance) {
+  const user = users.get(username);
+  if (!user) return;
+  user.balance = newBalance;
+  users.set(username, user);
+  users.save();
+  // WebSocket 通知该用户余额已变更
+  const userSocket = userSockets.get(user.id);
+  if (userSocket) {
+    userSocket.emit('balanceUpdated', { balance: newBalance });
+  }
+}
+
+// 检查用户是否为房间成员
+function isRoomMember(room, username) {
+  return room && room.members && room.members.includes(username);
+}
+
 function generateSixDigitId() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -215,7 +234,8 @@ app.get('/api/profile', verifyToken, (req, res) => {
     avatar: user.avatar,
     sixDigitId: user.sixDigitId,
     bio: user.bio,
-    online: onlineUsers.has(user.id)
+    online: onlineUsers.has(user.id),
+    balance: user.balance || 0
   });
 });
 
@@ -349,7 +369,7 @@ app.post('/api/admin/recharge/confirm', verifyToken, (req, res) => {
   if (!user || user.username !== 'admin') {
     return res.status(403).json({ error: '需要管理员权限' });
   }
-  
+
   const recharge = recharges.get(rechargeId);
   if (!recharge) {
     return res.status(404).json({ error: '充值记录不存在' });
@@ -357,21 +377,37 @@ app.post('/api/admin/recharge/confirm', verifyToken, (req, res) => {
   if (recharge.status !== 'pending') {
     return res.status(400).json({ error: '该充值已处理' });
   }
-  
+
   // 更新充值状态
   recharge.status = 'confirmed';
   recharge.confirmedAt = new Date().toISOString();
   recharges.set(rechargeId, recharge);
-  
+  recharges.save(); // 立即持久化充值状态，防止重启丢数据
+
   // 增加用户余额（立即持久化）
   const targetUser = Array.from(users.values()).find(u => u.id === recharge.userId);
-  if (targetUser) {
-    targetUser.balance = (targetUser.balance || 0) + recharge.amount;
-    users.set(targetUser.username, targetUser);
-    users.save(); // 立即写入磁盘，防止数据丢失
+  if (!targetUser) {
+    console.error(`[RECHARGE ERROR] 目标用户不存在: userId=${recharge.userId}, username=${recharge.username}, rechargeId=${rechargeId}`);
+    return res.status(404).json({ error: '目标用户不存在，可能已被删除' });
   }
 
-  res.json({ success: true, recharge, newBalance: targetUser?.balance });
+  targetUser.balance = (targetUser.balance || 0) + recharge.amount;
+  users.set(targetUser.username, targetUser);
+  users.save(); // 立即写入磁盘，防止数据丢失
+
+  // 通过 WebSocket 通知收款方余额已更新
+  const targetSocket = userSockets.get(targetUser.id);
+  if (targetSocket) {
+    targetSocket.emit('balanceUpdated', { balance: targetUser.balance });
+    targetSocket.emit('rechargeConfirmed', {
+      rechargeId,
+      amount: recharge.amount,
+      newBalance: targetUser.balance
+    });
+  }
+
+  console.log(`[RECHARGE] admin 确认充值: ${recharge.username} +¥${recharge.amount}, 新余额: ¥${targetUser.balance}`);
+  res.json({ success: true, recharge, newBalance: targetUser.balance });
 });
 
 // 管理员：拒绝充值
@@ -381,7 +417,7 @@ app.post('/api/admin/recharge/reject', verifyToken, (req, res) => {
   if (!user || user.username !== 'admin') {
     return res.status(403).json({ error: '需要管理员权限' });
   }
-  
+
   const recharge = recharges.get(rechargeId);
   if (!recharge) {
     return res.status(404).json({ error: '充值记录不存在' });
@@ -389,12 +425,26 @@ app.post('/api/admin/recharge/reject', verifyToken, (req, res) => {
   if (recharge.status !== 'pending') {
     return res.status(400).json({ error: '该充值已处理' });
   }
-  
+
   recharge.status = 'rejected';
   recharge.confirmedAt = new Date().toISOString();
   recharge.rejectReason = reason || '管理员拒绝';
   recharges.set(rechargeId, recharge);
-  
+  recharges.save(); // 立即持久化
+
+  // 通知用户充值被拒绝
+  const targetUser = Array.from(users.values()).find(u => u.id === recharge.userId);
+  if (targetUser) {
+    const targetSocket = userSockets.get(targetUser.id);
+    if (targetSocket) {
+      targetSocket.emit('rechargeRejected', {
+        rechargeId,
+        amount: recharge.amount,
+        reason: recharge.rejectReason
+      });
+    }
+  }
+
   res.json({ success: true, recharge });
 });
 
@@ -641,32 +691,37 @@ function callKimiAI(messages, model, callback) {
   }).on('error', err => callback(err, null));
 }
 
+const DEEPSEEK_R1_API_KEY = process.env.DEEPSEEK_R1_API_KEY || '';
 const DEEPSEEK_MODEL_MAP = {
   'deepseek-v4-flash': 'deepseek-chat',
-  'deepseek-v4-pro': 'deepseek-reasoner'
+  'deepseek-v4-pro': 'deepseek-reasoner',
+  'deepseek-r1': 'deepseek-v3-0324'
 };
 
 // 调用 DeepSeek AI
 function callDeepSeekAI(messages, model, callback) {
-  if (!DEEPSEEK_API_KEY) {
+  const isR1 = model === 'deepseek-r1';
+  // R1 使用腾讯 MAS 代理 + 独立 Key，其他模型使用 DeepSeek 直连
+  const apiKey = isR1 && DEEPSEEK_R1_API_KEY ? DEEPSEEK_R1_API_KEY : DEEPSEEK_API_KEY;
+  if (!apiKey) {
     return callback(new Error('DEEPSEEK_API_KEY 未配置'));
   }
-  const apiModel = 'deepseek-chat'; // 始终使用 deepseek-chat
+  const apiModel = DEEPSEEK_MODEL_MAP[model] || 'deepseek-chat';
   const body = JSON.stringify({
     model: apiModel,
     messages,
     stream: false,
-    max_tokens: 1024,
+    max_tokens: 4096,
     temperature: 0.7
   });
   const options = {
-    hostname: 'api.deepseek.com',
+    hostname: isR1 ? 'tokenhub.tencentmaas.com' : 'api.deepseek.com',
     port: 443,
     path: '/v1/chat/completions',
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+      'Authorization': `Bearer ${apiKey}`,
       'Content-Length': Buffer.byteLength(body)
     },
     timeout: 60000 // 60秒超时
@@ -777,8 +832,8 @@ app.post('/api/ai/chat', verifyToken, (req, res) => {
       }
       
       if (json.error) {
-        const msg = json.error.message || 'AI 返回错误';
-        const code = json.error.code;
+        const msg = (typeof json.error === 'string' ? json.error : json.error?.message) || 'AI 返回错误';
+        const code = (typeof json.error === 'object' ? json.error?.code : json.code) || '';
         return callPollinations(history, (err2, result) => {
           if (err2) {
             return res.status(500).json({ error: msg, code });
@@ -804,11 +859,9 @@ app.post('/api/ai/chat', verifyToken, (req, res) => {
       
       // 扣费（admin 管理员不扣费）
       if (user && !isAdmin) {
-        user.balance = (user.balance || 0) - AI_CALL_PRICE;
-        users.set(user.username, user);
-        users.save();
+        updateUserBalance(user.username, (user.balance || 0) - AI_CALL_PRICE);
       }
-      
+
       res.json({ reply, model: useModel, provider: 'kimi', usage: json.usage || null, balance: user?.balance || 0 });
     });
   }
@@ -838,11 +891,12 @@ app.post('/api/ai/chat', verifyToken, (req, res) => {
       }
       
       if (json.error) {
-        const msg = json.error.message || 'AI 返回错误';
-        const code = json.error.code;
+        // DeepSeek error 可能是字符串或 { message, code } 对象
+        const msg = (typeof json.error === 'string' ? json.error : json.error?.message) || 'AI 返回错误';
+        const code = (typeof json.error === 'object' ? json.error?.code : json.code) || '';
         return callPollinations(history, (err2, result) => {
           if (err2) {
-            return res.status(500).json({ error: msg, code });
+            return res.status(500).json({ error: msg, code, hint: 'DeepSeek API 和备用免费通道均调用失败，请检查 API Key 或稍后重试' });
           }
           history.push({ role: 'assistant', content: result.reply });
           res.json({ reply: result.reply, model: result.model, provider: 'pollinations', warning: `DeepSeek ${msg}，已切换免key通道` });
@@ -865,11 +919,9 @@ app.post('/api/ai/chat', verifyToken, (req, res) => {
       
       // 扣费（admin 管理员不扣费）
       if (user && !isAdmin) {
-        user.balance = (user.balance || 0) - AI_CALL_PRICE;
-        users.set(user.username, user);
-        users.save();
+        updateUserBalance(user.username, (user.balance || 0) - AI_CALL_PRICE);
       }
-      
+
       res.json({ reply, model: useModel, provider: 'deepseek', usage: json.usage || null, balance: user?.balance || 0 });
     });
   }
@@ -889,8 +941,8 @@ app.post('/api/ai/chat', verifyToken, (req, res) => {
     
     // 智谱AI错误格式
     if (json.error) {
-      const msg = json.error.message || 'AI 返回错误';
-      const code = json.error.code;
+      const msg = (typeof json.error === 'string' ? json.error : json.error?.message) || 'AI 返回错误';
+      const code = (typeof json.error === 'object' ? json.error?.code : json.code) || '';
       let hint = '';
       if (code === 'invalid_api_key' || code === 401) {
         hint = 'API Key无效，请检查 server/.env 中的 ZHIPU_API_KEY';
@@ -924,10 +976,9 @@ app.post('/api/ai/chat', verifyToken, (req, res) => {
     
     // 扣费（免费模型不扣，admin 管理员不扣）
     if (user && useModel !== 'glm-4-flash' && !isAdmin) {
-      user.balance = (user.balance || 0) - AI_CALL_PRICE;
-      users.set(user.username, user);
+      updateUserBalance(user.username, (user.balance || 0) - AI_CALL_PRICE);
     }
-    
+
     res.json({ reply, model: useModel, provider: 'zhipu', usage: json.usage || null, balance: user?.balance || 0 });
   });
 });
@@ -943,6 +994,7 @@ app.get('/api/ai/models', verifyToken, (req, res) => {
       { id: 'glm-4-flash', name: '智谱 GLM-4-Flash（免费）', free: true, desc: '快速免费' },
       { id: 'deepseek-v4-flash', name: 'DeepSeek V4-Flash', free: false, desc: 'DeepSeek 快速模型' },
       { id: 'deepseek-v4-pro', name: 'DeepSeek V4-Pro', free: false, desc: 'DeepSeek 推理增强模型' },
+      { id: 'deepseek-r1', name: 'DeepSeek R1（独立Key）', free: false, desc: 'DeepSeek 最新推理模型' },
       { id: 'glm-4-plus', name: '智谱 GLM-4-Plus', free: false, desc: '更强推理' }
     ]
   });
@@ -996,8 +1048,13 @@ app.get('/api/bilibili/popular', verifyToken, (req, res) => {
 });
 
 app.get('/api/bilibili/proxy-image', (req, res) => {
-  const imageUrl = req.query.url;
-  if (!imageUrl || !imageUrl.startsWith('http')) {
+  let imageUrl = req.query.url;
+  if (!imageUrl) {
+    return res.status(400).json({ error: 'Invalid url' });
+  }
+  // 协议相对 URL → 补全 https:
+  if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl;
+  if (!imageUrl.startsWith('http')) {
     return res.status(400).json({ error: 'Invalid url' });
   }
   https.get(imageUrl, {
@@ -1007,6 +1064,7 @@ app.get('/api/bilibili/proxy-image', (req, res) => {
     }
   }, (response) => {
     res.setHeader('Content-Type', response.headers['content-type'] || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // 浏览器缓存24小时
     response.pipe(res);
   }).on('error', (err) => {
     res.status(500).json({ error: err.message });
@@ -1014,13 +1072,15 @@ app.get('/api/bilibili/proxy-image', (req, res) => {
 });
 
 app.get('/api/rooms', verifyToken, (req, res) => {
-  const roomList = Array.from(rooms.values()).map(room => ({
-    id: room.id,
-    name: room.name,
-    type: room.type,
-    memberCount: room.members.length,
-    lastMessage: room.messages[room.messages.length - 1] || null
-  }));
+  const roomList = Array.from(rooms.values())
+    .filter(room => room.type === 'public' || isRoomMember(room, req.user.username))
+    .map(room => ({
+      id: room.id,
+      name: room.name,
+      type: room.type,
+      memberCount: room.members ? room.members.length : 0,
+      lastMessage: room.messages[room.messages.length - 1] || null
+    }));
   res.json(roomList);
 });
 
@@ -1044,6 +1104,10 @@ app.get('/api/rooms/:roomId/messages', verifyToken, (req, res) => {
   const room = rooms.get(req.params.roomId);
   if (!room) {
     return res.status(404).json({ error: 'Room not found' });
+  }
+  // 私有房间只允许成员访问
+  if (room.type !== 'public' && !isRoomMember(room, req.user.username)) {
+    return res.status(403).json({ error: '无权访问该房间' });
   }
   const page = parseInt(req.query.page) || 1;
   const limit = 50;
@@ -1421,6 +1485,217 @@ app.post('/api/ai/translate', verifyToken, (req, res) => {
   doTranslate();
 });
 
+// ========== 网易云音乐 API ==========
+const { cloudsearch, song_url, lyric: getLyric } = require('NeteaseCloudMusicApi');
+
+// 搜索歌曲
+app.get('/api/music/search', verifyToken, async (req, res) => {
+  const { keyword } = req.query;
+  if (!keyword) return res.status(400).json({ error: '请输入搜索关键词' });
+  try {
+    const result = await cloudsearch({ keywords: keyword, limit: 20, type: 1 });
+    if (result.status !== 200 || !result.body?.result?.songs) {
+      return res.json({ songs: [] });
+    }
+    const songs = result.body.result.songs.map(s => ({
+      id: s.id.toString(),
+      name: s.name,
+      artist: (s.ar || s.artists || []).map(a => a.name).join('/'),
+      album: (s.al || s.album || {}).name || '',
+      pic: (s.al || s.album || {}).picUrl || ''
+    }));
+    res.json({ songs });
+  } catch (err) {
+    console.error('Music search error:', err.message);
+    res.json({ songs: [] });
+  }
+});
+
+// 获取歌曲播放 URL
+app.get('/api/music/url/:songId', verifyToken, async (req, res) => {
+  const { songId } = req.params;
+  try {
+    const result = await song_url({ id: songId, br: 128000 });
+    if (result.status !== 200 || !result.body?.data?.[0]?.url) {
+      return res.status(500).json({ error: '暂无播放地址' });
+    }
+    res.json({ url: result.body.data[0].url });
+  } catch (err) {
+    res.status(500).json({ error: '获取播放地址失败' });
+  }
+});
+
+// 获取歌词
+app.get('/api/music/lyric/:songId', verifyToken, async (req, res) => {
+  const { songId } = req.params;
+  try {
+    const result = await getLyric({ id: songId });
+    if (result.status !== 200) {
+      return res.status(500).json({ error: '获取歌词失败' });
+    }
+    const lrc = (result.body?.lrc?.lyric || result.body?.lyric || '').replace(/\[/g, '[');
+    res.json({ lyric: lrc });
+  } catch (err) {
+    res.status(500).json({ error: '获取歌词失败' });
+  }
+});
+
+// ========== AI 统一调用辅助（优先 Pollinations 免费通道） ==========
+function callAIFree(messages, callback) {
+  // 优先使用智谱免费模型
+  if (ZHIPU_API_KEY) {
+    return callAI(messages, 'glm-4-flash', (err, json) => {
+      if (!err && json?.choices?.[0]?.message?.content) {
+        return callback(null, json.choices[0].message.content);
+      }
+      // 降级到 Pollinations
+      callPollinations(messages, (err2, result) => {
+        if (err2) return callback(new Error('所有 AI 通道均失败'));
+        callback(null, result.reply);
+      });
+    });
+  }
+  // 无 API key，直接用 Pollinations
+  callPollinations(messages, (err, result) => {
+    if (err) return callback(new Error('AI 调用失败: ' + err.message));
+    callback(null, result.reply);
+  });
+}
+
+// ========== AI 智能快捷回复 ==========
+app.post('/api/ai/smart-reply', verifyToken, (req, res) => {
+  const { roomId, context } = req.body || {};
+  if (!context || typeof context !== 'string') {
+    return res.status(400).json({ error: '缺少对话上下文' });
+  }
+
+  const messages = [
+    { role: 'system', content: '你是一个聊天助手。根据最近聊天内容，生成3条简短自然的快捷回复（每条约5-15字），用中文回复。只输出3条回复，每行一条，不要编号，不要引号，不要解释。' },
+    { role: 'user', content: `最近聊天：\n${context}\n\n请给出3条快捷回复：` }
+  ];
+
+  callAIFree(messages, (err, reply) => {
+    if (err) return res.status(500).json({ error: err.message });
+    // 解析回复为数组
+    const replies = reply.split('\n').filter(r => r.trim()).slice(0, 3);
+    res.json({ replies: replies.length > 0 ? replies : ['好的', '收到', '没问题'] });
+  });
+});
+
+// ========== AI 消息翻译（增强版，支持更多语言） ==========
+app.post('/api/ai/translate-message', verifyToken, (req, res) => {
+  const { text, targetLang } = req.body || {};
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: '请输入要翻译的文字' });
+  }
+
+  const langNames = { zh: '中文', en: '英文', ja: '日文', ko: '韩文', fr: '法文', de: '德文', es: '西班牙文', ru: '俄文', ar: '阿拉伯文', pt: '葡萄牙文', th: '泰文', vi: '越南文', it: '意大利文' };
+  const langName = langNames[targetLang] || '中文';
+
+  const messages = [
+    { role: 'system', content: `你是翻译助手。将用户输入直接翻译成${langName}。只输出翻译结果，不加任何解释、引号或额外文字。` },
+    { role: 'user', content: text }
+  ];
+
+  callAIFree(messages, (err, reply) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ translation: reply.trim(), original: text, targetLang: targetLang || 'zh' });
+  });
+});
+
+// ========== AI 消息润色 ==========
+app.post('/api/ai/polish-message', verifyToken, (req, res) => {
+  const { text, tone } = req.body || {};
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: '请输入要润色的文字' });
+  }
+
+  const toneMap = {
+    formal: '正式、礼貌',
+    casual: '轻松、口语化',
+    funny: '幽默、有趣',
+    concise: '简洁、精炼'
+  };
+  const toneDesc = toneMap[tone] || '流畅自然';
+
+  const messages = [
+    { role: 'system', content: `你是文字润色助手。将用户输入改写为${toneDesc}的风格。保持原意不变。只输出改写后的文本，不要加任何解释、引号或额外文字。` },
+    { role: 'user', content: text }
+  ];
+
+  callAIFree(messages, (err, reply) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ polished: reply.trim(), original: text, tone: tone || 'natural' });
+  });
+});
+
+// ========== AI 聊天标题生成 ==========
+app.post('/api/ai/generate-title', verifyToken, (req, res) => {
+  const { messages } = req.body || {};
+  if (!messages || typeof messages !== 'string') {
+    return res.status(400).json({ error: '缺少聊天内容' });
+  }
+
+  const prompt = [
+    { role: 'system', content: '你是聊天标题生成助手。根据聊天内容生成一个简短的标题（5-15字）。只输出标题，不要加引号或解释。' },
+    { role: 'user', content: `聊天内容：\n${messages}\n\n请为这段对话生成一个标题：` }
+  ];
+
+  callAIFree(prompt, (err, reply) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ title: reply.trim().slice(0, 30) });
+  });
+});
+
+// ========== AI 每日摘要 ==========
+app.post('/api/ai/daily-digest', verifyToken, (req, res) => {
+  const username = req.user.username;
+  const today = new Date().toDateString();
+
+  // 收集用户所在所有房间的今日消息
+  let allTodayMessages = [];
+  rooms.forEach(room => {
+    if (!isRoomMember(room, username)) return;
+    room.messages.forEach(msg => {
+      if (msg.recalled || msg.isBot) return;
+      if (new Date(msg.timestamp).toDateString() === today) {
+        allTodayMessages.push({
+          room: room.name,
+          sender: msg.sender?.username || '匿名',
+          content: msg.content || `[${msg.type}]`,
+          time: new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+        });
+      }
+    });
+  });
+
+  if (allTodayMessages.length === 0) {
+    return res.json({ digest: '今天还没有新消息，去和朋友打个招呼吧！', highlightMessages: [], stats: { totalMessages: 0, activeRooms: 0 } });
+  }
+
+  // 统计
+  const roomSet = new Set(allTodayMessages.map(m => m.room));
+  const stats = { totalMessages: allTodayMessages.length, activeRooms: roomSet.size };
+
+  // 构建摘要上下文
+  const chatText = allTodayMessages.slice(-50).map(m => `[${m.room}] ${m.sender}: ${m.content}`).join('\n');
+  const messages = [
+    { role: 'system', content: '你是聊天摘要助手。请用3-6句话总结以下今日聊天记录，包含主要话题和有趣的内容。语气轻松友善。只输出摘要，不超过200字。' },
+    { role: 'user', content: `今日聊天记录：\n${chatText}\n\n请总结：` }
+  ];
+
+  callAIFree(messages, (err, reply) => {
+    if (err) return res.status(500).json({ error: err.message });
+    // 取最近3条作为高亮
+    const highlights = allTodayMessages.slice(-3).reverse();
+    res.json({
+      digest: reply.trim(),
+      highlightMessages: highlights,
+      stats
+    });
+  });
+});
+
 // ========== 年度统计 ==========
 app.get('/api/stats/yearly', verifyToken, (req, res) => {
   const userId = req.user.id;
@@ -1600,24 +1875,31 @@ io.on('connection', (socket) => {
 
   socket.on('joinRoom', (roomId) => {
     const room = rooms.get(roomId);
-    if (room) {
-      socket.join(roomId);
-      socket.currentRoom = roomId;
-      // Auto mark all as read when joining room
-      let hasUnread = false;
-      room.messages.forEach(msg => {
-        if (!msg.readBy) msg.readBy = [];
-        if (!msg.readBy.includes(socket.userId)) {
-          msg.readBy.push(socket.userId);
-          hasUnread = true;
-        }
-      });
-      if (hasUnread) {
-        rooms.set(roomId, room);
-        io.to(roomId).emit('allMessagesRead', { roomId, userId: socket.userId });
-      }
-      socket.emit('joinedRoom', { roomId, messages: room.messages.slice(-100) });
+    if (!room) {
+      socket.emit('roomError', { error: '房间不存在' });
+      return;
     }
+    // 私有房间只允许成员加入
+    if (room.type !== 'public' && !isRoomMember(room, socket.username)) {
+      socket.emit('roomError', { error: '你不是该房间的成员' });
+      return;
+    }
+    socket.join(roomId);
+    socket.currentRoom = roomId;
+    // Auto mark all as read when joining room
+    let hasUnread = false;
+    room.messages.forEach(msg => {
+      if (!msg.readBy) msg.readBy = [];
+      if (!msg.readBy.includes(socket.userId)) {
+        msg.readBy.push(socket.userId);
+        hasUnread = true;
+      }
+    });
+    if (hasUnread) {
+      rooms.set(roomId, room);
+      io.to(roomId).emit('allMessagesRead', { roomId, userId: socket.userId });
+    }
+    socket.emit('joinedRoom', { roomId, messages: room.messages.slice(-100) });
   });
 
   socket.on('leaveRoom', (roomId) => {
@@ -1629,6 +1911,13 @@ io.on('connection', (socket) => {
     const { roomId, content, type, fileUrl, filename, fileSize, mimeType, replyTo, mentions } = data;
     const room = rooms.get(roomId);
     if (!room) return;
+    // 验证发送者是房间成员
+    if (!isRoomMember(room, socket.username)) return;
+    // 禁言检查
+    if (room.mutedMembers && room.mutedMembers.includes(socket.username)) {
+      socket.emit('sendError', { error: '你已被禁言，无法发送消息' });
+      return;
+    }
     const message = {
       id: uuidv4(),
       content,
@@ -1806,10 +2095,8 @@ io.on('connection', (socket) => {
     }
     
     // 扣减余额
-    user.balance = parseFloat((user.balance - amount).toFixed(2));
-    users.set(socket.username, user);
-    users.save();
-    
+    updateUserBalance(socket.username, parseFloat((user.balance - amount).toFixed(2)));
+
     const packet = {
       id: uuidv4(),
       type: 'redPacket',
@@ -1866,11 +2153,9 @@ io.on('connection', (socket) => {
     // 增加用户余额
     const user = users.get(socket.username);
     if (user) {
-      user.balance = parseFloat((user.balance + share).toFixed(2));
-      users.set(socket.username, user);
-      users.save();
+      updateUserBalance(socket.username, parseFloat((user.balance + share).toFixed(2)));
     }
-    
+
     rooms.set(roomId, room);
     io.to(roomId).emit('redPacketClaimed', { packetId, userId: socket.userId, share });
   });
