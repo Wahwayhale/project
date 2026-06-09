@@ -1,5 +1,8 @@
 const express = require('express');
-require('dotenv').config();
+// 支持通过 ENV_FILE 指定配置文件（如 ENV_FILE=.env.app 或 ENV_FILE=.env.web）
+const envFile = process.env.ENV_FILE || '.env';
+require('dotenv').config({ path: require('path').join(__dirname, envFile) });
+console.log(`[SERVER] Using config: ${envFile}, Port: ${process.env.PORT || 3001}`);
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
@@ -26,7 +29,7 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const JWT_SECRET = 'wechat-secret-key-2024';
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 const collections = db.init();
 const users = collections.users;
@@ -48,8 +51,9 @@ function handleShutdown(signal) {
 process.on('SIGINT', () => handleShutdown('SIGINT'));
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 
-const onlineUsers = new Map();
-const userSockets = new Map();
+const onlineUsers = new Map(); // userId -> { id, username, socketIds: Set }
+const userSockets = new Map(); // userId -> socket (最新连接)
+const userConnectionCount = new Map(); // userId -> count
 const chunksStore = new Map();
 
 // 更新用户余额并通知前端
@@ -586,9 +590,9 @@ app.post('/api/friends/reject', verifyToken, (req, res) => {
 
 const https = require('https');
 
-const ZHIPU_API_KEY = process.env.ZHIPU_API_KEY || '';
-const KIMI_API_KEY = process.env.KIMI_API_KEY || '';
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
+let ZHIPU_API_KEY = process.env.ZHIPU_API_KEY || '';
+let KIMI_API_KEY = process.env.KIMI_API_KEY || '';
+let DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const ZHIPU_BASE = 'open.bigmodel.cn';
 const KIMI_BASE = 'api.moonshot.cn';
 const DEEPSEEK_BASE = 'api.deepseek.com';
@@ -691,7 +695,7 @@ function callKimiAI(messages, model, callback) {
   }).on('error', err => callback(err, null));
 }
 
-const DEEPSEEK_R1_API_KEY = process.env.DEEPSEEK_R1_API_KEY || '';
+let DEEPSEEK_R1_API_KEY = process.env.DEEPSEEK_R1_API_KEY || '';
 const DEEPSEEK_MODEL_MAP = {
   'deepseek-v4-flash': 'deepseek-chat',
   'deepseek-v4-pro': 'deepseek-reasoner',
@@ -998,6 +1002,33 @@ app.get('/api/ai/models', verifyToken, (req, res) => {
       { id: 'glm-4-plus', name: '智谱 GLM-4-Plus', free: false, desc: '更强推理' }
     ]
   });
+});
+
+// 热重载 .env 配置（无需重启服务器）
+app.post('/api/admin/reload-config', verifyToken, (req, res) => {
+  const user = Array.from(users.values()).find(u => u.id === req.user.id);
+  if (!user || user.username !== 'admin') {
+    return res.status(403).json({ error: '需要管理员权限' });
+  }
+  try {
+    const envPath = path.join(__dirname, '.env');
+    const envContent = fs.readFileSync(envPath, 'utf-8');
+    const envConfig = require('dotenv').parse(envContent);
+    // 更新全局 API Key 变量
+    if (envConfig.ZHIPU_API_KEY !== undefined) process.env.ZHIPU_API_KEY = envConfig.ZHIPU_API_KEY;
+    if (envConfig.KIMI_API_KEY !== undefined) process.env.KIMI_API_KEY = envConfig.KIMI_API_KEY;
+    if (envConfig.DEEPSEEK_API_KEY !== undefined) process.env.DEEPSEEK_API_KEY = envConfig.DEEPSEEK_API_KEY;
+    if (envConfig.DEEPSEEK_R1_API_KEY !== undefined) process.env.DEEPSEEK_R1_API_KEY = envConfig.DEEPSEEK_R1_API_KEY;
+    // 同时更新模块级变量
+    ZHIPU_API_KEY = envConfig.ZHIPU_API_KEY || '';
+    KIMI_API_KEY = envConfig.KIMI_API_KEY || '';
+    DEEPSEEK_API_KEY = envConfig.DEEPSEEK_API_KEY || '';
+    DEEPSEEK_R1_API_KEY = envConfig.DEEPSEEK_R1_API_KEY || '';
+    console.log('[CONFIG] .env 热重载成功');
+    res.json({ success: true, message: '配置已重新加载，新增/修改的 Key 已生效' });
+  } catch (e) {
+    res.status(500).json({ error: '重载失败: ' + e.message });
+  }
 });
 
 function biliRequest(path, callback) {
@@ -1696,6 +1727,281 @@ app.post('/api/ai/daily-digest', verifyToken, (req, res) => {
   });
 });
 
+// ========== Phase 1 新功能 ==========
+
+// 1.1 GIF 搜索 (GIPHY API)
+app.get('/api/giphy/search', verifyToken, (req, res) => {
+  const { q } = req.query;
+  if (!q) return res.json({ gifs: [] });
+  const GIPHY_KEY = process.env.GIPHY_API_KEY || 'dc6zaTOxFJmzC'; // 公共测试 Key
+  const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=20&rating=g&lang=zh`;
+  https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (response) => {
+    let data = '';
+    response.on('data', chunk => data += chunk);
+    response.on('end', () => {
+      try {
+        const json = JSON.parse(data);
+        const gifs = (json.data || []).map(g => ({
+          id: g.id,
+          url: g.images?.fixed_height?.url || g.images?.original?.url || '',
+          preview: g.images?.fixed_height_small?.url || '',
+          title: g.title || ''
+        }));
+        res.json({ gifs });
+      } catch { res.json({ gifs: [] }); }
+    });
+  }).on('error', () => res.json({ gifs: [] }));
+});
+
+// 1.2 天气查询
+app.get('/api/weather/:city', verifyToken, (req, res) => {
+  const { city } = req.params;
+  // 使用 wttr.in 免费天气 API，无需 Key
+  const url = `https://wttr.in/${encodeURIComponent(city)}?format=j1&lang=zh`;
+  const weatherReq = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000 }, (response) => {
+    let data = '';
+    response.on('data', chunk => data += chunk);
+    response.on('end', () => {
+      try {
+        const json = JSON.parse(data);
+        const now = json.current_condition?.[0] || {};
+        const today = json.weather?.[0] || {};
+        res.json({
+          city: json.nearest_area?.[0]?.areaName?.[0]?.value || city,
+          temp: now.temp_C,
+          desc: now.lang_zh?.[0]?.value || now.weatherDesc?.[0]?.value || '',
+          humidity: now.humidity,
+          wind: (now.winddir16Point || '') + ' ' + (now.windspeedKmph || '') + 'km/h',
+          feelsLike: now.FeelsLikeC,
+          high: today.maxtempC, low: today.mintempC,
+          icon: now.weatherCode || ''
+        });
+      } catch { res.status(500).json({ error: '天气数据解析失败，请简化搜索词（如"北京"代替"北京市朝阳区"）' }); }
+    });
+  });
+  weatherReq.on('timeout', () => { weatherReq.destroy(); res.status(500).json({ error: '天气查询超时，请检查网络连接' }); });
+  weatherReq.on('error', () => res.status(500).json({ error: '天气服务不可用，请稍后重试' }));
+});
+
+// 1.3 新闻热搜 (知乎日报)
+app.get('/api/news/hot', verifyToken, (req, res) => {
+  https.get('https://news-at.zhihu.com/api/4/news/latest', {
+    headers: { 'User-Agent': 'Mozilla/5.0' }
+  }, (response) => {
+    let data = '';
+    response.on('data', chunk => data += chunk);
+    response.on('end', () => {
+      try {
+        const json = JSON.parse(data);
+        const stories = (json.stories || []).slice(0, 15).map(s => ({
+          id: s.id,
+          title: s.title,
+          image: s.images?.[0] || '',
+          url: s.url || `https://daily.zhihu.com/story/${s.id}`
+        }));
+        res.json({ stories });
+      } catch { res.json({ stories: [] }); }
+    });
+  }).on('error', () => res.json({ stories: [] }));
+});
+
+// 1.4 二维码生成
+const QRCode = require('qrcode');
+app.get('/api/qrcode', verifyToken, (req, res) => {
+  const { text } = req.query;
+  if (!text) return res.status(400).json({ error: '请提供 text 参数' });
+  QRCode.toBuffer(text.substring(0, 500), { width: 300, margin: 2, type: 'png' }, (err, buffer) => {
+    if (err) return res.status(500).json({ error: '二维码生成失败' });
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(buffer);
+  });
+});
+
+// 1.6 一言随机语录
+app.get('/api/quote/random', verifyToken, (req, res) => {
+  https.get('https://v1.hitokoto.cn/?c=a&c=b&c=c&c=d&c=e&c=f&c=g&c=h&c=i&c=j&c=k&c=l', {
+    headers: { 'User-Agent': 'Mozilla/5.0' }
+  }, (response) => {
+    let data = '';
+    response.on('data', chunk => data += chunk);
+    response.on('end', () => {
+      try {
+        const json = JSON.parse(data);
+        res.json({
+          quote: json.hitokoto,
+          from: json.from || '',
+          author: json.from_who || ''
+        });
+      } catch { res.json({ quote: '生活不止眼前的苟且，还有诗和远方。', from: '', author: '' }); }
+    });
+  }).on('error', () => res.json({ quote: '今天也是充满希望的一天！', from: '', author: '' }));
+});
+
+// 1.10 链接预览 (Open Graph)
+app.get('/api/link-preview', verifyToken, (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ error: '请提供 url 参数' });
+  const targetUrl = url.startsWith('http') ? url : 'https://' + url;
+  https.get(targetUrl, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LinkPreview/1.0)' },
+    timeout: 5000
+  }, (response) => {
+    let html = '';
+    response.on('data', chunk => { html += chunk; if (html.length > 50000) response.destroy(); });
+    response.on('end', () => {
+      const getMeta = (name) => {
+        const regex = new RegExp(`<meta[^>]+(?:property|name)=["']${name}["'][^>]+content=["']([^"']+)["']`, 'i');
+        const match = html.match(regex);
+        return match ? match[1] : '';
+      };
+      const title = getMeta('og:title') || (html.match(/<title>([^<]+)<\/title>/i) || [])[1] || '';
+      const desc = getMeta('og:description') || getMeta('description') || '';
+      const image = getMeta('og:image') || '';
+      res.json({ title: title.substring(0, 200), description: desc.substring(0, 300), image });
+    });
+  }).on('error', () => res.status(500).json({ error: '抓取失败' }));
+});
+
+// 2.2 地图 POI 搜索 + 静态地图 (OpenStreetMap/Nominatim, 免费免 Key)
+app.get('/api/map/poi', verifyToken, (req, res) => {
+  const { keyword, lat, lng } = req.query;
+  if (!keyword) return res.status(400).json({ error: '请提供搜索关键词' });
+  const q = lat && lng
+    ? `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(keyword)}&format=json&limit=10&accept-language=zh&lat=${lat}&lon=${lng}&bounded=1`
+    : `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(keyword)}&format=json&limit=10&accept-language=zh`;
+  const mapReq = https.get(q, {
+    headers: { 'User-Agent': 'WeChatApp/1.0', 'Accept-Language': 'zh' },
+    timeout: 8000
+  }, (response) => {
+    let data = '';
+    response.on('data', chunk => data += chunk);
+    response.on('end', () => {
+      try {
+        const pois = JSON.parse(data).map(p => ({
+          name: p.display_name?.split(',')[0] || p.name || '',
+          fullName: p.display_name || '',
+          lat: parseFloat(p.lat), lng: parseFloat(p.lon),
+          type: p.type || '', category: p.category || ''
+        }));
+        res.json({ pois });
+      } catch { res.json({ pois: [] }); }
+    });
+  });
+  mapReq.on('timeout', () => { mapReq.destroy(); res.status(500).json({ error: '地图搜索超时，请检查网络连接' }); });
+  mapReq.on('error', () => res.json({ pois: [] }));
+});
+
+// 静态地图图片 (OpenStreetMap 瓦片拼图)
+app.get('/api/map/static', verifyToken, (req, res) => {
+  const { lat, lng, zoom } = req.query;
+  if (!lat || !lng) return res.status(400).json({ error: '缺少坐标' });
+  const z = zoom || 15;
+  // 使用免费 tile 服务生成静态地图 HTML
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>*{margin:0;padding:0}html,body{width:100%;height:100%}#map{width:100%;height:100%}.marker{position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);font-size:32px;z-index:1000;pointer-events:none}</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script></head><body>
+<div id="map"></div><div class="marker">📍</div>
+<script>var m=L.map('map').setView([${lat},${lng}],${z});L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy;OSM'}).addTo(m);</script></body></html>`;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
+});
+
+// ========== Phase 2-3 新功能 ==========
+
+// 2.1 AI 图片识别 (GLM-4V)
+app.post('/api/ai/describe-image', verifyToken, (req, res) => {
+  const { imageUrl } = req.body || {};
+  if (!imageUrl) return res.status(400).json({ error: '请提供图片 URL' });
+
+  const messages = [
+    { role: 'user', content: [
+      { type: 'text', text: '请用中文简要描述这张图片的内容，50字以内。' },
+      { type: 'image_url', image_url: { url: imageUrl } }
+    ]}
+  ];
+
+  if (!ZHIPU_API_KEY) return res.status(500).json({ error: 'ZHIPU_API_KEY 未配置' });
+
+  const body = JSON.stringify({ model: 'glm-4v-flash', messages, max_tokens: 200, stream: false });
+  const options = {
+    hostname: ZHIPU_BASE, port: 443, path: '/api/paas/v4/chat/completions', method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ZHIPU_API_KEY}`, 'Content-Length': Buffer.byteLength(body) },
+    timeout: 30000
+  };
+  const req2 = https.request(options, (response) => {
+    let data = ''; response.on('data', c => data += c);
+    response.on('end', () => {
+      try {
+        const json = JSON.parse(data);
+        const desc = json.choices?.[0]?.message?.content || '无法识别';
+        res.json({ description: desc });
+      } catch { res.status(500).json({ error: '识别失败' }); }
+    });
+  });
+  req2.on('error', e => res.status(500).json({ error: e.message }));
+  req2.on('timeout', () => { req2.destroy(); res.status(500).json({ error: '请求超时' }); });
+  req2.write(body); req2.end();
+});
+
+// 2.3 群日程/提醒
+const groupEvents = new Map(); // eventId -> { id, roomId, title, time, creator, participants, reminded }
+app.post('/api/events/create', verifyToken, (req, res) => {
+  const { roomId, title, time } = req.body || {};
+  if (!roomId || !title || !time) return res.status(400).json({ error: '缺少参数' });
+  const room = rooms.get(roomId);
+  if (!room || !isRoomMember(room, req.user.username)) return res.status(403).json({ error: '无权操作' });
+  const event = { id: uuidv4(), roomId, title, time, creator: req.user.username, participants: [req.user.username], reminded: false, createdAt: new Date().toISOString() };
+  groupEvents.set(event.id, event);
+  // 发系统消息
+  const msg = { id: uuidv4(), type: 'event', content: title, sender: { id: 'system', username: '系统', avatar: null }, roomId, timestamp: new Date(), readBy: [], eventTime: time, eventId: event.id };
+  room.messages.push(msg); rooms.set(roomId, room); rooms.save();
+  io.to(roomId).emit('newMessage', msg);
+  res.json({ success: true, event });
+});
+app.get('/api/events/:roomId', verifyToken, (req, res) => {
+  const events = Array.from(groupEvents.values()).filter(e => e.roomId === req.params.roomId);
+  res.json({ events });
+});
+// 定时检查提醒（每分钟）
+setInterval(() => {
+  const now = Date.now();
+  groupEvents.forEach(event => {
+    if (event.reminded) return;
+    const eventTime = new Date(event.time).getTime();
+    if (now >= eventTime - 5 * 60 * 1000 && now < eventTime) {
+      const room = rooms.get(event.roomId);
+      if (room) {
+        const msg = { id: uuidv4(), type: 'text', content: `🔔 提醒：${event.title} 将在 5 分钟后开始！`, sender: { id: 'system', username: '系统', avatar: null }, roomId: event.roomId, timestamp: new Date(), readBy: [], isBot: true };
+        room.messages.push(msg); rooms.set(event.roomId, room); rooms.save();
+        io.to(event.roomId).emit('newMessage', msg);
+      }
+      event.reminded = true;
+      groupEvents.set(event.id, event);
+    }
+  });
+}, 60000);
+
+// 3.1 增强消息搜索
+app.get('/api/rooms/:roomId/search', verifyToken, (req, res) => {
+  const room = rooms.get(req.params.roomId);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+  if (room.type !== 'public' && !isRoomMember(room, req.user.username)) return res.status(403).json({ error: '无权访问' });
+  const { q, type, limit: lim } = req.query;
+  let results = room.messages.filter(m => {
+    if (m.recalled) return false;
+    if (type && m.type !== type) return false;
+    if (q) {
+      const searchText = (m.content || '') + (m.filename || '');
+      return searchText.toLowerCase().includes(q.toLowerCase());
+    }
+    return true;
+  });
+  results = results.slice(-parseInt(lim || 50));
+  res.json({ messages: results, total: results.length });
+});
+
 // ========== 年度统计 ==========
 app.get('/api/stats/yearly', verifyToken, (req, res) => {
   const userId = req.user.id;
@@ -1852,10 +2158,19 @@ io.on('connection', (socket) => {
       const decoded = jwt.verify(token, JWT_SECRET);
       socket.userId = decoded.id;
       socket.username = decoded.username;
-      onlineUsers.set(decoded.id, { id: decoded.id, username: decoded.username, socketId: socket.id });
+      // 追踪连接数，支持多端在线
+      const prevCount = userConnectionCount.get(decoded.id) || 0;
+      userConnectionCount.set(decoded.id, prevCount + 1);
+      onlineUsers.set(decoded.id, { id: decoded.id, username: decoded.username });
       userSockets.set(decoded.id, socket);
       socket.emit('authenticated', { user: { id: decoded.id, username: decoded.username } });
-      io.emit('userOnline', { id: decoded.id, username: decoded.username });
+      // 仅首次连接时广播上线事件
+      if (prevCount === 0) {
+        io.emit('userOnline', { id: decoded.id, username: decoded.username });
+      }
+      // 向新连接的客户端发送当前所有在线用户
+      const onlineList = Array.from(onlineUsers.values()).map(u => ({ id: u.id, username: u.username }));
+      socket.emit('onlineUsersList', onlineList);
       
       ensureUserData(decoded.id);
       
@@ -1907,6 +2222,18 @@ io.on('connection', (socket) => {
     socket.currentRoom = null;
   });
 
+  // 删除/退出聊天（从房间成员中移除自己）
+  socket.on('deleteChat', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    room.members = (room.members || []).filter(m => m !== socket.username);
+    rooms.set(roomId, room);
+    rooms.save();
+    socket.leave(roomId);
+    socket.emit('chatDeleted', { roomId });
+    console.log(`[CHAT] ${socket.username} 退出了聊天: ${room.name}`);
+  });
+
   socket.on('sendMessage', (data) => {
     const { roomId, content, type, fileUrl, filename, fileSize, mimeType, replyTo, mentions } = data;
     const room = rooms.get(roomId);
@@ -1940,8 +2267,8 @@ io.on('connection', (socket) => {
       pinned: false
     };
     room.messages.push(message);
-    if (room.messages.length > 500) {
-      room.messages = room.messages.slice(-500);
+    if (room.messages.length > 3000) {
+      room.messages = room.messages.slice(-3000);
     }
     rooms.set(roomId, room);
     rooms.save(); // 立即持久化
@@ -2001,8 +2328,8 @@ io.on('connection', (socket) => {
       edited: false
     };
     room.messages.push(message);
-    if (room.messages.length > 500) {
-      room.messages = room.messages.slice(-500);
+    if (room.messages.length > 3000) {
+      room.messages = room.messages.slice(-3000);
     }
     rooms.set(roomId, room);
     io.to(roomId).emit('messageForwarded', message);
@@ -2079,6 +2406,24 @@ io.on('connection', (socket) => {
     room.messages[msgIndex] = msg;
     rooms.set(roomId, room);
     io.to(roomId).emit('messageEdited', { messageId, content, editedAt: msg.editedAt });
+  });
+
+  // 删除消息
+  socket.on('deleteMessage', ({ roomId, messageId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const msgIndex = room.messages.findIndex(m => m.id === messageId);
+    if (msgIndex === -1) return;
+    const msg = room.messages[msgIndex];
+    // 只允许消息发送者或群主删除
+    if (msg.sender.id !== socket.userId && room.createdBy !== socket.username) {
+      socket.emit('deleteError', { error: '只有发送者或群主可以删除消息' });
+      return;
+    }
+    room.messages.splice(msgIndex, 1);
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('messageDeleted', { messageId, roomId });
   });
 
   // 发送红包
@@ -2583,9 +2928,16 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     if (socket.userId) {
-      onlineUsers.delete(socket.userId);
-      userSockets.delete(socket.userId);
-      io.emit('userOffline', { id: socket.userId });
+      const count = (userConnectionCount.get(socket.userId) || 1) - 1;
+      if (count <= 0) {
+        // 所有连接都已断开
+        userConnectionCount.delete(socket.userId);
+        onlineUsers.delete(socket.userId);
+        userSockets.delete(socket.userId);
+        io.emit('userOffline', { id: socket.userId });
+      } else {
+        userConnectionCount.set(socket.userId, count);
+      }
     }
     console.log('User disconnected:', socket.id);
   });
@@ -2605,6 +2957,19 @@ setInterval(() => {
 }, 300000);
 
 // 静态文件 + SPA 路由（在所有 API 路由之后，确保 API 优先匹配）
+// APK 下载（放在 static 之前，确保正确的 MIME）
+app.get('/WeChat-v2.0.apk', (req, res) => {
+  const apkPath = path.join(__dirname, '..', 'client', 'build', 'WeChat-v2.0.apk');
+  if (fs.existsSync(apkPath)) {
+    res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+    res.setHeader('Content-Disposition', 'attachment; filename="WeChat-v2.0.apk"');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    fs.createReadStream(apkPath).pipe(res);
+  } else {
+    res.status(404).json({ error: 'APK not found' });
+  }
+});
+
 const clientBuildPath = path.join(__dirname, '..', 'client', 'build');
 if (fs.existsSync(clientBuildPath)) {
   app.use(express.static(clientBuildPath));

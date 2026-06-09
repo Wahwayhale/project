@@ -8,7 +8,9 @@
     "@capacitor/android": "^8.4.0",
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
+    "@capacitor/geolocation": "^8.2.0",
     "axios": "^1.6.0",
+    "lucide-react": "^1.17.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
@@ -16,7 +18,8 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "react-scripts build && npm run postbuild",
+    "postbuild": "node -e \"const f=require('fs');const a='android/app/build/outputs/apk/debug/app-debug.apk';if(f.existsSync(a)){f.copyFileSync(a,'build/WeChat-v2.0.apk');console.log('[postbuild] APK copied')};const o='public/ota-version.json';if(f.existsSync(o)){f.copyFileSync(o,'build/ota-version.json');console.log('[postbuild] ota-version copied')}\"",
     "deploy": "gh-pages -d build"
   },
   "browserslist": {

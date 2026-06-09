@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 import axios from 'axios';
+import { I } from './components/Icon';
 
 const isCapacitor = typeof window !== 'undefined' && window.Capacitor?.isNativePlatform;
 // OTA 模式下 APP 从服务器加载，API 用相对路径即可
@@ -348,6 +349,45 @@ function App() {
   const [dailyDigestLoading, setDailyDigestLoading] = useState(false);
   const [showDailyDigest, setShowDailyDigest] = useState(false);
 
+  // ===== Phase 1 新功能 =====
+  // GIF
+  const [showGifPanel, setShowGifPanel] = useState(false);
+  const [gifSearch, setGifSearch] = useState('');
+  const [gifResults, setGifResults] = useState([]);
+  const [gifLoading, setGifLoading] = useState(false);
+  // News
+  const [showNewsPanel, setShowNewsPanel] = useState(false);
+  const [newsStories, setNewsStories] = useState([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  // Quote
+  const [dailyQuote, setDailyQuote] = useState(null);
+  // AI Vision
+  const [imageDesc, setImageDesc] = useState({});
+  const [descLoading, setDescLoading] = useState(null);
+  // Events
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventTime, setEventTime] = useState('');
+  // Search
+  const [searchFilter, setSearchFilter] = useState('all');
+  const [searchResults, setSearchResults] = useState([]);
+  // Theme
+  const [themePreset, setThemePreset] = useState(localStorage.getItem('themePreset') || 'green');
+  // Weather
+  const [showWeatherPanel, setShowWeatherPanel] = useState(false);
+  const [weatherCity, setWeatherCity] = useState('');
+  const [weatherData, setWeatherData] = useState(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  // Map
+  const [showMapPanel, setShowMapPanel] = useState(false);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [showMapViewer, setShowMapViewer] = useState(null); // { lat, lng, name }
+  // Notifications enabled
+  const [notifyEnabled, setNotifyEnabled] = useState(typeof Notification !== 'undefined' && Notification.permission === 'granted');
+  const [notifyMuted, setNotifyMuted] = useState(false);
+  const notifyRef = useRef({ enabled: notifyEnabled, muted: notifyMuted });
+  useEffect(() => { notifyRef.current = { enabled: notifyEnabled, muted: notifyMuted }; }, [notifyEnabled, notifyMuted]);
+
   // ===== 音乐播放器 =====
   const [musicSearch, setMusicSearch] = useState('');
   const [musicResults, setMusicResults] = useState([]);
@@ -508,25 +548,31 @@ function App() {
     }
   }, [messages, messagesLoading, messageEndRef]);
 
-  // OTA 版本检查 (仅 Capacitor 原生 App 中执行，网页版跳过)
+  // OTA 版本检查 — 每次启动自动运行
   useEffect(() => {
-    if (!isCapacitor) return;
+    const APP_BUILD = 200; // 当前 App 内置版本号（旧版v1=100, 新版v2=200）
     const checkUpdate = async () => {
       try {
         const res = await axios.get(`${API_URL}/ota-version.json`, { timeout: 5000 });
-        const serverVersion = res.data;
-        setOtaInfo(serverVersion);
-        const savedVersion = localStorage.getItem('appVersion');
-        if (!savedVersion || serverVersion.buildNumber > parseInt(savedVersion)) {
-          setShowOtaModal(true);
+        const server = res.data;
+        const serverBuild = server.buildNumber || 0;
+        const lastShownBuild = parseInt(localStorage.getItem('lastShownBuild') || '0');
+
+        // 服务器版本比 App 内置版本新 → 需要提示
+        if (serverBuild > APP_BUILD) {
+          // 有 APK 且 App 版本落后 → 提示下载新安装包
+          if (server.apkUrl && serverBuild > APP_BUILD) {
+            server.hasNewApk = true;
+          }
+          setOtaInfo(server);
+          // 每次服务器 build 变更都弹窗
+          if (serverBuild > lastShownBuild) {
+            setShowOtaModal(true);
+          }
         }
-      } catch (e) {
-        // 离线或服务器不可用时忽略
-      }
+      } catch (e) { /* 离线忽略 */ }
     };
-    if (isAuthenticated) {
-      checkUpdate();
-    }
+    if (isAuthenticated) checkUpdate();
   }, [isAuthenticated]);
 
   const validateToken = async () => {
@@ -577,6 +623,12 @@ function App() {
     socketRef.current.on('authenticated', (data) => {
       console.log('Socket authenticated', data);
     });
+    // 接收完整在线用户列表（首次连接时）
+    socketRef.current.on('onlineUsersList', (list) => {
+      const ids = new Set(list.map(u => u.id));
+      setOnlineUsers(list);
+      setFriends(prev => prev.map(f => ({ ...f, online: ids.has(f.id) })));
+    });
     socketRef.current.on('userOnline', (data) => {
       setOnlineUsers(prev => [...prev.filter(u => u.id !== data.id), data]);
       setFriends(prev => prev.map(f => f.id === data.id ? { ...f, online: true } : f));
@@ -593,6 +645,16 @@ function App() {
         }
         return room;
       }));
+      // 桌面通知（仅支持 Notification API 的浏览器）
+      if (typeof Notification !== 'undefined' && notifyRef.current.enabled && !notifyRef.current.muted && message.sender?.id !== user?.id && document.hidden) {
+        try {
+          new Notification(message.sender?.username || '新消息', {
+            body: (message.content || `[${message.type}]`).substring(0, 100),
+            icon: message.sender?.avatar || undefined,
+            tag: message.roomId
+          });
+        } catch {}
+      }
     });
     socketRef.current.on('joinedRoom', (data) => {
       setMessages(data.messages || []);
@@ -634,7 +696,29 @@ function App() {
       ));
       showToast('一条消息已被撤回', 'info');
     });
-    
+
+    // 消息被删除
+    socketRef.current.on('messageDeleted', ({ messageId, roomId }) => {
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+      showToast('一条消息已被删除', 'info');
+    });
+
+    // 删除错误
+    socketRef.current.on('deleteError', ({ error }) => {
+      showToast(error, 'error');
+    });
+
+    // 聊天被删除（自己退出或被移出房间）
+    socketRef.current.on('chatDeleted', ({ roomId }) => {
+      setRooms(prev => prev.filter(r => r.id !== roomId));
+      if (currentRoomId === roomId) {
+        setCurrentRoom(null);
+        setCurrentRoomId(null);
+        setMessages([]);
+      }
+      showToast('已删除聊天', 'info');
+    });
+
     // 已读回执更新
     socketRef.current.on('messageReadUpdate', ({ messageId, userId, readBy }) => {
       setMessages(prev => prev.map(msg => 
@@ -1043,6 +1127,22 @@ function App() {
     showToast('已撤回消息', 'success');
   };
 
+  // 删除消息
+  const deleteMessage = (messageId) => {
+    if (!currentRoomId || !window.confirm('确定要删除这条消息吗？')) return;
+    socketRef.current.emit('deleteMessage', {
+      roomId: currentRoomId,
+      messageId,
+    });
+  };
+
+  // 删除/退出聊天
+  const deleteChat = (roomId, e) => {
+    e?.stopPropagation();
+    if (!window.confirm('确定要删除该聊天吗？\n\n删除后你将不再看到此聊天记录。')) return;
+    socketRef.current.emit('deleteChat', { roomId });
+  };
+
   // 插入表情
   const insertEmoji = (emoji) => {
     setNewMessage(prev => prev + emoji);
@@ -1310,14 +1410,14 @@ function App() {
     } catch (err) {
       const data = err.response?.data;
       let msg = data?.error || err.message || '请求失败';
-      if (data?.hint) msg += '\n\n💡 ' + data.hint;
+      if (data?.hint) msg += '\n\n' + data.hint;
       if (err.response?.status === 402) {
         msg += '\n\n请点击上方"充值"按钮充值余额';
       }
       const rechargeUrl = data?.rechargeUrl;
       setAiMessages(prev => [...prev, {
         role: 'assistant',
-        content: '❌ ' + msg,
+        content: '' + msg,
         ...(rechargeUrl ? { rechargeUrl } : {})
       }]);
     } finally {
@@ -1407,6 +1507,150 @@ function App() {
     }
   };
 
+  // ===== Phase 1 新功能 =====
+  const searchGif = async (e) => {
+    e?.preventDefault();
+    if (!gifSearch.trim() || gifLoading) return;
+    setGifLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/api/giphy/search`, { params: { q: gifSearch.trim() }, headers: { Authorization: token } });
+      setGifResults(res.data.gifs || []);
+    } catch { setGifResults([]); }
+    finally { setGifLoading(false); }
+  };
+  const sendGif = (gif) => {
+    if (!currentRoomId) { showToast('请先选择聊天室', 'error'); return; }
+    socketRef.current?.emit('sendMessage', { roomId: currentRoomId, content: '', type: 'image', fileUrl: gif.url, filename: 'gif', mimeType: 'image/gif' });
+    setShowGifPanel(false); setGifSearch(''); setGifResults([]);
+  };
+  const fetchNews = async () => {
+    setNewsLoading(true); setShowNewsPanel(true);
+    try {
+      const res = await axios.get(`${API_URL}/api/news/hot`, { headers: { Authorization: token } });
+      setNewsStories(res.data.stories || []);
+    } catch { setNewsStories([]); }
+    finally { setNewsLoading(false); }
+  };
+  const shareNews = (story) => {
+    if (!currentRoomId) { showToast('请先选择聊天室', 'error'); return; }
+    socketRef.current?.emit('sendMessage', { roomId: currentRoomId, content: `📰 ${story.title}\n${story.url}`, type: 'text' });
+    showToast('已分享', 'success');
+  };
+  const fetchQuote = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/api/quote/random`, { headers: { Authorization: token } });
+      setDailyQuote(res.data);
+    } catch {}
+  };
+
+  // ===== Phase 2-3 新功能 =====
+  const describeImage = async (msgId, imageUrl) => {
+    if (imageDesc[msgId] || descLoading === msgId) return;
+    setDescLoading(msgId);
+    try {
+      const res = await axios.post(`${API_URL}/api/ai/describe-image`, { imageUrl }, { headers: { Authorization: token } });
+      setImageDesc(prev => ({ ...prev, [msgId]: res.data.description }));
+    } catch { showToast('识别失败', 'error'); }
+    finally { setDescLoading(null); }
+  };
+  const createEvent = () => {
+    if (!currentRoomId || !eventTitle.trim() || !eventTime) return;
+    axios.post(`${API_URL}/api/events/create`, { roomId: currentRoomId, title: eventTitle.trim(), time: eventTime }, { headers: { Authorization: token } })
+      .then(() => { setShowEventModal(false); setEventTitle(''); setEventTime(''); showToast('日程已创建', 'success'); })
+      .catch(e => showToast(e.response?.data?.error || '创建失败', 'error'));
+  };
+  const enableNotifications = async () => {
+    if (typeof Notification === 'undefined') { showToast('此浏览器不支持桌面通知', 'error'); return; }
+    try {
+      const perm = await Notification.requestPermission();
+      setNotifyEnabled(perm === 'granted');
+      if (perm === 'granted') showToast('桌面通知已开启', 'success');
+    } catch { showToast('浏览器不支持通知', 'error'); }
+  };
+  const changeTheme = (preset) => {
+    setThemePreset(preset);
+    localStorage.setItem('themePreset', preset);
+    const themes = {
+      green: { primary: '#07c160', primaryGrad: 'linear-gradient(135deg, #07c160, #10b981)' },
+      blue: { primary: '#3b82f6', primaryGrad: 'linear-gradient(135deg, #3b82f6, #6366f1)' },
+      purple: { primary: '#8b5cf6', primaryGrad: 'linear-gradient(135deg, #8b5cf6, #a78bfa)' },
+      orange: { primary: '#f59e0b', primaryGrad: 'linear-gradient(135deg, #f59e0b, #f97316)' }
+    };
+    const t = themes[preset] || themes.green;
+    document.documentElement.style.setProperty('--primary', t.primary);
+    document.documentElement.style.setProperty('--primary-gradient', t.primaryGrad);
+  };
+  const doSearch = async () => {
+    if (!currentRoomId || !searchQuery) return;
+    try {
+      const res = await axios.get(`${API_URL}/api/rooms/${currentRoomId}/search`, {
+        params: { q: searchQuery, type: searchFilter === 'all' ? '' : searchFilter, limit: 50 },
+        headers: { Authorization: token }
+      });
+      setSearchResults(res.data.messages || []);
+    } catch { setSearchResults([]); }
+  };
+  // 天气（直连 wttr.in，无需服务端代理）
+  const searchWeather = async (e) => {
+    e?.preventDefault();
+    if (!weatherCity.trim() || weatherLoading) return;
+    setWeatherLoading(true);
+    try {
+      const res = await axios.get(`https://wttr.in/${encodeURIComponent(weatherCity.trim())}?format=j1&lang=zh`, { timeout: 8000 });
+      const json = res.data;
+      const now = json.current_condition?.[0] || {};
+      const today = json.weather?.[0] || {};
+      setWeatherData({
+        city: json.nearest_area?.[0]?.areaName?.[0]?.value || weatherCity,
+        temp: now.temp_C, desc: now.lang_zh?.[0]?.value || now.weatherDesc?.[0]?.value || '',
+        humidity: now.humidity, wind: (now.winddir16Point||'') + ' ' + (now.windspeedKmph||'') + 'km/h',
+        feelsLike: now.FeelsLikeC, high: today.maxtempC, low: today.mintempC
+      });
+    } catch { showToast('天气查询失败，请简化搜索词', 'error'); }
+    finally { setWeatherLoading(false); }
+  };
+  const shareWeather = () => {
+    if (!currentRoomId || !weatherData) return;
+    const w = weatherData;
+    const content = `🌤 ${w.city} 天气\n🌡 ${w.temp}°C (体感 ${w.feelsLike}°C)\n☁ ${w.desc}\n💧 湿度 ${w.humidity}% | 🌬 ${w.wind}\n📊 ${w.high}°C / ${w.low}°C`;
+    socketRef.current?.emit('sendMessage', { roomId: currentRoomId, content, type: 'text' });
+    showToast('已分享天气', 'success');
+  };
+  // 地图
+  const getMyLocation = async () => {
+    setMapLoading(true);
+    try {
+      let lat, lng;
+      // Capacitor 原生 App 使用插件获取位置
+      if (isCapacitor) {
+        const { Geolocation } = await import('@capacitor/geolocation');
+        const pos = await Geolocation.getCurrentPosition({ timeout: 10000, enableHighAccuracy: true });
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+      } else if (navigator.geolocation) {
+        // 浏览器环境
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true });
+        });
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+      } else {
+        showToast('此设备不支持定位', 'error'); setMapLoading(false); return;
+      }
+      setShowMapViewer({ lat, lng, name: '我的位置' });
+    } catch {
+      showToast('定位失败，请检查位置权限', 'error');
+    }
+    setMapLoading(false);
+  };
+  const shareMap = (poi) => {
+    if (!currentRoomId) { showToast('请先选择聊天室', 'error'); return; }
+    const mapUrl = `${API_URL}/api/map/static?lat=${poi.lat}&lng=${poi.lng}&zoom=16`;
+    socketRef.current?.emit('sendMessage', { roomId: currentRoomId, content: `🗺 ${poi.name}\n${mapUrl}`, type: 'text' });
+    setShowMapPanel(false); setShowMapViewer(null);
+    showToast('已分享地图', 'success');
+  };
+
   // ===== 音乐播放器 =====
   const searchMusic = async (e) => {
     e?.preventDefault();
@@ -1453,7 +1697,7 @@ function App() {
 
   const shareSongToChat = (song) => {
     if (!currentRoomId) { showToast('请先选择聊天室', 'error'); return; }
-    const content = `🎵 ${song.name} - ${song.artist}\n${song.url || ''}`;
+    const content = ` ${song.name} - ${song.artist}\n${song.url || ''}`;
     socketRef.current?.emit('sendMessage', {
       roomId: currentRoomId,
       content,
@@ -2422,7 +2666,7 @@ function App() {
           <p className="auth-subtitle">现代化即时通讯平台</p>
           <form className="auth-form" onSubmit={handleAuth}>
             <div className="input-group">
-              <span className="input-icon">👤</span>
+              <span className="input-icon"><I name="me" size={17} /></span>
               <input
                 type="text"
                 placeholder="用户名"
@@ -2432,7 +2676,7 @@ function App() {
               />
             </div>
             <div className="input-group">
-              <span className="input-icon">🔒</span>
+              <span className="input-icon"><I name="security" size={17} /></span>
               <input
                 type="password"
                 placeholder="密码"
@@ -2473,14 +2717,14 @@ function App() {
             </div>
           </div>
            <div className="header-actions">
-            <button className="icon-btn" onClick={handleLogout} title="退出登录">🚪</button>
+            <button className="icon-btn" onClick={handleLogout} title="退出登录"><I name="logout" size={17} /></button>
           </div>
         </div>
         
         {/* 简洁搜索框和聊天列表 */}
         <div className="search-box">
           <div className="search-wrapper">
-            <span className="search-icon">🔍</span>
+            <span className="search-icon"><I name="search" size={16} /></span>
             <input
               type="text"
               placeholder="搜索聊天..."
@@ -2501,7 +2745,7 @@ function App() {
             const unpinnedList = filteredRooms.filter(r => !pinnedChats.has(r.id));
             return (
               <>
-                {pinnedList.length > 0 && <div className="pinned-divider">📌 置顶聊天</div>}
+                {pinnedList.length > 0 && <div className="pinned-divider"><I name="pin" size={14} /> 置顶聊天</div>}
                 {pinnedList.map(room => (
                   <div key={room.id} className={`room-item pinned-chat ${currentRoomId === room.id ? 'active' : ''}`} onClick={() => handleRoomClick(room)}>
                     <div className="avatar" style={{ width: 42, height: 42, borderRadius: 8, background: 'var(--primary-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18, fontWeight: 700 }}>{(room.name || '群')[0]}</div>
@@ -2513,7 +2757,8 @@ function App() {
                       {room.lastMessage?.timestamp && <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>}
                       {unreadCounts[room.id] > 0 && currentRoomId !== room.id && <span className="unread-badge">{unreadCounts[room.id]}</span>}
                     </div>
-                    <button className="room-pin-btn" onClick={(e) => togglePinChat(room.id, e)} title="取消置顶">📌</button>
+                    <button className="room-pin-btn" onClick={(e) => togglePinChat(room.id, e)} title="取消置顶"><I name="pin" size={14} /></button>
+                    {room.id !== 'global' && <button className="room-pin-btn" onClick={(e) => deleteChat(room.id, e)} title="删除聊天" style={{ color: 'var(--danger)' }}><I name="delete" size={14} /></button>}
                   </div>
                 ))}
                 {unpinnedList.map(room => (
@@ -2527,7 +2772,8 @@ function App() {
                       {room.lastMessage?.timestamp && <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>}
                       {unreadCounts[room.id] > 0 && currentRoomId !== room.id && <span className="unread-badge">{unreadCounts[room.id]}</span>}
                     </div>
-                    <button className="room-pin-btn" onClick={(e) => togglePinChat(room.id, e)} title="置顶聊天">📌</button>
+                    <button className="room-pin-btn" onClick={(e) => togglePinChat(room.id, e)} title="置顶聊天"><I name="pin" size={14} /></button>
+                    {room.id !== 'global' && <button className="room-pin-btn" onClick={(e) => deleteChat(room.id, e)} title="删除聊天" style={{ color: 'var(--danger)' }}><I name="delete" size={14} /></button>}
                   </div>
                 ))}
               </>
@@ -2535,7 +2781,7 @@ function App() {
           })()}
           {(!rooms || rooms.filter(r => r.type !== 'private').length === 0) && (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>💬</div>
+              <div style={{ opacity: 0.25, marginBottom: 12 }}><I name="chat" size={48} /></div>
               <div>暂无聊天</div>
               <div style={{ fontSize: 12, marginTop: 8 }}>点击右下角"+"开始新的对话</div>
             </div>
@@ -2543,10 +2789,10 @@ function App() {
         </div>
         <div className="sidebar-footer">
           <button className="sidebar-btn secondary" onClick={() => { setShowSearchModal(true); fetchFriendRequests(); }}>
-            👥 添加好友
+            添加好友
           </button>
           <button className="sidebar-btn secondary" onClick={openFileTransfer}>
-            📁 文件传输
+            文件传输
           </button>
         </div>
       </div>
@@ -2617,7 +2863,7 @@ function App() {
             <div className="discover-header"><h2>发现</h2></div>
             <div className="discover-list">
               <div className="discover-item" onClick={() => { setView('video'); setBottomTab('chats'); }}>
-                <div className="discover-icon" style={{ background: '#ff6b35' }}>📺</div>
+                <div className="discover-icon" style={{ background: '#ff6b35' }}><I name="bilibili" color="#fff" size={20} /></div>
                 <div className="discover-info">
                   <div className="discover-title">B站视频</div>
                   <div className="discover-desc">搜索和分享B站视频</div>
@@ -2625,7 +2871,7 @@ function App() {
                 <span className="discover-arrow">›</span>
               </div>
               <div className="discover-item" onClick={() => { setView('ai'); setBottomTab('chats'); }}>
-                <div className="discover-icon" style={{ background: '#6435c9' }}>🤖</div>
+                <div className="discover-icon" style={{ background: '#6435c9' }}><I name="ai" color="#fff" size={20} /></div>
                 <div className="discover-info">
                   <div className="discover-title">AI助手</div>
                   <div className="discover-desc">智能对话助手，支持多模型</div>
@@ -2633,7 +2879,7 @@ function App() {
                 <span className="discover-arrow">›</span>
               </div>
               <div className="discover-item" onClick={() => { setShowMoments(true); }}>
-                <div className="discover-icon" style={{ background: '#f06c00' }}>📱</div>
+                <div className="discover-icon" style={{ background: '#f06c00' }}><I name="camera" color="#fff" size={20} /></div>
                 <div className="discover-info">
                   <div className="discover-title">朋友圈</div>
                   <div className="discover-desc">和朋友分享生活点滴</div>
@@ -2641,7 +2887,7 @@ function App() {
                 <span className="discover-arrow">›</span>
               </div>
               <div className="discover-item" onClick={() => { setShowGameModal(true); }}>
-                <div className="discover-icon" style={{ background: '#6435c9' }}>🎮</div>
+                <div className="discover-icon" style={{ background: '#6435c9' }}><I name="game" color="#fff" size={20} /></div>
                 <div className="discover-info">
                   <div className="discover-title">小游戏</div>
                   <div className="discover-desc">猜拳游戏</div>
@@ -2649,7 +2895,7 @@ function App() {
                 <span className="discover-arrow">›</span>
               </div>
               <div className="discover-item" onClick={() => setShowImageGen(true)}>
-                <div className="discover-icon" style={{ background: '#ec4899' }}>🎨</div>
+                <div className="discover-icon" style={{ background: '#ec4899' }}><I name="palette" color="#fff" size={20} /></div>
                 <div className="discover-info">
                   <div className="discover-title">AI 图片生成</div>
                   <div className="discover-desc">描述你想要的图片，一键生成并分享</div>
@@ -2657,7 +2903,7 @@ function App() {
                 <span className="discover-arrow">›</span>
               </div>
               <div className="discover-item" onClick={() => { setShowBotModal(true); fetchBots(); }}>
-                <div className="discover-icon" style={{ background: '#8b5cf6' }}>🤖</div>
+                <div className="discover-icon" style={{ background: '#8b5cf6' }}><I name="bot" color="#fff" size={20} /></div>
                 <div className="discover-info">
                   <div className="discover-title">聊天机器人</div>
                   <div className="discover-desc">创建自定义自动回复机器人</div>
@@ -2665,7 +2911,7 @@ function App() {
                 <span className="discover-arrow">›</span>
               </div>
               <div className="discover-item" onClick={fetchWrapped}>
-                <div className="discover-icon" style={{ background: '#f59e0b' }}>📊</div>
+                <div className="discover-icon" style={{ background: '#f59e0b' }}><I name="stats" color="#fff" size={20} /></div>
                 <div className="discover-info">
                   <div className="discover-title">年度聊天报告</div>
                   <div className="discover-desc">{wrappedLoading ? '加载中...' : '查看你的聊天数据统计'}</div>
@@ -2673,7 +2919,7 @@ function App() {
                 <span className="discover-arrow">›</span>
               </div>
               <div className="discover-item" onClick={() => setShowBackupModal(true)}>
-                <div className="discover-icon" style={{ background: '#00b5ad' }}>💾</div>
+                <div className="discover-icon" style={{ background: '#00b5ad' }}><I name="backup" color="#fff" size={20} /></div>
                 <div className="discover-info">
                   <div className="discover-title">聊天记录管理</div>
                   <div className="discover-desc">备份与恢复聊天记录</div>
@@ -2681,7 +2927,7 @@ function App() {
                 <span className="discover-arrow">›</span>
               </div>
               <div className="discover-item" onClick={fetchDailyDigest}>
-                <div className="discover-icon" style={{ background: '#6366f1' }}>📰</div>
+                <div className="discover-icon" style={{ background: '#6366f1' }}><I name="digest" color="#fff" size={20} /></div>
                 <div className="discover-info">
                   <div className="discover-title">AI 每日摘要</div>
                   <div className="discover-desc">AI 总结你今天的聊天内容</div>
@@ -2689,10 +2935,42 @@ function App() {
                 <span className="discover-arrow">›</span>
               </div>
               <div className="discover-item" onClick={() => setShowMusicPanel(true)}>
-                <div className="discover-icon" style={{ background: '#ec4141' }}>🎵</div>
+                <div className="discover-icon" style={{ background: '#ec4141' }}><I name="music" color="#fff" size={20} /></div>
                 <div className="discover-info">
                   <div className="discover-title">网易云音乐</div>
                   <div className="discover-desc">搜歌、听歌、分享给好友</div>
+                </div>
+                <span className="discover-arrow">›</span>
+              </div>
+              <div className="discover-item" onClick={fetchNews}>
+                <div className="discover-icon" style={{ background: '#e85d2a' }}><I name="digest" color="#fff" size={20} /></div>
+                <div className="discover-info">
+                  <div className="discover-title">今日热搜</div>
+                  <div className="discover-desc">知乎日报精选内容</div>
+                </div>
+                <span className="discover-arrow">›</span>
+              </div>
+              <div className="discover-item" onClick={() => { setShowGifPanel(true); }}>
+                <div className="discover-icon" style={{ background: '#fb7299' }}><I name="image" color="#fff" size={20} /></div>
+                <div className="discover-info">
+                  <div className="discover-title">GIF 表情包</div>
+                  <div className="discover-desc">搜索 GIF 发送到聊天</div>
+                </div>
+                <span className="discover-arrow">›</span>
+              </div>
+              <div className="discover-item" onClick={() => setShowWeatherPanel(true)}>
+                <div className="discover-icon" style={{ background: '#667eea' }}><I name="search" color="#fff" size={20} /></div>
+                <div className="discover-info">
+                  <div className="discover-title">天气查询</div>
+                  <div className="discover-desc">查询城市天气，分享到聊天</div>
+                </div>
+                <span className="discover-arrow">›</span>
+              </div>
+              <div className="discover-item" onClick={() => setShowMapPanel(true)}>
+                <div className="discover-icon" style={{ background: '#00b894' }}><I name="location" color="#fff" size={20} /></div>
+                <div className="discover-info">
+                  <div className="discover-title">地图</div>
+                  <div className="discover-desc">GPS定位、查看地图、分享位置</div>
                 </div>
                 <span className="discover-arrow">›</span>
               </div>
@@ -2712,40 +2990,45 @@ function App() {
             </div>
             <div className="me-menu">
               <div className="me-menu-item" onClick={() => { setShowMoments(true); }}>
-                <div className="menu-icon" style={{ background: '#f06c00' }}>📱</div>
+                <div className="menu-icon" style={{ background: '#f06c00' }}><I name="camera" color="#fff" size={18} /></div>
                 <span>朋友圈</span>
                 <span className="menu-arrow">›</span>
               </div>
               <div className="me-menu-item" onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }}>
-                <div className="menu-icon" style={{ background: '#fa5151' }}>💰</div>
+                <div className="menu-icon" style={{ background: '#fa5151' }}><I name="wallet" color="#fff" size={18} /></div>
                 <span>钱包</span>
                 <span className="menu-badge">¥{(balance || 0).toFixed(2)}</span>
               </div>
               <div className="me-menu-item" onClick={() => setShowBackupModal(true)}>
-                <div className="menu-icon" style={{ background: '#00b5ad' }}>💾</div>
+                <div className="menu-icon" style={{ background: '#00b5ad' }}><I name="backup" color="#fff" size={18} /></div>
                 <span>聊天记录管理</span>
                 <span className="menu-arrow">›</span>
               </div>
               <div className="me-menu-item" onClick={() => { fetchPhoneInfo(); setShowPhoneModal(true); }}>
-                <div className="menu-icon" style={{ background: '#1890ff' }}>📱</div>
+                <div className="menu-icon" style={{ background: '#1890ff' }}><I name="phone" color="#fff" size={18} /></div>
                 <span>{phoneInfo.phoneBound ? phoneInfo.phone : '绑定手机号'}</span>
                 <span className="menu-arrow">›</span>
               </div>
               <div className="me-menu-item" onClick={() => { setShowProfileModal(true); }}>
-                <div className="menu-icon" style={{ background: '#07c160' }}>⚙️</div>
+                <div className="menu-icon" style={{ background: '#07c160' }}><I name="settings" color="#fff" size={18} /></div>
                 <span>设置</span>
                 <span className="menu-arrow">›</span>
               </div>
             </div>
             <div className="me-footer">
               <div className="me-menu-item" onClick={() => setShowBackupModal(true)}>
-                <div className="menu-icon" style={{ background: '#1890ff' }}>🔐</div>
+                <div className="menu-icon" style={{ background: '#1890ff' }}><I name="security" color="#fff" size={18} /></div>
                 <span>聊天记录备份与恢复</span>
                 <span className="menu-arrow">›</span>
               </div>
             </div>
+            <div className="me-menu-item" onClick={() => window.open(`${API_URL}/WeChat-v2.0.apk`, isCapacitor ? '_system' : '_blank')}>
+              <div className="menu-icon" style={{ background: '#ff6b35' }}><I name="download" color="#fff" size={18} /></div>
+              <span>下载最新安装包 (v2.0)</span>
+              <span className="menu-arrow">›</span>
+            </div>
             <div className="me-version">
-              <span>你无只因 v{messageStats.totalMessages > 0 ? '2.0' : '1.0'}</span>
+              <span>你无只因 v{otaInfo?.version || appVersion}</span>
             </div>
           </div>
         ) : view === 'ai' ? (
@@ -2753,28 +3036,28 @@ function App() {
           <div className="ai-fullview">
             <div className="ai-fullview-header">
               <button className="back-btn" onClick={() => { setView('chats'); setBottomTab('discover'); }}>← 返回</button>
-              <h3>🤖 AI 助手</h3>
+              <h3><I name="ai" size={20} /> AI 助手</h3>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>余额: ¥{(balance || 0).toFixed(2)}</span>
-                <button onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }} className="header-btn" title="充值" style={{ fontSize: 14, padding: '4px 10px' }}>💰</button>
+                <button onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }} className="header-btn" title="充值" style={{ fontSize: 14, padding: '4px 10px', display: 'flex', alignItems: 'center' }}><I name="wallet" size={15} /></button>
                 {user?.username === 'admin' && (
-                  <button onClick={() => { setShowAdminModal(true); fetchPendingRecharges(); }} className="header-btn" title="管理" style={{ fontSize: 14, padding: '4px 10px' }}>👑</button>
+                  <button onClick={() => { setShowAdminModal(true); fetchPendingRecharges(); }} className="header-btn" title="管理" style={{ fontSize: 14, padding: '4px 10px', display: 'flex', alignItems: 'center' }}><I name="crown" size={15} /></button>
                 )}
-                <button onClick={resetAiChat} className="header-btn" title="新对话" style={{ fontSize: 14, padding: '4px 10px' }}>🔄</button>
+                <button onClick={resetAiChat} className="header-btn" title="新对话" style={{ fontSize: 14, padding: '4px 10px', display: 'flex', alignItems: 'center' }}><I name="reset" size={15} /></button>
               </div>
             </div>
             <div className="ai-model-selector" style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>模型：</label>
               <select value={aiModel} onChange={(e) => setAiModel(e.target.value)} style={{ flex: 1, padding: '6px 10px', fontSize: 13, border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', maxWidth: 220, outline: 'none', cursor: 'pointer' }}>
                 {aiModels.map(m => (
-                  <option key={m.id} value={m.id}>{m.name} {m.free ? '🆓' : '💎'}</option>
+                  <option key={m.id} value={m.id}>{m.name} {m.free ? <I name="checkin" size={13} color="var(--text-secondary)" /> : <I name="star" size={13} color="var(--warning)" />}</option>
                 ))}
               </select>
             </div>
             <div className="ai-messages" style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
               {aiMessages.length === 0 && (
                 <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
-                  <div style={{ fontSize: 40, marginBottom: 12 }}>💬</div>
+                  <div style={{ opacity: 0.25, marginBottom: 12 }}><I name="chat" size={48} /></div>
                   <div style={{ marginBottom: 8 }}>向 AI 助手提问吧</div>
                   <div style={{ fontSize: 12 }}>支持多轮对话，连续上下文</div>
                 </div>
@@ -2796,7 +3079,7 @@ function App() {
               ))}
               {aiLoading && (
                 <div className="ai-message assistant">
-                  <div className="ai-avatar">🤖</div>
+                  <div className="ai-avatar"><I name="ai" size={18} /></div>
                   <div className="ai-bubble"><div className="ai-typing"><span></span><span></span><span></span></div></div>
                 </div>
               )}
@@ -2804,7 +3087,7 @@ function App() {
             </div>
             <div className="ai-input-area">
               <textarea className="ai-input" placeholder="输入问题，Enter发送，Shift+Enter换行" value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={handleAiKeyPress} disabled={aiLoading} rows={2} />
-              <button className="ai-send-button" onClick={sendAiMessage} disabled={!aiInput.trim() || aiLoading}>{aiLoading ? '💭 思考中' : '发送'}</button>
+              <button className="ai-send-button" onClick={sendAiMessage} disabled={!aiInput.trim() || aiLoading}>{aiLoading ? '思考中...' : '发送'}</button>
             </div>
           </div>
         ) : view === 'video' ? (
@@ -2812,7 +3095,7 @@ function App() {
           <div className="video-fullview">
             <div className="video-fullview-header">
               <button className="back-btn" onClick={() => { setView('chats'); setBottomTab('discover'); }}>← 返回</button>
-              <h3>📺 B站视频</h3>
+              <h3><I name="bilibili" size={20} /> B站视频</h3>
             </div>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
               <form onSubmit={searchBilibili} style={{ display: 'flex', gap: 8 }}>
@@ -2831,9 +3114,9 @@ function App() {
                     <iframe src={`https://player.bilibili.com/player.html?bvid=${selectedBiliVideo.bvid}`} title={selectedBiliVideo.title} allowFullScreen style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }} />
                   </div>
                   <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                    <div>👤 {selectedBiliVideo.author} · ▶ {selectedBiliVideo.play}次 · ⏱ {selectedBiliVideo.duration}</div>
+                    <div>{selectedBiliVideo.author} · ▶ {selectedBiliVideo.play}次 · {selectedBiliVideo.duration}</div>
                   </div>
-                  <button onClick={() => shareBilibiliToChat(selectedBiliVideo)} style={{ padding: '10px 20px', background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', width: '100%', fontSize: 15, fontWeight: 700 }}>📤 分享到聊天</button>
+                  <button onClick={() => shareBilibiliToChat(selectedBiliVideo)} style={{ padding: '10px 20px', background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', width: '100%', fontSize: 15, fontWeight: 700 }}><I name="forward" size={15} color="#fff" /> 分享到聊天</button>
                 </div>
               ) : bilibiliResults.length > 0 ? (
                 bilibiliResults.map((video, idx) => (
@@ -2850,7 +3133,7 @@ function App() {
                 ))
               ) : (
                 <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>
-                  {bilibiliLoading ? '搜索中...' : <><div style={{ fontSize: 48, marginBottom: 12 }}>📺</div><div>输入关键词搜索B站视频</div></>}
+                  {bilibiliLoading ? '搜索中...' : <><div style={{ opacity: 0.25, marginBottom: 12 }}><I name="bilibili" size={48} /></div><div>输入关键词搜索B站视频</div></>}
                 </div>
               )}
             </div>
@@ -2861,22 +3144,22 @@ function App() {
               <h3>{currentRoom.name}</h3>
               <div className="header-tools">
                 <button className="ai-summary-btn-inline" onClick={summarizeChat} disabled={aiSummaryLoading} title="AI摘要">
-                  {aiSummaryLoading ? '⏳' : '🤖'}
+                  {aiSummaryLoading ? '…' : <I name="ai" size={16} />}
                 </button>
-                <button onClick={() => setShowImageGen(true)} title="AI图片生成" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 16 }}>🎨</button>
-                <button onClick={isSharingLocation ? stopSharingLocation : startSharingLocation} title={isSharingLocation ? '停止位置共享' : '共享位置'} style={{ background: isSharingLocation ? 'var(--danger)' : 'var(--bg)', color: isSharingLocation ? 'white' : 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 16 }}>
-                  📍
+                <button onClick={() => setShowImageGen(true)} title="AI图片生成" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '3px 6px', display: 'flex', alignItems: 'center' }}><I name="image" size={15} /></button>
+                <button onClick={isSharingLocation ? stopSharingLocation : startSharingLocation} title={isSharingLocation ? '停止位置共享' : '共享位置'} style={{ background: isSharingLocation ? 'var(--danger)' : 'var(--bg)', color: isSharingLocation ? 'white' : 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '3px 6px', display: 'flex', alignItems: 'center' }}>
+                  <I name="location" size={15} />
                 </button>
-                <button onClick={() => { setShowCheckIn(true); fetchCheckIns(); }} title="打卡签到" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 16 }}>✅</button>
-                <button onClick={() => setShowMusicPanel(true)} title="听歌" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 16 }}>🎵</button>
+                <button onClick={() => { setShowCheckIn(true); fetchCheckIns(); }} title="打卡签到" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '3px 6px', display: 'flex', alignItems: 'center' }}><I name="checkin" size={15} /></button>
+                <button onClick={() => setShowMusicPanel(true)} title="听歌" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '3px 6px', display: 'flex', alignItems: 'center' }}><I name="music" size={15} /></button>
                 {!currentRoom?.type?.includes('group') && currentRoom?.members?.filter(m => m !== user?.username).length > 0 && (
                   <button onClick={() => {
                     const otherUser = allUsers.find(u => currentRoom.members.includes(u.username) && u.username !== user?.username);
                     if (otherUser) startCall(otherUser.id, 'video');
-                  }} title="视频通话" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 16 }}>📹</button>
+                  }} title="视频通话" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '3px 6px', display: 'flex', alignItems: 'center' }}><I name="video" size={15} /></button>
                 )}
                 <button onClick={() => setShowSearch(s => !s)} title="搜索消息">
-                  {showSearch ? '✕' : '🔍'}
+                  {showSearch ? <I name="close" size={15} /> : <I name="search" size={15} />}
                 </button>
                 <div className="online-badge">在线</div>
               </div>
@@ -2885,8 +3168,8 @@ function App() {
             {aiSummary && (
               <div className="summary-flash">
                 <div className="sflash-top">
-                  <span className="sflash-title">🤖 AI 聊天摘要</span>
-                  <button className="sflash-close" onClick={() => setAiSummary(null)}>✕</button>
+                  <span className="sflash-title"><I name="ai" size={16} /> AI 聊天摘要</span>
+                  <button className="sflash-close" onClick={() => setAiSummary(null)}><I name="close" size={16} /></button>
                 </div>
                 <div className="sflash-body">{aiSummary.text}</div>
               </div>
@@ -2960,17 +3243,25 @@ function App() {
                     {/* AI 翻译结果 */}
                     {translations[msg.id] && (
                       <div className="translation-text" style={{ fontSize: 13, color: 'var(--text-secondary)', fontStyle: 'italic', padding: '6px 0', borderTop: '1px dashed var(--border)' }}>
-                        🌐 {translations[msg.id]}
+                        {translations[msg.id]}
                       </div>
                     )}
-                    {msg.type === 'image' && <img className="media" src={msg.fileUrl} alt="" onClick={() => openImageViewer(msg.fileUrl, messages.filter(m => m.type === 'image').map(m => m.fileUrl))} />}
+                    {msg.type === 'image' && (
+                      <div style={{ position: 'relative' }}>
+                        <img className="media" src={msg.fileUrl} alt="" onClick={() => openImageViewer(msg.fileUrl, messages.filter(m => m.type === 'image').map(m => m.fileUrl))} />
+                        <button onClick={() => describeImage(msg.id, msg.fileUrl)} disabled={descLoading === msg.id}
+                          style={{ position: 'absolute', bottom: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', fontSize: 11, cursor: 'pointer' }}>
+                          {descLoading === msg.id ? '…' : imageDesc[msg.id] ? imageDesc[msg.id] : 'AI 识图'}
+                        </button>
+                      </div>
+                    )}
                     {msg.type === 'video' && (
                       <video className="media" ref={observeVideo} src={msg.fileUrl} controls preload="none"
                         onClick={() => window.open(msg.fileUrl)} />
                     )}
                     {msg.type === 'audio' && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 200 }}>
-                        <span style={{ fontSize: 24 }}>🎵</span>
+                        <span style={{ fontSize: 24 }}><I name="music" size={20} /></span>
                         <audio src={msg.fileUrl} controls style={{ flex: 1, maxWidth: 250, height: 36 }} />
                       </div>
                     )}
@@ -2989,13 +3280,13 @@ function App() {
                     )}
                     {msg.type === 'music' && (
                       <div className="music-message">
-                        <span className="music-icon">🎵</span>
+                        <span className="music-icon"><I name="music" size={20} /></span>
                         <a href={msg.content} target="_blank" rel="noopener noreferrer">点击播放音乐</a>
                       </div>
                     )}
                     {msg.type === 'redPacket' && (
                       <div className="red-packet-message" onClick={() => claimRedPacket(msg.id)}>
-                        <div className="red-packet-icon">🧧</div>
+                        <div className="red-packet-icon"><I name="gift" size={20} /></div>
                         <div className="red-packet-info">
                           <div className="red-packet-title">{msg.message}</div>
                           <div className="red-packet-detail">
@@ -3009,9 +3300,9 @@ function App() {
                     )}
                     {msg.type === 'poll' && (
                       <div className="poll-message">
-                        <div className="poll-title">📊 {msg.question}</div>
-                        {msg.anonymous && <div className="poll-anon-badge">🔒 匿名投票</div>}
-                        {msg.deadline && <div className="poll-deadline">⏰ 截止: {new Date(msg.deadline).toLocaleString()}</div>}
+                        <div className="poll-title">{msg.question}</div>
+                        {msg.anonymous && <div className="poll-anon-badge">匿名投票</div>}
+                        {msg.deadline && <div className="poll-deadline">截止: {new Date(msg.deadline).toLocaleString()}</div>}
                         {(msg.options || []).map((opt, i) => {
                           const totalVotes = msg.options.reduce((sum, o) => sum + (o.votes?.length || 0), 0);
                           const voteCount = opt.votes?.length || 0;
@@ -3036,7 +3327,7 @@ function App() {
                     )}
                     {msg.type === 'dice' && (
                       <div className="dice-message">
-                        <span className="dice-icon">🎲</span>
+                        <span className="dice-icon"><I name="dice" size={24} /></span>
                         <span className="dice-value">{msg.value} 点</span>
                       </div>
                     )}
@@ -3052,12 +3343,12 @@ function App() {
                       </div>
                     )}
                     {msg.type === 'announcement' && (
-                      <div className="announcement-message">📢 {msg.content}</div>
+                      <div className="announcement-message">{msg.content}</div>
                     )}
                     {msg.type === 'solitaire' && (
                       <div className="solitaire-card">
                         <div className="solitaire-top">
-                          <span className="solitaire-emoji">🐉</span>
+                          <span className="solitaire-emoji"><I name="solitaire" size={18} /></span>
                           <div>
                             <div className="solitaire-name">{msg.title}</div>
                             <div className="solitaire-hint">{msg.format || '{序号}. {内容}'}</div>
@@ -3081,7 +3372,7 @@ function App() {
                           }}>+ 参与接龙</button>
                         ) : (
                           <div style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
-                            ✅ 已参与（{(msg.participants || []).length}人）
+                            已参与（{(msg.participants || []).length}人）
                           </div>
                         )}
                       </div>
@@ -3101,16 +3392,16 @@ function App() {
                 <div key={msg.id || index} id={`msg-${msg.id}`} className={`message ${isMine ? 'sent' : 'received'} ${isSearchMatch ? 'highlighted' : ''} ${isPinned ? 'pinned' : ''}`}>
                   <img className="avatar" src={getAvatarUrl(msg.sender?.avatar || user?.avatar)} alt="" />
                   <div className="message-content">
-                    {isPinned && <div className="pinned-badge">📌 置顶</div>}
+                    {isPinned && <div className="pinned-badge"><I name="pin" size={12} /> 置顶</div>}
                     {msg.sender?.username !== user?.username && !msg.recalled && (
                       <div className="sender-name">{msg.sender?.username}</div>
                     )}
                     {msg.forwardedFrom && !msg.recalled && (
-                      <div className="forwarded-badge">📤 转发自 {msg.forwardedFrom}</div>
+                      <div className="forwarded-badge"><I name="forward" size={12} /> 转发自 {msg.forwardedFrom}</div>
                     )}
                     <div className={`bubble ${msg.recalled ? 'recalled' : ''}`}>
                       {msg.recalled ? (
-                        <span className="recalled-text">⚠️ 此消息已被撤回</span>
+                        <span className="recalled-text"><I name="reset" size={12} /> 此消息已被撤回</span>
                       ) : contentToRender}
                     </div>
                     {!msg.recalled && (
@@ -3132,18 +3423,22 @@ function App() {
                         <div className="message-actions">
                           {isMine && (
                             <>
-                              <button onClick={() => recallMessage(msg.id)} title="撤回消息">↩️</button>
-                              <button onClick={() => startEditMessage(msg)} title="编辑消息">✏️</button>
+                              <button onClick={() => recallMessage(msg.id)} title="撤回消息"><I name="reset" size={15} /></button>
+                              <button onClick={() => startEditMessage(msg)} title="编辑消息"><I name="edit" size={15} /></button>
+                              <button onClick={() => deleteMessage(msg.id)} title="删除消息"><I name="delete" size={15} /></button>
                             </>
                           )}
-                          <button onClick={(e) => openReactionPicker(msg.id, e)} title="表情回应">😊</button>
-                          <button onClick={() => startReply(msg)} title="引用回复">💬</button>
-                          <button onClick={() => openForwardModal(msg)} title="转发">📤</button>
+                          {!isMine && currentRoom?.createdBy === user?.username && (
+                            <button onClick={() => deleteMessage(msg.id)} title="删除消息"><I name="delete" size={15} /></button>
+                          )}
+                          <button onClick={(e) => openReactionPicker(msg.id, e)} title="表情回应"><I name="reaction" size={15} /></button>
+                          <button onClick={() => startReply(msg)} title="引用回复"><I name="reply" size={15} /></button>
+                          <button onClick={() => openForwardModal(msg)} title="转发"><I name="forward" size={15} /></button>
                           <button onClick={() => toggleStarMessage(msg.id)} title={isStarred ? '取消收藏' : '收藏'}>
-                            {isStarred ? '⭐' : '☆'}
+                            <I name="star" size={15} color={isStarred ? 'var(--warning)' : undefined} />
                           </button>
                           <button onClick={() => togglePinMessage(msg.id)} title={isPinned ? '取消置顶' : '置顶'}>
-                            {isPinned ? '📌' : '📍'}
+                            <I name="pin" size={15} color={isPinned ? 'var(--primary)' : undefined} />
                           </button>
                         </div>
                       </>
@@ -3155,7 +3450,7 @@ function App() {
                     {/* 翻译按钮 */}
                     {!isMine && msg.type === 'text' && msg.content && !msg.recalled && (
                       <span className="translate-badge" onClick={() => translateMessage(msg.id, msg.content)}>
-                        {translatingMsg === msg.id ? '⏳' : translations[msg.id] ? '原文' : '🌐 翻译'}
+                        {translatingMsg === msg.id ? '…' : translations[msg.id] ? '原文' : <><I name="translate" size={13} /> 翻译</>}
                       </span>
                     )}
                     {translations[msg.id] && (
@@ -3164,9 +3459,9 @@ function App() {
                     {/* 位置消息 */}
                     {msg.type === 'location' && (
                       <div className="location-bubble" onClick={() => openLocationMap(msg.lat, msg.lng)}>
-                        <div className="loc-header"><span className="loc-icon">📍</span><span className="loc-user">{msg.sender?.username}</span></div>
+                        <div className="loc-header"><span className="loc-icon"><I name="location" size={14} /></span><span className="loc-user">{msg.sender?.username}</span></div>
                         <div className="loc-coords">{msg.lat?.toFixed(4)}, {msg.lng?.toFixed(4)}</div>
-                        <div className="location-map-preview">🗺️</div>
+                        <div className="location-map-preview"><I name="location" size={24} /></div>
                       </div>
                     )}
                     {/* 打卡消息 */}
@@ -3197,7 +3492,7 @@ function App() {
                   {REACTION_EMOJIS.map(emoji => (
                     <button key={emoji} onClick={() => toggleReaction(reactionPicker.messageId, emoji)}>{emoji}</button>
                   ))}
-                  <button onClick={() => setReactionPicker(null)} style={{ fontSize: 14 }}>✕</button>
+                  <button onClick={() => setReactionPicker(null)} style={{ fontSize: 14 }}><I name="close" size={14} /></button>
                 </div>
               )}
               <div ref={setMessageEndRef} />
@@ -3205,38 +3500,38 @@ function App() {
             <div className="chat-input-area">
               {/* 群公告 */}
               {roomAnnouncements[currentRoomId] && (
-                <div className="room-announcement">📢 {roomAnnouncements[currentRoomId]}</div>
+                <div className="room-announcement">{roomAnnouncements[currentRoomId]}</div>
               )}
               {/* 引用回复提示 */}
               {replyToMessage && (
                 <div className="reply-preview">
                   <span>回复 {replyToMessage.sender?.username}：</span>
                   <span className="reply-content">{replyToMessage.content?.slice(0, 50) || '[媒体消息]'}</span>
-                  <button className="cancel-reply" onClick={cancelReply}>✕</button>
+                  <button className="cancel-reply" onClick={cancelReply}><I name="close" size={14} /></button>
                 </div>
               )}
               {/* 编辑提示 */}
               {editingMessage && (
                 <div className="edit-preview">
-                  <span>✏️ 编辑消息中...</span>
-                  <button className="cancel-edit" onClick={cancelEdit}>✕</button>
+                  <span><I name="edit" size={13} /> 编辑消息中...</span>
+                  <button className="cancel-edit" onClick={cancelEdit}><I name="close" size={14} /></button>
                 </div>
               )}
               <div className="chat-input-wrapper">
                 <div className="chat-input-actions">
-                  <button onClick={() => fileInputRef.current?.click()} title="发送文件">📎</button>
+                  <button onClick={() => fileInputRef.current?.click()} title="发送文件"><I name="attach" size={17} /></button>
                   <button onClick={isRecording ? stopRecording : startRecording} title={isRecording ? '停止录音' : '语音消息'} className={isRecording ? 'recording' : ''}>
-                    {isRecording ? '⏹️' : '🎤'}
+                    {isRecording ? <I name="stop" size={17} color="var(--danger)" /> : <I name="mic" size={17} />}
                   </button>
-                  <button onClick={() => setShowEmojiPicker(s => !s)} title="表情" className={showEmojiPicker ? 'active' : ''}>😊</button>
+                  <button onClick={() => setShowEmojiPicker(s => !s)} title="表情" className={showEmojiPicker ? 'active' : ''}><I name="emoji" size={17} /></button>
                   <button onClick={() => setShowMentionPicker(s => !s)} title="@提及" className={showMentionPicker ? 'active' : ''}>@</button>
-                  <button onClick={() => setShowQuickReplies(s => !s)} title="快捷回复">⚡</button>
-                  <button onClick={sendDice} title="骰子">🎲</button>
-                  <button onClick={() => setShowGameModal(true)} title="猜拳">✊</button>
-                  <button onClick={() => setShowRedPacketModal(true)} title="红包">🧧</button>
-                  <button onClick={() => setShowPollModal(true)} title="投票">📊</button>
-                  <button onClick={() => setShowSolitaireModal(true)} title="群接龙">🐉</button>
-                  <button onClick={() => setShowMusicModal(true)} title="音乐">🎵</button>
+                  <button onClick={() => setShowQuickReplies(s => !s)} title="快捷回复"><I name="quick" size={17} /></button>
+                  <button onClick={sendDice} title="骰子"><I name="dice" size={17} /></button>
+                  <button onClick={() => setShowGameModal(true)} title="猜拳"><I name="hand" size={17} /></button>
+                  <button onClick={() => setShowRedPacketModal(true)} title="红包"><I name="gift" size={17} /></button>
+                  <button onClick={() => setShowPollModal(true)} title="投票"><I name="vote" size={17} /></button>
+                  <button onClick={() => setShowSolitaireModal(true)} title="群接龙"><I name="solitaire" size={17} /></button>
+                  <button onClick={() => setShowMusicModal(true)} title="音乐"><I name="music" size={17} /></button>
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -3293,13 +3588,13 @@ function App() {
                 {/* AI 智能快捷回复 */}
                 {smartReplies.length > 0 && (
                   <div className="smart-replies-bar">
-                    <span className="smart-replies-label">🤖 AI建议：</span>
+                    <span className="smart-replies-label">AI建议：</span>
                     {smartReplies.map((reply, i) => (
                       <button key={i} className="smart-reply-btn" onClick={() => { setNewMessage(reply); setSmartReplies([]); }}>
                         {reply}
                       </button>
                     ))}
-                    <button className="smart-reply-close" onClick={() => setSmartReplies([])}>✕</button>
+                    <button className="smart-reply-close" onClick={() => setSmartReplies([])}><I name="close" size={14} /></button>
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
@@ -3309,14 +3604,14 @@ function App() {
                     disabled={smartRepliesLoading || !currentRoomId}
                     title="AI智能回复建议"
                     style={{ padding: '6px 10px', fontSize: 14, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                  >{smartRepliesLoading ? '⏳' : '💡'}</button>
+                  >{smartRepliesLoading ? '…' : <I name="smart" size={16} />}</button>
                   <button
                     className="action-btn small"
                     onClick={() => { setPolishText(newMessage); setPolishResult(''); setShowPolishModal(true); }}
                     disabled={!newMessage.trim()}
                     title="AI润色文字"
                     style={{ padding: '6px 10px', fontSize: 14, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                  >✨</button>
+                  ><I name="polish" size={16} /></button>
                   <textarea
                     className="chat-input"
                     placeholder="输入消息... 输入 @ 提及用户"
@@ -3336,7 +3631,7 @@ function App() {
           <div className="mobile-room-list">
             <div className="search-box" style={{ padding: '10px 16px' }}>
               <div className="search-wrapper">
-                <span className="search-icon">🔍</span>
+                <span className="search-icon"><I name="search" size={16} /></span>
                 <input type="text" placeholder="搜索聊天..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
               </div>
             </div>
@@ -3352,7 +3647,7 @@ function App() {
                 const unpinned = filtered.filter(r => !pinnedChats.has(r.id));
                 return (
                   <>
-                    {pinned.length > 0 && <div className="pinned-divider">📌 置顶聊天</div>}
+                    {pinned.length > 0 && <div className="pinned-divider"><I name="pin" size={14} /> 置顶聊天</div>}
                     {[...pinned, ...unpinned].map(room => {
                       const isPinned = pinnedChats.has(room.id);
                       return (
@@ -3366,6 +3661,7 @@ function App() {
                             {room.lastMessage?.timestamp && <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>}
                             {unreadCounts[room.id] > 0 && currentRoomId !== room.id && <span className="unread-badge">{unreadCounts[room.id]}</span>}
                           </div>
+                          {room.id !== 'global' && <button className="room-pin-btn" onClick={(e) => deleteChat(room.id, e)} title="删除聊天" style={{ color: 'var(--danger)' }}><I name="delete" size={14} /></button>}
                         </div>
                       );
                     })}
@@ -3374,7 +3670,7 @@ function App() {
               })()}
               {(!rooms || rooms.filter(r => r.type !== 'private').length === 0) && (
                 <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  <div style={{ fontSize: 36, marginBottom: 12 }}>💬</div>
+                  <div style={{ opacity: 0.25, marginBottom: 12 }}><I name="chat" size={48} /></div>
                   <div>暂无聊天</div>
                 </div>
               )}
@@ -3389,7 +3685,7 @@ function App() {
             {phoneInfo.phoneBound ? (
               /* 已绑定 → 显示信息 + 解绑 */
               <>
-                <h3>📱 手机号</h3>
+                <h3><I name="phone" size={20} /> 手机号</h3>
                 <div style={{ textAlign: 'center', padding: '30px 0' }}>
                   <div style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 8 }}>{phoneInfo.phone}</div>
                   <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -3404,7 +3700,7 @@ function App() {
             ) : phoneStep === 'done' ? (
               /* 绑定成功 */
               <>
-                <h3>✅ 绑定成功</h3>
+                <h3><I name="checkin" size={20} /> 绑定成功</h3>
                 <div style={{ textAlign: 'center', padding: '30px 0' }}>
                   <div style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 8, color: 'var(--primary)' }}>{phoneInfo.phone}</div>
                   <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>手机号绑定成功</div>
@@ -3416,7 +3712,7 @@ function App() {
             ) : phoneStep === 'code' ? (
               /* 第二步：输入验证码 */
               <>
-                <h3>📱 输入验证码</h3>
+                <h3><I name="phone" size={20} /> 输入验证码</h3>
                 <div style={{ padding: '10px 0 5px' }}>
                   <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 16 }}>
                     验证码已发送至 <strong>{phoneInput.slice(0,3) + '****' + phoneInput.slice(7)}</strong>
@@ -3463,7 +3759,7 @@ function App() {
             ) : (
               /* 第一步：输入手机号 */
               <>
-                <h3>📱 绑定手机号</h3>
+                <h3><I name="phone" size={20} /> 绑定手机号</h3>
                 <div style={{ padding: '20px 0' }}>
                   <input
                     type="tel"
@@ -3498,7 +3794,7 @@ function App() {
                   onClick={() => avatarInputRef.current?.click()}
                   style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'var(--primary-color)', color: 'white', cursor: 'pointer', fontSize: 16 }}
                 >
-                  📷
+                  <I name="image" size={24} />
                 </button>
                 <input 
                   type="file" 
@@ -3544,7 +3840,7 @@ function App() {
                 placeholder="填写微信收款链接或收款码内容..."
               />
               <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
-                💡 在微信中生成收款码，复制链接或截图内容填入此处
+                在微信中生成收款码，复制链接或截图内容填入此处
               </div>
             </div>
             <div className="modal-buttons">
@@ -3558,14 +3854,14 @@ function App() {
       {showPayCodeModal && selectedFriendPayCode && (
         <div className="modal-overlay" onClick={() => { setShowPayCodeModal(false); setSelectedFriendPayCode(null); }}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>💰 {selectedFriendPayCode.username} 的收款码</h3>
+            <h3><I name="wallet" size={20} /> {selectedFriendPayCode.username} 的收款码</h3>
             <div style={{ padding: 16, background: 'var(--bg-color)', borderRadius: 8, marginBottom: 12 }}>
               <div style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                 {selectedFriendPayCode.payCode}
               </div>
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-              💡 复制以上内容，在微信中打开即可转账给该好友
+              复制以上内容，在微信中打开即可转账给该好友
             </div>
             <div className="modal-buttons">
               <button className="cancel" onClick={() => { setShowPayCodeModal(false); setSelectedFriendPayCode(null); }}>关闭</button>
@@ -3587,7 +3883,7 @@ function App() {
       {showRechargeModal && (
         <div className="modal-overlay" onClick={() => { setShowRechargeModal(false); setRechargePayCode(null); setRechargeAmount(''); }}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 450 }}>
-            <h3>💰 充值余额</h3>
+            <h3><I name="wallet" size={20} /> 充值余额</h3>
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>充值金额（元）</label>
               <input
@@ -3660,7 +3956,7 @@ function App() {
       {showAdminModal && (
         <div className="modal-overlay" onClick={() => setShowAdminModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
-            <h3>👑 管理员 - 待确认充值</h3>
+            <h3><I name="crown" size={20} /> 管理员 - 待确认充值</h3>
             {pendingRecharges.length === 0 ? (
               <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-secondary)' }}>
                 暂无待确认的充值请求
@@ -3707,7 +4003,7 @@ function App() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>添加好友</h3>
             <div style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--primary-bg)', borderRadius: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
-              💡 我的ID：<strong style={{ color: 'var(--primary)', fontSize: 16, letterSpacing: 3 }}>{user?.sixDigitId}</strong>
+              我的ID：<strong style={{ color: 'var(--primary)', fontSize: 16, letterSpacing: 3 }}>{user?.sixDigitId}</strong>
               <span style={{ marginLeft: 8, cursor: 'pointer', color: 'var(--primary)' }}
                 onClick={() => { navigator.clipboard?.writeText(user?.sixDigitId || ''); showToast('ID已复制', 'success'); }}>📋复制</span>
             </div>
@@ -3810,14 +4106,14 @@ function App() {
 
       {/* 深色模式切换按钮 */}
       <button className="dark-mode-toggle" onClick={toggleDarkMode} title={darkMode ? '切换浅色模式' : '切换深色模式'}>
-        {darkMode ? '☀️' : '🌙'}
+        {darkMode ? <I name="search" size={15} /> : <I name="star" size={15} />}
       </button>
 
       {/* 红包弹窗 */}
       {showRedPacketModal && (
         <div className="modal-overlay" onClick={() => setShowRedPacketModal(false)}>
           <div className="modal red-packet-modal" onClick={e => e.stopPropagation()}>
-            <h3>🧧 发红包</h3>
+            <h3><I name="gift" size={20} /> 发红包</h3>
             <div className="balance-info">
               <span>当前余额：</span>
               <span className="balance-amount">¥{(balance || 0).toFixed(2)}</span>
@@ -3851,7 +4147,7 @@ function App() {
       {showPollModal && (
         <div className="modal-overlay" onClick={() => setShowPollModal(false)}>
           <div className="modal poll-modal" onClick={e => e.stopPropagation()}>
-            <h3>📊 发起投票</h3>
+            <h3><I name="vote" size={20} /> 发起投票</h3>
             <div className="form-group"><label>投票主题</label><input type="text" value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} placeholder="输入投票主题" /></div>
             <div className="form-group">
               <label>选项</label>
@@ -3877,7 +4173,7 @@ function App() {
       {showGameModal && (
         <div className="modal-overlay" onClick={() => setShowGameModal(false)}>
           <div className="modal game-modal" onClick={e => e.stopPropagation()}>
-            <h3>✊✌️🖐️ 猜拳游戏</h3>
+            <h3><I name="hand" size={20} /> 猜拳游戏</h3>
             <p>选择你的出拳：</p>
             <div className="game-choices">
               <button className="choice-btn" onClick={() => { sendRockPaperScissors('石头'); setShowGameModal(false); }}>✊ 石头</button>
@@ -3895,7 +4191,7 @@ function App() {
       {showMusicModal && (
         <div className="modal-overlay" onClick={() => setShowMusicModal(false)}>
           <div className="modal music-modal" onClick={e => e.stopPropagation()}>
-            <h3>🎵 分享音乐</h3>
+            <h3><I name="music" size={20} /> 分享音乐</h3>
             <div className="form-group">
               <label>音乐链接</label>
               <input type="url" value={musicUrl} onChange={e => setMusicUrl(e.target.value)} placeholder="输入音乐链接" />
@@ -3919,7 +4215,7 @@ function App() {
       {showMoments && (
         <div className="modal-overlay" onClick={() => setShowMoments(false)}>
           <div className="modal moments-modal" onClick={e => e.stopPropagation()}>
-            <h3>📱 朋友圈</h3>
+            <h3><I name="camera" size={20} /> 朋友圈</h3>
             <div className="moment-input">
               <textarea value={newMoment} onChange={e => setNewMoment(e.target.value)} placeholder="分享你的动态..." />
               <button onClick={publishMoment}>发布</button>
@@ -3959,9 +4255,9 @@ function App() {
       {/* 数据统计弹窗 */}
       {messageStats.totalMessages > 0 && (
         <div className="stats-bar">
-          <span>📊 总消息: {messageStats.totalMessages}</span>
-          <span>📅 今日: {messageStats.todayMessages}</span>
-          <span>👥 在线: {messageStats.activeUsers}</span>
+          <span><I name="stats" size={14} /> 总消息: {messageStats.totalMessages}</span>
+          <span><I name="calendar" size={14} /> 今日: {messageStats.todayMessages}</span>
+          <span><I name="contacts" size={14} /> 在线: {messageStats.activeUsers}</span>
           <button onClick={fetchStats}>刷新</button>
         </div>
       )}
@@ -3969,20 +4265,20 @@ function App() {
       {/* 底部Tab导航 - 微信风格 */}
       <div className="bottom-tab-bar">
         <button className={`bottom-tab ${bottomTab === 'chats' ? 'active' : ''}`} onClick={() => { setBottomTab('chats'); }}>
-          <span className="tab-icon">💬</span>
+          <span className="tab-icon"><I name="chat" size={22} /></span>
           <span className="tab-label">微信</span>
         </button>
         <button className={`bottom-tab ${bottomTab === 'contacts' ? 'active' : ''}`} onClick={() => { setBottomTab('contacts'); fetchFriendRequests(); }}>
-          <span className="tab-icon">👥</span>
+          <span className="tab-icon"><I name="contacts" size={22} /></span>
           <span className="tab-label">通讯录</span>
           {friendRequests.length > 0 && <span className="tab-badge">{friendRequests.length}</span>}
         </button>
         <button className={`bottom-tab ${bottomTab === 'discover' ? 'active' : ''}`} onClick={() => setBottomTab('discover')}>
-          <span className="tab-icon">🔍</span>
+          <span className="tab-icon"><I name="discover" size={22} /></span>
           <span className="tab-label">发现</span>
         </button>
         <button className={`bottom-tab ${bottomTab === 'me' ? 'active' : ''}`} onClick={() => setBottomTab('me')}>
-          <span className="tab-icon">👤</span>
+          <span className="tab-icon"><I name="me" size={22} /></span>
           <span className="tab-label">我</span>
         </button>
       </div>
@@ -3991,7 +4287,7 @@ function App() {
       {showSplash && (
         <div className="splash-screen">
           <div className="splash-content">
-            <div className="splash-icon">💬</div>
+            <div className="splash-icon"><I name="chat" size={48} color="#fff" /></div>
             <h1 className="splash-title">你无只因</h1>
             <p className="splash-subtitle">现代化即时通讯平台</p>
             <div className="splash-loader">
@@ -4005,7 +4301,7 @@ function App() {
       {showForwardModal && (
         <div className="modal-overlay" onClick={() => { setShowForwardModal(false); setForwardMsg(null); }}>
           <div className="modal forward-modal" onClick={e => e.stopPropagation()}>
-            <h3>📤 转发消息</h3>
+            <h3><I name="forward" size={20} /> 转发消息</h3>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
               选择要转发到的聊天
             </p>
@@ -4028,13 +4324,13 @@ function App() {
       {showBackupModal && (
         <div className="modal-overlay" onClick={() => setShowBackupModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
-            <h3>💾 聊天记录管理</h3>
+            <h3><I name="backup" size={20} /> 聊天记录管理</h3>
             <div style={{ padding: 20, textAlign: 'center' }}>
               <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
                 聊天记录存储在服务器上，登录后自动同步
               </div>
               <button className="confirm" onClick={() => { exportChat(); setShowBackupModal(false); }} style={{ marginBottom: 8 }}>
-                📤 导出聊天记录
+                导出聊天记录
               </button>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 12 }}>
                 {messageStats.totalMessages > 0 && `当前聊天记录: ${messageStats.totalMessages} 条消息`}
@@ -4049,28 +4345,30 @@ function App() {
       {/* OTA 更新弹窗 */}
       {showOtaModal && otaInfo && (
         <div className="modal-overlay" onClick={() => { setShowOtaModal(false); localStorage.setItem('appVersion', String(otaInfo.buildNumber)); }}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 380, textAlign: 'center' }}>
-            <div style={{ fontSize: 48, margin: '12px 0' }}>📦</div>
-            <h3>发现新版本</h3>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '12px 0' }}>
-              <div>当前版本: v{appVersion}</div>
-              <div>最新版本: v{otaInfo.version}</div>
-              {otaInfo.releaseNotes && (
-                <div style={{ marginTop: 8, padding: 8, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 12 }}>
-                  {otaInfo.releaseNotes}
-                </div>
-              )}
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 48, marginBottom: 8 }}>🎉</div>
+              <h3>WeChat 已更新至 v{otaInfo.version}</h3>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>OTA 自动推送，无需下载</div>
             </div>
-            <div className="modal-buttons" style={{ flexDirection: 'column', gap: 8 }}>
-              <button className="confirm" onClick={() => { window.open(otaInfo.updateUrl, '_blank'); }}>
-                {otaInfo.forceUpdate ? '立即更新' : '前往下载'}
+            {otaInfo.releaseNotes && (
+              <div style={{ padding: 12, background: 'var(--bg-secondary)', borderRadius: 10, fontSize: 12, whiteSpace: 'pre-line', lineHeight: 1.6, maxHeight: 200, overflowY: 'auto', marginBottom: 12 }}>
+                {otaInfo.releaseNotes}
+              </div>
+            )}
+            {otaInfo.hasNewApk && otaInfo.apkUrl && (
+              <button onClick={() => {
+                localStorage.setItem('lastShownBuild', String(otaInfo.buildNumber));
+                const url = otaInfo.apkUrl.startsWith('http') ? otaInfo.apkUrl : `${API_URL}${otaInfo.apkUrl}`;
+                window.open(url, isCapacitor ? '_system' : '_blank');
+              }}
+                style={{ display: 'block', width: '100%', padding: '10px', background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, marginBottom: 8, fontSize: 14 }}>
+                📦 下载安装包 ({otaInfo.apkSize || 'APK'})
               </button>
-              {!otaInfo.forceUpdate && (
-                <button className="cancel" onClick={() => { setShowOtaModal(false); localStorage.setItem('appVersion', String(otaInfo.buildNumber)); }}>
-                  稍后再说
-                </button>
-              )}
-            </div>
+            )}
+            <button className="confirm" onClick={() => { setShowOtaModal(false); localStorage.setItem('lastShownBuild', String(otaInfo.buildNumber)); }} style={{ width: '100%' }}>
+              知道了
+            </button>
           </div>
         </div>
       )}
@@ -4078,7 +4376,7 @@ function App() {
       {/* ===== 图片查看器 ===== */}
       {imageViewer && (
         <div className="image-viewer-overlay" onClick={() => setImageViewer(null)}>
-          <button className="image-viewer-close" onClick={() => setImageViewer(null)}>✕</button>
+          <button className="image-viewer-close" onClick={() => setImageViewer(null)}><I name="close" size={20} color="#fff" /></button>
           {imageViewer.urls?.length > 1 && (
             <>
               <button className="image-viewer-nav prev" onClick={(e) => { e.stopPropagation(); imageViewerNav(-1); }}>‹</button>
@@ -4089,7 +4387,7 @@ function App() {
             <img src={imageViewer.url} alt="" />
           </div>
           <div className="image-viewer-tools">
-            <button onClick={() => downloadImage(imageViewer.url)}>💾 下载</button>
+            <button onClick={() => downloadImage(imageViewer.url)}>下载</button>
             {imageViewer.urls?.length > 1 && (
               <button disabled>{(imageViewer.index || 0) + 1} / {imageViewer.urls.length}</button>
             )}
@@ -4101,7 +4399,7 @@ function App() {
       {showSolitaireModal && (
         <div className="modal-overlay" onClick={() => setShowSolitaireModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>🐉 发起群接龙</h3>
+            <h3><I name="solitaire" size={20} /> 发起群接龙</h3>
             <div className="form-group">
               <label>接龙主题</label>
               <input type="text" value={solitaireTitle} onChange={e => setSolitaireTitle(e.target.value)} placeholder="例如：今天吃什么？" />
@@ -4122,7 +4420,7 @@ function App() {
       {showResetPw && (
         <div className="modal-overlay" onClick={() => setShowResetPw(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
-            <h3>🔑 找回密码</h3>
+            <h3><I name="security" size={20} /> 找回密码</h3>
             {resetPwStep === 0 && (
               <>
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>输入绑定的手机号，获取验证码</p>
@@ -4179,15 +4477,15 @@ function App() {
       {showImageGen && (
         <div className="modal-overlay" onClick={() => setShowImageGen(false)}>
           <div className="modal ai-image-modal" onClick={e => e.stopPropagation()}>
-            <h3>🎨 AI 图片生成</h3>
+            <h3><I name="palette" size={20} /> AI 图片生成</h3>
             <div className="form-group"><label>描述词</label><textarea value={genPrompt} onChange={e => setGenPrompt(e.target.value)} placeholder="描述你想生成的图片，例如：a cat wearing sunglasses" rows={2} /></div>
             <div className="form-group"><label>风格（可选）</label><input type="text" value={genStyle} onChange={e => setGenStyle(e.target.value)} placeholder="例如：anime style, watercolor, realistic" /></div>
             {genResult && (
               <div className="image-gen-result">
                 <img src={genResult} alt="生成结果" />
                 <div className="image-gen-actions">
-                  <button className="gen-share-btn" onClick={shareGeneratedImage}>📤 发送到聊天</button>
-                  <button className="gen-retry-btn" onClick={() => setGenResult(null)}>🔄 重新生成</button>
+                  <button className="gen-share-btn" onClick={shareGeneratedImage}>发送到聊天</button>
+                  <button className="gen-retry-btn" onClick={() => setGenResult(null)}>重新生成</button>
                 </div>
               </div>
             )}
@@ -4203,7 +4501,7 @@ function App() {
       {showCheckIn && (
         <div className="modal-overlay" onClick={() => setShowCheckIn(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
-            <h3>✅ 每日打卡</h3>
+            <h3><I name="checkin" size={20} /> 每日打卡</h3>
             {checkInData && (
               <div style={{ marginBottom: 12 }}>
                 <div className="checkin-card">
@@ -4236,14 +4534,14 @@ function App() {
       {showWrapped && wrappedData && (
         <div className="modal-overlay" onClick={() => setShowWrapped(false)}>
           <div className="modal wrapped-modal" onClick={e => e.stopPropagation()}>
-            <div className="wrapped-hero">📊</div>
+            <div className="wrapped-hero"><I name="stats" size={48} /></div>
             <h3>你的聊天年度报告</h3>
-            <div className="wrapped-stat"><div className="wstat-num">{wrappedData.total}</div><div className="wstat-label">📨 总消息数</div></div>
+            <div className="wrapped-stat"><div className="wstat-num">{wrappedData.total}</div><div className="wstat-label">总消息数</div></div>
             <div className="wrapped-stat"><div className="wstat-num">{wrappedData.totalSent}</div><div className="wstat-label">📤 发送 / 📥 {wrappedData.totalReceived} 接收</div></div>
-            <div className="wrapped-stat"><div className="wstat-num">{wrappedData.activeHour}:00</div><div className="wstat-label">🕐 最活跃时间段</div></div>
+            <div className="wrapped-stat"><div className="wstat-num">{wrappedData.activeHour}:00</div><div className="wstat-label">最活跃时间段</div></div>
             {wrappedData.topFriend && (
               <div className="wrapped-friend">
-                <span>❤️ 最亲密好友：</span><strong>{wrappedData.topFriend.name}</strong>
+                <span>最亲密好友：</span><strong>{wrappedData.topFriend.name}</strong>
                 <span style={{ marginLeft: 'auto', color: 'var(--text-secondary)', fontSize: 12 }}>{wrappedData.topFriend.count} 条消息</span>
               </div>
             )}
@@ -4258,14 +4556,14 @@ function App() {
       {showBotModal && (
         <div className="modal-overlay" onClick={() => setShowBotModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460, maxHeight: '80vh', overflowY: 'auto' }}>
-            <h3>🤖 聊天机器人</h3>
+            <h3><I name="bot" size={20} /> 聊天机器人</h3>
             {bots.map(bot => (
               <div key={bot.id} className="bot-card">
                 <div className="bot-info">
-                  <div className="bot-name">🤖 {bot.name}</div>
+                  <div className="bot-name">{bot.name}</div>
                   <div className="bot-status">{bot.autoReply ? '自动回复中' : '已关闭回复'} {bot.schedule ? `| ⏰ ${bot.schedule.cron}` : ''}</div>
                 </div>
-                <button onClick={() => deleteBot(bot.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>🗑️</button>
+                <button onClick={() => deleteBot(bot.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="delete" size={16} /></button>
               </div>
             ))}
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
@@ -4289,7 +4587,7 @@ function App() {
               <video ref={el => { if (el && callState?.remoteStream) { try { el.srcObject = callState.remoteStream; el.play().catch(() => {}); } catch(e) {} } }} autoPlay playsInline />
             ) : (
               <div className="call-waiting">
-                {(callState.status === 'calling' || callState.status === 'connecting') ? (callState.status === 'calling' ? '📞 正在呼叫...' : '🔗 连接中...') : '📞'}
+                {(callState.status === 'calling' || callState.status === 'connecting') ? (callState.status === 'calling' ? '正在呼叫...' : '连接中...') : '📞'}
               </div>
             )}
           </div>
@@ -4299,8 +4597,8 @@ function App() {
             </div>
           )}
           <div className="call-controls">
-            <button className="call-btn mute" onClick={toggleMute}>{callState?.muted ? '🔇' : '🎤'}</button>
-            <button className="call-btn hangup" onClick={hangUp}>📴</button>
+            <button className="call-btn mute" onClick={toggleMute}>{callState?.muted ? <I name="micOff" size={20} color="#fff" /> : <I name="mic" size={20} color="#fff" />}</button>
+            <button className="call-btn hangup" onClick={hangUp}><I name="micOff" size={20} color="currentColor" /></button>
           </div>
         </div>
       )}
@@ -4308,10 +4606,10 @@ function App() {
       {/* ===== 来电提醒 ===== */}
       {callState && callState.status === 'incoming' && (
         <div className="call-incoming-overlay">
-          <div style={{ fontSize: 36, marginBottom: 8 }}>📞</div>
+          <div style={{ fontSize: 36, marginBottom: 8 }}><I name="video" size={36} /></div>
           <div style={{ fontWeight: 700 }}>{callState.caller?.username} 邀请你{callState.type === 'video' ? '视频' : '语音'}通话</div>
           <div className="call-incoming-actions">
-            <button className="call-btn hangup" onClick={hangUp} style={{ width: 48, height: 48 }}>📴</button>
+            <button className="call-btn hangup" onClick={hangUp} style={{ width: 48, height: 48 }}><I name="micOff" size={20} color="currentColor" /></button>
             <button className="call-btn" onClick={acceptCall} style={{ background: '#10b981', color: 'white', width: 48, height: 48, boxShadow: '0 4px 16px rgba(16,185,129,0.4)' }}>📞</button>
           </div>
         </div>
@@ -4321,7 +4619,7 @@ function App() {
       {showPolishModal && (
         <div className="modal-overlay" onClick={() => { setShowPolishModal(false); setPolishResult(''); }}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
-            <h3>✨ AI 文字润色</h3>
+            <h3><I name="polish" size={20} /> AI 文字润色</h3>
             <div className="form-group">
               <label>原始文字</label>
               <textarea value={polishText} onChange={e => setPolishText(e.target.value)} rows={3} placeholder="输入要润色的文字..." />
@@ -4329,10 +4627,10 @@ function App() {
             <div className="form-group">
               <label>风格</label>
               <select value={polishTone} onChange={e => setPolishTone(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 14 }}>
-                <option value="casual">💬 口语化</option>
-                <option value="formal">👔 正式</option>
-                <option value="funny">😄 幽默</option>
-                <option value="concise">📝 简洁</option>
+                <option value="casual">口语化</option>
+                <option value="formal">正式</option>
+                <option value="funny">幽默</option>
+                <option value="concise">简洁</option>
               </select>
             </div>
             {polishResult && (
@@ -4359,10 +4657,10 @@ function App() {
       {showDailyDigest && (
         <div className="modal-overlay" onClick={() => { setShowDailyDigest(false); setDailyDigest(null); }}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480, maxHeight: '80vh', overflowY: 'auto' }}>
-            <h3>📰 AI 每日摘要</h3>
+            <h3><I name="digest" size={20} /> AI 每日摘要</h3>
             {dailyDigestLoading ? (
               <div style={{ textAlign: 'center', padding: '30px 0' }}>
-                <div style={{ fontSize: 36, marginBottom: 12 }}>🤖</div>
+                <div style={{ opacity: 0.25, marginBottom: 12 }}><I name="ai" size={48} /></div>
                 <div>AI 正在分析你今天的聊天记录...</div>
               </div>
             ) : dailyDigest ? (
@@ -4407,8 +4705,8 @@ function App() {
         <div className="modal-overlay" onClick={() => setShowMusicPanel(false)}>
           <div className="modal music-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: 480, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
             <div className="music-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <h3 style={{ margin: 0 }}>🎵 网易云音乐</h3>
-              <button onClick={() => setShowMusicPanel(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>✕</button>
+              <h3 style={{ margin: 0 }}><I name="music" size={20} /> 网易云音乐</h3>
+              <button onClick={() => setShowMusicPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><I name="close" size={20} /></button>
             </div>
             {/* 搜索框 */}
             <form onSubmit={searchMusic} style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -4432,9 +4730,9 @@ function App() {
                   <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{currentSong.artist}</div>
                 </div>
                 <button onClick={togglePlay} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 20, width: 36, height: 36, cursor: 'pointer', fontSize: 16, color: '#fff' }}>
-                  {isPlaying ? '⏸' : '▶️'}
+                  {isPlaying ? <I name="stop" size={18} color="#fff" /> : <I name="send" size={18} color="#fff" />}
                 </button>
-                <button onClick={() => shareSongToChat(currentSong)} title="分享到聊天" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, padding: '4px 8px', color: '#fff' }}>📤</button>
+                <button onClick={() => shareSongToChat(currentSong)} title="分享到聊天" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, padding: '4px 8px', color: '#fff', display: 'flex', alignItems: 'center' }}><I name="forward" size={15} color="#fff" /></button>
               </div>
             )}
             {/* 歌词 */}
@@ -4447,7 +4745,7 @@ function App() {
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {musicResults.length === 0 && !musicLoading && (
                 <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>
-                  <div style={{ fontSize: 48, marginBottom: 12 }}>🎵</div>
+                  <div style={{ opacity: 0.25, marginBottom: 12 }}><I name="music" size={48} /></div>
                   <div>输入关键词搜索歌曲</div>
                 </div>
               )}
@@ -4461,7 +4759,7 @@ function App() {
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{song.artist}{song.album ? ` · ${song.album}` : ''}</div>
                   </div>
                   <button onClick={(e) => { e.stopPropagation(); playSong(song); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }} title="播放">▶️</button>
-                  <button onClick={(e) => { e.stopPropagation(); shareSongToChat(song); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }} title="分享">📤</button>
+                  <button onClick={(e) => { e.stopPropagation(); shareSongToChat(song); }} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="分享"><I name="forward" size={14} /></button>
                 </div>
               ))}
             </div>
@@ -4472,12 +4770,137 @@ function App() {
       {/* 隐藏的音频元素 */}
       <audio ref={audioRef} onEnded={() => setIsPlaying(false)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} style={{ display: 'none' }} />
 
+      {/* ===== GIF 面板 ===== */}
+      {showGifPanel && (
+        <div className="modal-overlay" onClick={() => { setShowGifPanel(false); setGifSearch(''); setGifResults([]); }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h3 style={{ margin: 0 }}><I name="image" size={20} /> GIF 表情包</h3>
+              <button onClick={() => { setShowGifPanel(false); setGifSearch(''); setGifResults([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={20} /></button>
+            </div>
+            <form onSubmit={searchGif} style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input type="text" value={gifSearch} onChange={e => setGifSearch(e.target.value)} placeholder="搜索 GIF..." style={{ flex: 1, padding: '10px 14px', border: '2px solid var(--border)', borderRadius: 10, fontSize: 14, outline: 'none', background: 'var(--bg)' }} />
+              <button type="submit" disabled={gifLoading} style={{ padding: '10px 18px', background: 'linear-gradient(135deg, #fb7299, #cc66cc)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700 }}>{gifLoading ? '搜索中' : '搜索'}</button>
+            </form>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+              {gifResults.length === 0 && !gifLoading && (
+                <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>输入关键词搜索 GIF</div>
+              )}
+              {gifResults.map((gif, i) => (
+                <div key={gif.id || i} onClick={() => sendGif(gif)} style={{ cursor: 'pointer', borderRadius: 8, overflow: 'hidden', background: 'var(--bg)' }}>
+                  <img src={gif.preview || gif.url} alt={gif.title} style={{ width: '100%', height: 120, objectFit: 'cover' }} loading="lazy" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 新闻热搜面板 ===== */}
+      {showNewsPanel && (
+        <div className="modal-overlay" onClick={() => { setShowNewsPanel(false); setNewsStories([]); }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h3 style={{ margin: 0 }}><I name="digest" size={20} /> 今日热搜</h3>
+              <button onClick={() => { setShowNewsPanel(false); setNewsStories([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={20} /></button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {newsLoading ? (
+                <div style={{ textAlign: 'center', padding: 30 }}>加载中...</div>
+              ) : newsStories.map((s, i) => (
+                <div key={s.id || i} style={{ display: 'flex', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }} onClick={() => shareNews(s)}>
+                  {s.image && <img src={s.image} alt="" style={{ width: 60, height: 60, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>{s.title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>点击分享到聊天</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 天气面板 ===== */}
+      {showWeatherPanel && (
+        <div className="modal-overlay" onClick={() => { setShowWeatherPanel(false); setWeatherData(null); setWeatherCity(''); }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h3 style={{ margin: 0 }}>🌤 天气查询</h3>
+              <button onClick={() => { setShowWeatherPanel(false); setWeatherData(null); setWeatherCity(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={20} /></button>
+            </div>
+            <form onSubmit={searchWeather} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <input type="text" value={weatherCity} onChange={e => setWeatherCity(e.target.value)} placeholder="输入城市名，如：北京" style={{ flex: 1, padding: '10px 14px', border: '2px solid var(--border)', borderRadius: 10, fontSize: 14, outline: 'none', background: 'var(--bg)' }} />
+              <button type="submit" disabled={weatherLoading} style={{ padding: '10px 18px', background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700 }}>{weatherLoading ? '查询中' : '查询'}</button>
+            </form>
+            {weatherLoading && <div style={{ textAlign: 'center', padding: 30 }}>查询中...</div>}
+            {weatherData && !weatherLoading && (
+              <div style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', borderRadius: 14, padding: 24, color: 'white' }}>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{weatherData.city}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
+                  <div style={{ fontSize: 56, fontWeight: 200 }}>{weatherData.temp}°</div>
+                  <div>
+                    <div style={{ fontSize: 15 }}>{weatherData.desc}</div>
+                    <div style={{ fontSize: 13, opacity: 0.8 }}>体感 {weatherData.feelsLike}°C</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 16, fontSize: 13, opacity: 0.9, marginBottom: 12 }}>
+                  <span>💧 {weatherData.humidity}%</span>
+                  <span>🌬 {weatherData.wind}</span>
+                  <span>📊 {weatherData.high}° / {weatherData.low}°</span>
+                </div>
+                <button onClick={shareWeather} style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.2)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>📤 分享天气到聊天</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== 地图面板 ===== */}
+      {showMapPanel && (
+        <div className="modal-overlay" onClick={() => { setShowMapPanel(false); setShowMapViewer(null); }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h3 style={{ margin: 0 }}><I name="location" size={20} /> 地图</h3>
+              <button onClick={() => { setShowMapPanel(false); setShowMapViewer(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={20} /></button>
+            </div>
+            {!showMapViewer ? (
+              <div style={{ textAlign: 'center', padding: 40 }}>
+                <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}><I name="location" size={64} /></div>
+                <div style={{ color: 'var(--text-secondary)', marginBottom: 20 }}>使用 GPS 获取当前位置并分享到聊天</div>
+                <button onClick={getMyLocation} disabled={mapLoading}
+                  style={{ padding: '12px 28px', background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: 700 }}>
+                  {mapLoading ? '定位中...' : '📍 获取我的位置'}
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{ marginBottom: 12, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  <div style={{ padding: '8px 12px', background: 'var(--bg)', fontWeight: 600, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span><I name="location" size={14} /> {showMapViewer.name} ({showMapViewer.lat.toFixed(4)}, {showMapViewer.lng.toFixed(4)})</span>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button onClick={() => shareMap(showMapViewer)} style={{ background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>📤 分享</button>
+                      <button onClick={() => setShowMapViewer(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={14} /></button>
+                    </div>
+                  </div>
+                  <iframe src={`${API_URL}/api/map/static?lat=${showMapViewer.lat}&lng=${showMapViewer.lng}&zoom=17`} title="地图" style={{ width: '100%', height: 350, border: 'none' }} />
+                </div>
+                <button onClick={getMyLocation} disabled={mapLoading}
+                  style={{ width: '100%', padding: '10px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>
+                  {mapLoading ? '定位中...' : '🔄 重新定位'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ===== Toast ===== */}
       {toast && (
         <div className={`toast toast-${toast.type}`}>
-          {toast.type === 'success' && '✅ '}
-          {toast.type === 'error' && '❌ '}
-          {toast.type === 'info' && 'ℹ️ '}
+          {toast.type === 'success' && '✓ '}
+          {toast.type === 'error' && '× '}
+          {toast.type === 'info' && '· '}
           {toast.message}
         </div>
       )}

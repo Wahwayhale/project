@@ -508,6 +508,24 @@ body {
   padding: 4px 0;
 }
 
+.room-pin-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.room-pin-btn:hover {
+  background: var(--bg-hover);
+}
+
 .room-item {
   display: flex;
   align-items: center;
@@ -3288,7 +3306,8 @@ html.dark .poll-bar {
 }
 
 .bottom-tab .tab-icon {
-  font-size: 22px;
+  font-size: 24px;
+  font-weight: 700;
   line-height: 1;
 }
 

@@ -27,14 +27,54 @@ function loadJson(filename) {
     return JSON.parse(data);
   } catch (e) {
     console.error(`Error loading ${filename}:`, e.message);
+    // 尝试从备份恢复
+    const bak = filePath + '.bak';
+    if (fs.existsSync(bak)) {
+      try {
+        console.log(`Attempting restore from ${bak}`);
+        const bakData = fs.readFileSync(bak, 'utf-8');
+        fs.writeFileSync(filePath, bakData, 'utf-8');
+        return JSON.parse(bakData);
+      } catch (e2) {
+        console.error(`Backup restore also failed:`, e2.message);
+      }
+    }
     return null;
   }
 }
 
+// 原子写入：先写临时文件，再重命名，防止写一半崩溃导致数据损坏
+const writeLocks = {};
 function saveJson(filename, data) {
   ensureDir();
   const filePath = path.join(DATA_DIR, filename);
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  const tmpPath = filePath + '.tmp';
+  const bakPath = filePath + '.bak';
+
+  // 串行化同文件写入
+  if (writeLocks[filename]) {
+    writeLocks[filename] = writeLocks[filename].then(() => doWrite());
+  } else {
+    writeLocks[filename] = doWrite();
+  }
+
+  function doWrite() {
+    return new Promise((resolve) => {
+      try {
+        // 1. 备份现有文件
+        if (fs.existsSync(filePath)) {
+          try { fs.copyFileSync(filePath, bakPath); } catch {}
+        }
+        // 2. 写入临时文件
+        fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
+        // 3. 原子重命名
+        fs.renameSync(tmpPath, filePath);
+      } catch (e) {
+        console.error(`Error saving ${filename}:`, e.message);
+      }
+      resolve();
+    });
+  }
 }
 
 const saveQueues = {};
@@ -102,43 +142,15 @@ class Collection {
     debouncedSave(this.name, obj);
   }
 
-  has(key) {
-    return this._data.has(key);
-  }
-
-  get(key) {
-    return this._data.get(key);
-  }
-
-  set(key, value) {
-    this._data.set(key, value);
-    this.saveDebounced();
-  }
-
-  delete(key) {
-    this._data.delete(key);
-    this.saveDebounced();
-  }
-
-  values() {
-    return this._data.values();
-  }
-
-  keys() {
-    return this._data.keys();
-  }
-
-  entries() {
-    return this._data.entries();
-  }
-
-  get size() {
-    return this._data.size;
-  }
-
-  forEach(callback) {
-    this._data.forEach(callback);
-  }
+  has(key) { return this._data.has(key); }
+  get(key) { return this._data.get(key); }
+  set(key, value) { this._data.set(key, value); this.saveDebounced(); }
+  delete(key) { this._data.delete(key); this.saveDebounced(); }
+  values() { return this._data.values(); }
+  keys() { return this._data.keys(); }
+  entries() { return this._data.entries(); }
+  get size() { return this._data.size; }
+  forEach(callback) { this._data.forEach(callback); }
 
   find(predicate) {
     for (const value of this._data.values()) {
@@ -155,17 +167,9 @@ class Collection {
     return results;
   }
 
-  toArray() {
-    return Array.from(this._data.values());
-  }
-
-  map(fn) {
-    return Array.from(this._data.values()).map(fn);
-  }
-
-  filter(fn) {
-    return Array.from(this._data.values()).filter(fn);
-  }
+  toArray() { return Array.from(this._data.values()); }
+  map(fn) { return Array.from(this._data.values()).map(fn); }
+  filter(fn) { return Array.from(this._data.values()).filter(fn); }
 
   flush() {
     if (saveQueues[this.name]) {
@@ -211,7 +215,6 @@ function flushAll(collections) {
 }
 
 process.on('exit', () => {
-  // exit handler only runs for clean exits, not SIGKILL
   for (const name of Object.keys(FILES)) {
     if (saveQueues[name]) {
       clearTimeout(saveQueues[name]);
