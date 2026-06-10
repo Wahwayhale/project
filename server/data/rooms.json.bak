@@ -1720,6 +1720,49 @@
         ],
         "edited": false,
         "pinned": false
+      },
+      {
+        "id": "6321710f-2377-4eb9-a6f3-a897ce02080d",
+        "content": "",
+        "type": "audio",
+        "fileUrl": "/uploads/1781056572280-c2e5b036-31d8-47d2-b4a1-b57962988a89.webm",
+        "filename": "voice_1781056571938.webm",
+        "fileSize": 15752,
+        "mimeType": "audio/webm",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "/uploads/1780990162780-aee74210-0474-4df5-b086-0294c30d481b.jpg"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-10T01:56:12.534Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "edited": false,
+        "pinned": false,
+        "recalled": true
+      },
+      {
+        "id": "9067d818-72a5-40dc-8e35-856a4dd9c521",
+        "content": "📍 上海农林职业技术学院\n/api/map/static?lat=31.010248&lng=121.219418&zoom=16",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "/uploads/1780990162780-aee74210-0474-4df5-b086-0294c30d481b.jpg"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-10T02:02:11.870Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "edited": false,
+        "pinned": false
       }
     ]
   },
@@ -2225,5 +2268,17 @@
     "messages": [],
     "createdBy": "ycx",
     "createdAt": "2026-06-09T10:49:11.119Z"
+  },
+  "7d729be3-bf82-4c25-a486-2c00de4ed706": {
+    "id": "7d729be3-bf82-4c25-a486-2c00de4ed706",
+    "name": "ycx & admin",
+    "type": "group",
+    "members": [
+      "ycx",
+      "admin"
+    ],
+    "messages": [],
+    "createdBy": "admin",
+    "createdAt": "2026-06-10T02:27:42.789Z"
   }
 }

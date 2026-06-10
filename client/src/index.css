@@ -665,10 +665,26 @@ body {
   flex-shrink: 0;
 }
 
+.chat-header .back-btn {
+  display: none;
+  width: 36px; height: 36px;
+  border: none; background: none;
+  cursor: pointer; border-radius: 8px;
+  align-items: center; justify-content: center;
+  color: var(--text-secondary); margin-right: 8px;
+  flex-shrink: 0;
+}
+.chat-header .back-btn:hover { background: var(--bg-hover); }
+
 .chat-header h3 {
   font-size: 17px;
   font-weight: 600;
   color: var(--text);
+}
+
+/* 移动端显示返回按钮 */
+@media (max-width: 768px) {
+  .chat-header .back-btn { display: flex; }
 }
 
 .chat-header .online-badge {

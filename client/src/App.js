@@ -57,6 +57,40 @@ function getAvatarUrl(avatar) {
   return avatar;
 }
 
+// AvatarImg 组件：在 App 环境中通过 axios 加载图片，绕过 ngrok 安全提示页
+function AvatarImg({ src, alt, className, style }) {
+  const [imgSrc, setImgSrc] = useState(src);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!src || src === DEFAULT_AVATAR || !src.startsWith('http')) {
+      setImgSrc(src || DEFAULT_AVATAR);
+      return;
+    }
+    // 在 App 环境中，使用 axios 获取图片并转换为 blob URL
+    if (isCapacitor) {
+      axios.get(src, { responseType: 'blob' })
+        .then(res => {
+          const blobUrl = URL.createObjectURL(res.data);
+          setImgSrc(blobUrl);
+          setError(false);
+        })
+        .catch(() => {
+          setError(true);
+          setImgSrc(DEFAULT_AVATAR);
+        });
+    } else {
+      setImgSrc(src);
+    }
+  }, [src]);
+
+  if (error) {
+    return <img src={DEFAULT_AVATAR} alt={alt} className={className} style={style} />;
+  }
+
+  return <img src={imgSrc} alt={alt} className={className} style={style} onError={(e) => { e.target.src = DEFAULT_AVATAR; }} />;
+}
+
 function formatFileSize(bytes) {
   if (!bytes || bytes === 0) return '';
   const units = ['B', 'KB', 'MB', 'GB'];
@@ -198,7 +232,7 @@ function App() {
   // OTA 更新
   const [otaInfo, setOtaInfo] = useState(null);
   const [showOtaModal, setShowOtaModal] = useState(false);
-  const appVersion = '2.0.0';
+  const appVersion = '2.0.2';
   
   // 手机号绑定（验证码流程）
   const [phoneInfo, setPhoneInfo] = useState({ phone: null, phoneBound: false, phoneBoundAt: null });
@@ -641,27 +675,21 @@ function App() {
     }
   }, [messages, messagesLoading, messageEndRef]);
 
-  // OTA 版本检查 — 每次启动自动运行
+  // OTA 版本检查 — 登录后自动运行，版本不同即弹窗
   useEffect(() => {
-    const APP_BUILD = 200; // 当前 App 内置版本号（旧版v1=100, 新版v2=200）
+    const APP_BUILD = 200;
     const checkUpdate = async () => {
       try {
         const res = await axios.get(`${API_URL}/ota-version.json`, { timeout: 5000 });
-        const server = res.data;
-        const serverBuild = server.buildNumber || 0;
-        const lastShownBuild = parseInt(localStorage.getItem('lastShownBuild') || '0');
+        const serverVer = res.data.version || '0.0.0';
+        const serverBuild = res.data.buildNumber || 0;
+        const lastSeenVer = localStorage.getItem('lastSeenVersion') || '';
+        const savedBuild = parseInt(localStorage.getItem('appBuild') || '0');
 
-        // 服务器版本比 App 内置版本新 → 需要提示
-        if (serverBuild > APP_BUILD) {
-          // 有 APK 且 App 版本落后 → 提示下载新安装包
-          if (server.apkUrl && serverBuild > APP_BUILD) {
-            server.hasNewApk = true;
-          }
-          setOtaInfo(server);
-          // 每次服务器 build 变更都弹窗
-          if (serverBuild > lastShownBuild) {
-            setShowOtaModal(true);
-          }
+        // 弹窗条件：服务器版本号变了 或 build 比本地新
+        if (serverVer !== lastSeenVer || serverBuild > savedBuild) {
+          setOtaInfo(res.data);
+          setShowOtaModal(true);
         }
       } catch (e) { /* 离线忽略 */ }
     };
@@ -1142,6 +1170,7 @@ function App() {
       replyTo: replyToMessage ? replyToMessage.id : null,
       mentions: [...new Set(mentions)]
     });
+    setMessages(prev => [...prev, {id:'temp-'+Date.now(),content,type:'text',sender:{id:user?.id,username:user?.username,avatar:user?.avatar},roomId:currentRoomId,timestamp:new Date(),readBy:[user?.id]}]);
     socketRef.current.emit('stopTyping', currentRoomId);
     setNewMessage('');
     setReplyToMessage(null);
@@ -1391,7 +1420,7 @@ function App() {
       setSearchResult(response.data);
     } catch (err) {
       setSearchResult(null);
-      alert('未找到该用户');
+      showToast('未找到该用户', 'error');
     }
   };
 
@@ -1400,7 +1429,7 @@ function App() {
       await axios.post(`${API_URL}/api/friends/request`, { username: targetUsername }, {
         headers: { Authorization: token }
       });
-      alert('好友请求已发送');
+      showToast('好友请求已发送', 'success');
       setSearchResult(prev => prev ? { ...prev, requestSent: true } : null);
     } catch (err) {
       alert(err.response?.data?.error || '发送失败');
@@ -1911,7 +1940,7 @@ function App() {
         })));
       } else {
         setBilibiliResults([]);
-        alert('搜索没有结果，请尝试其他关键词');
+        showToast('没有搜索结果', 'info');
       }
     } catch (err) {
       console.error('B站搜索失败', err);
@@ -1929,9 +1958,9 @@ function App() {
         content: url,
         type: 'text'
       });
-      alert('已分享到聊天');
+      showToast('已分享到聊天', 'success');
     } else {
-      alert('请先选择一个聊天室');
+      showToast('请先选择聊天室', 'error');
     }
   };
 
@@ -1967,7 +1996,7 @@ function App() {
         setSelectedFriendPayCode({ username, payCode: response.data.payCode });
         setShowPayCodeModal(true);
       } else {
-        alert('该好友暂未设置收款码');
+        showToast('该好友未设置收款码', 'info');
       }
     } catch (err) {
       alert(err.response?.data?.error || '获取收款码失败');
@@ -1980,9 +2009,9 @@ function App() {
         headers: { Authorization: token }
       });
       setUser(response.data);
-      alert('资料已更新');
+      showToast('资料已更新', 'success');
     } catch (err) {
-      alert('更新失败');
+      showToast('更新失败', 'error');
     }
   };
 
@@ -2001,7 +2030,7 @@ function App() {
   // 充值请求
   const requestRecharge = async () => {
     if (!rechargeAmount || parseFloat(rechargeAmount) < 1) {
-      alert('充值金额至少1元');
+      showToast('充值金额至少1元', 'error');
       return;
     }
     try {
@@ -2037,7 +2066,7 @@ function App() {
       setPendingRecharges(response.data);
     } catch (err) {
       if (err.response?.status === 403) {
-        alert('需要管理员权限');
+        showToast('需要管理员权限', 'error');
       } else {
         alert(err.response?.data?.error || '获取待确认充值失败');
       }
@@ -2052,7 +2081,7 @@ function App() {
         { headers: { Authorization: token } }
       );
       fetchPendingRecharges();
-      alert('充值已确认');
+      showToast('充值已确认', 'success');
     } catch (err) {
       alert(err.response?.data?.error || '确认失败');
     }
@@ -2066,7 +2095,7 @@ function App() {
         { headers: { Authorization: token } }
       );
       fetchPendingRecharges();
-      alert('充值已拒绝');
+      showToast('已拒绝', 'info');
     } catch (err) {
       alert(err.response?.data?.error || '拒绝失败');
     }
@@ -2090,7 +2119,7 @@ function App() {
         headers: { Authorization: token }
       });
     } catch (err) {
-      alert('上传头像失败');
+      showToast('上传头像失败', 'error');
     }
   };
 
@@ -2856,7 +2885,7 @@ function App() {
       <div className="sidebar">
         <div className="sidebar-header">
           <div className="user-info" onClick={() => setShowProfileModal(true)} style={{ cursor: 'pointer' }}>
-            <img src={getAvatarUrl(user?.avatar)} alt="" />
+            <AvatarImg src={getAvatarUrl(user?.avatar)} alt="" />
             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
               <span style={{ fontSize: 14, fontWeight: 600 }}>{user?.username}</span>
               <span style={{ fontSize: 10, opacity: 0.7 }}>ID: {user?.sixDigitId || '...'}</span>
@@ -2965,7 +2994,7 @@ function App() {
                   <div className="contacts-section-title">新的好友 <span className="badge">{friendRequests.length}</span></div>
                   {friendRequests.map(r => (
                     <div key={r.id} className="contact-item request-item">
-                      <img src={getAvatarUrl(r.avatar)} alt="" className="contact-avatar" />
+                      <AvatarImg src={getAvatarUrl(r.avatar)} alt="" className="contact-avatar" />
                       <div className="contact-info">
                         <div className="contact-name">{r.username}</div>
                         <div className="contact-desc">想加你为好友</div>
@@ -2985,7 +3014,7 @@ function App() {
                     <div className="contacts-section-title">{letter}</div>
                     {groups[letter].map(friend => (
                       <div key={friend.id || friend.username} className="contact-item" onClick={() => { if (!friend.isRequest) startChatWithFriend(friend); }}>
-                        <img src={getAvatarUrl(friend.avatar)} alt="" className="contact-avatar" />
+                        <AvatarImg src={getAvatarUrl(friend.avatar)} alt="" className="contact-avatar" />
                         <div className="contact-info">
                           <div className="contact-name">{friend.username}</div>
                           {!friend.isRequest && <div className="contact-desc">在线</div>}
@@ -3131,7 +3160,7 @@ function App() {
           /* ===== 我的页面 ===== */
           <div className="me-page">
             <div className="me-header" onClick={() => setShowProfileModal(true)}>
-              <img src={getAvatarUrl(user?.avatar)} alt="" className="me-avatar" />
+              <AvatarImg src={getAvatarUrl(user?.avatar)} alt="" className="me-avatar" />
               <div className="me-info">
                 <div className="me-name">{user?.username}</div>
                 <div className="me-id">ID: {user?.sixDigitId || '000000'}</div>
@@ -3173,7 +3202,7 @@ function App() {
                 <span className="menu-arrow">›</span>
               </div>
             </div>
-            <div className="me-menu-item" onClick={() => window.open(`${API_URL}/WeChat-v2.0.apk`, isCapacitor ? '_system' : '_blank')}>
+            <div className="me-menu-item" onClick={() => { const u = `${API_URL}/releases/WeChat-v2.0.apk`; isCapacitor ? window.location.href = u : window.open(u, '_blank'); }}>
               <div className="menu-icon" style={{ background: '#ff6b35' }}><I name="download" color="#fff" size={18} /></div>
               <span>下载最新安装包 (v2.0)</span>
               <span className="menu-arrow">›</span>
@@ -3215,7 +3244,7 @@ function App() {
               )}
               {aiMessages.map((msg, idx) => (
                 <div key={idx} className={`ai-message ${msg.role}`}>
-                  <div className="ai-avatar">{msg.role === 'user' ? (user?.avatar ? <img src={getAvatarUrl(user.avatar)} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} /> : '🧑') : '🤖'}</div>
+                  <div className="ai-avatar">{msg.role === 'user' ? (user?.avatar ? <AvatarImg src={getAvatarUrl(user.avatar)} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} /> : '🧑') : '🤖'}</div>
                   <div className="ai-bubble">
                     {msg.role === 'user' ? msg.content : (
                       <>
@@ -3292,6 +3321,9 @@ function App() {
         ) : currentRoom ? (
           <>
             <div className="chat-header">
+              <button className="back-btn" onClick={() => { setCurrentRoom(null); setCurrentRoomId(null); setMessages([]); }} title="返回">
+                <I name="arrowLeft" size={20} />
+              </button>
               <h3>{currentRoom.name}</h3>
               <div className="header-tools">
                 <button className="ai-summary-btn-inline" onClick={summarizeChat} disabled={aiSummaryLoading} title="AI摘要">
@@ -3541,7 +3573,7 @@ function App() {
                 );
                 return (
                 <div key={msg.id || index} id={`msg-${msg.id}`} className={`message ${isMine ? 'sent' : 'received'} ${isSearchMatch ? 'highlighted' : ''} ${isPinned ? 'pinned' : ''}`}>
-                  <img className="avatar" src={getAvatarUrl(msg.sender?.avatar || user?.avatar)} alt="" />
+                  <AvatarImg className="avatar" src={getAvatarUrl(msg.sender?.avatar || user?.avatar)} alt="" />
                   <div className="message-content">
                     {isPinned && <div className="pinned-badge"><I name="pin" size={12} /> 置顶</div>}
                     {msg.sender?.username !== user?.username && !msg.recalled && (
@@ -3627,7 +3659,7 @@ function App() {
                       <div className="read-avatars-row">
                         {msg.readBy.slice(0, 5).filter(uid => uid !== user?.id).map(uid => {
                           const u = allUsers.find(x => x.id === uid);
-                          return u ? <img key={uid} className="read-avatar-mini" src={getAvatarUrl(u.avatar)} alt="" title={u.username} /> : null;
+                          return u ? <AvatarImg key={uid} className="read-avatar-mini" src={getAvatarUrl(u.avatar)} alt="" title={u.username} /> : null;
                         })}
                         {msg.readBy.length - 1 > 5 && <span className="read-more-hint">+{msg.readBy.length - 6}</span>}
                       </div>
@@ -3720,7 +3752,7 @@ function App() {
                     <div className="mention-list">
                       {getFilteredMentionUsers().map(u => (
                         <button key={u.id} className="mention-item" onClick={() => insertMention(u.username)}>
-                          <img src={getAvatarUrl(u.avatar)} alt="" className="mention-avatar" />
+                          <AvatarImg src={getAvatarUrl(u.avatar)} alt="" className="mention-avatar" />
                           <span>{u.username}</span>
                         </button>
                       ))}
@@ -3940,7 +3972,7 @@ function App() {
             <h3>个人资料</h3>
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
               <div style={{ position: 'relative', display: 'inline-block' }}>
-                <img src={getAvatarUrl(user?.avatar)} alt="" style={{ width: 80, height: 80, borderRadius: '50%' }} />
+                <AvatarImg src={getAvatarUrl(user?.avatar)} alt="" style={{ width: 80, height: 80, borderRadius: '50%' }} />
                 <button 
                   onClick={() => avatarInputRef.current?.click()}
                   style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'var(--primary-color)', color: 'white', cursor: 'pointer', fontSize: 16 }}
@@ -4020,7 +4052,7 @@ function App() {
                 className="confirm" 
                 onClick={() => {
                   navigator.clipboard.writeText(selectedFriendPayCode.payCode);
-                  alert('收款码已复制到剪贴板');
+                  showToast('已复制', 'success');
                 }}
               >
                 复制收款码
@@ -4172,7 +4204,7 @@ function App() {
             {searchResult && (
               <div style={{ padding: 16, background: 'var(--bg-color)', borderRadius: 8, marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <img src={getAvatarUrl(searchResult.avatar)} alt="" style={{ width: 50, height: 50, borderRadius: '50%' }} />
+                  <AvatarImg src={getAvatarUrl(searchResult.avatar)} alt="" style={{ width: 50, height: 50, borderRadius: '50%' }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold' }}>{searchResult.username}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>ID: {searchResult.sixDigitId}</div>
@@ -4193,7 +4225,7 @@ function App() {
                 <div style={{ fontWeight: 'bold', marginBottom: 8 }}>好友请求 ({friendRequests.length})</div>
                 {friendRequests?.map(request => (
                   <div key={request.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'var(--bg-color)', borderRadius: 8, marginBottom: 8 }}>
-                    <img src={getAvatarUrl(request.avatar)} alt="" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+                    <AvatarImg src={getAvatarUrl(request.avatar)} alt="" style={{ width: 40, height: 40, borderRadius: '50%' }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 'bold' }}>{request.username}</div>
                       <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>ID: {request.sixDigitId}</div>
@@ -4225,7 +4257,7 @@ function App() {
                 {friends.map(friend => (
                   <label key={friend.id} className="user-checkbox">
                     <input type="checkbox" />
-                    <img src={getAvatarUrl(friend.avatar)} alt="" style={{ width: 32, height: 32, borderRadius: '50%', marginRight: 8 }} />
+                    <AvatarImg src={getAvatarUrl(friend.avatar)} alt="" style={{ width: 32, height: 32, borderRadius: '50%', marginRight: 8 }} />
                     <span>{friend.username}</span>
                   </label>
                 ))}
@@ -4375,7 +4407,7 @@ function App() {
               {moments.map(m => (
                 <div key={m.id} className="moment-item">
                   <div className="moment-header">
-                    <img src={getAvatarUrl(m.author?.avatar)} alt="" />
+                    <AvatarImg src={getAvatarUrl(m.author?.avatar)} alt="" />
                     <span>{m.author?.username}</span>
                     <span className="moment-time">{formatTime(m.timestamp)}</span>
                   </div>
@@ -4493,31 +4525,22 @@ function App() {
           </div>
         </div>
       )}
-      {/* OTA 更新弹窗 */}
+      {/* OTA 更新弹窗 — 仅版本号不同时出现，不显示更新内容 */}
       {showOtaModal && otaInfo && (
-        <div className="modal-overlay" onClick={() => { setShowOtaModal(false); localStorage.setItem('appVersion', String(otaInfo.buildNumber)); }}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 48, marginBottom: 8 }}>🎉</div>
-              <h3>WeChat 已更新至 v{otaInfo.version}</h3>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>OTA 自动推送，无需下载</div>
-            </div>
-            {otaInfo.releaseNotes && (
-              <div style={{ padding: 12, background: 'var(--bg-secondary)', borderRadius: 10, fontSize: 12, whiteSpace: 'pre-line', lineHeight: 1.6, maxHeight: 200, overflowY: 'auto', marginBottom: 12 }}>
-                {otaInfo.releaseNotes}
-              </div>
-            )}
-            {otaInfo.hasNewApk && otaInfo.apkUrl && (
+        <div className="modal-overlay" onClick={() => { setShowOtaModal(false); localStorage.setItem('lastSeenVersion', otaInfo.version || '0.0.0'); }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 340, textAlign: 'center' }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🔄</div>
+            <h3 style={{ marginBottom: 8 }}>发现新版本 v{otaInfo.version}</h3>
+            {otaInfo.apkUrl && (
               <button onClick={() => {
-                localStorage.setItem('lastShownBuild', String(otaInfo.buildNumber));
                 const url = otaInfo.apkUrl.startsWith('http') ? otaInfo.apkUrl : `${API_URL}${otaInfo.apkUrl}`;
-                window.open(url, isCapacitor ? '_system' : '_blank');
+                isCapacitor ? window.location.href = url : window.open(url, '_blank');
               }}
-                style={{ display: 'block', width: '100%', padding: '10px', background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, marginBottom: 8, fontSize: 14 }}>
-                📦 下载安装包 ({otaInfo.apkSize || 'APK'})
+                style={{ width: '100%', padding: '10px', background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, marginBottom: 8, fontSize: 14 }}>
+                点击更新下载 ({otaInfo.apkSize || 'APK'})
               </button>
             )}
-            <button className="confirm" onClick={() => { setShowOtaModal(false); localStorage.setItem('lastShownBuild', String(otaInfo.buildNumber)); }} style={{ width: '100%' }}>
+            <button className="cancel" onClick={() => { setShowOtaModal(false); localStorage.setItem('lastSeenVersion', otaInfo.version || '0.0.0'); localStorage.setItem('appBuild', String(otaInfo.buildNumber || 0)); }} style={{ width: '100%' }}>
               知道了
             </button>
           </div>
@@ -5046,7 +5069,16 @@ function App() {
                     <button onClick={() => setShowMapViewer(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={14} /></button>
                   </div>
                 </div>
-                <iframe src={`${API_URL}/api/map/static?lat=${showMapViewer.lat}&lng=${showMapViewer.lng}&zoom=17`} title="高德地图" style={{ width: '100%', height: 350, border: 'none' }} />
+                {isCapacitor ? (
+                  <div onClick={() => window.open(`${API_URL}/api/map/static?lat=${showMapViewer.lat}&lng=${showMapViewer.lng}&zoom=17`, '_system')}
+                    style={{ width: '100%', height: 200, background: '#e8e8e8', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexDirection: 'column', gap: 8 }}>
+                    <I name="location" size={36} color="var(--primary)" />
+                    <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>点击查看地图</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showMapViewer.lat.toFixed(4)}, {showMapViewer.lng.toFixed(4)}</span>
+                  </div>
+                ) : (
+                  <iframe src={`${API_URL}/api/map/static?lat=${showMapViewer.lat}&lng=${showMapViewer.lng}&zoom=17`} title="高德地图" style={{ width: '100%', height: 350, border: 'none' }} />
+                )}
               </div>
             ) : mapResults.length === 0 && !mapLoading && (
               <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>

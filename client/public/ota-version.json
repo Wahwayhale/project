@@ -1,7 +1,6 @@
 {
-  "version": "2.0.0",
-  "buildNumber": 220,
-  "releaseNotes": "WeChat 2.0 - Major Update\n\nNew Features:\n- AI Smart Reply / Polish / Daily Digest\n- Netease Cloud Music search & player\n- GIF search & send\n- Weather query / Zhihu Daily News\n- GPS Map location sharing\n- QR Code generator\n- AI Image Recognition (GLM-4V)\n- Group Events & Reminders\n- Desktop Notifications\n\nImprovements:\n- Lucide linear icon system (1.2px stroke)\n- Full mobile responsive layout\n- Chat message delete (WeChat-style)\n- Message limit 3000\n- Chat privacy hardening\n- Atomic file writes (crash-safe)\n- Discover page scrollable\n- Theme presets",
+  "version": "2.0.2",
+  "buildNumber": 222,
   "apkUrl": "/releases/WeChat-v2.0.apk",
   "apkSize": "5.4MB",
   "forceUpdate": false
