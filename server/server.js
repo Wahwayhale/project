@@ -17,16 +17,46 @@ const db = require('./db');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  },
-  maxHttpBufferSize: 100 * 1024 * 1024
+  cors: { origin: "*", methods: ["GET", "POST"] },
+  maxHttpBufferSize: 100 * 1024 * 1024,
+  transports: ['websocket'],          // 仅 WebSocket，不用 HTTP 轮询
+  pingInterval: 25000,                // 25s 心跳
+  pingTimeout: 20000,                 // 20s 超时
+  connectTimeout: 10000,              // 10s 连接超时
+  allowUpgrades: false,               // 禁止降级到轮询
+  perMessageDeflate: true,            // WebSocket 压缩
+  maxDisconnectionDuration: 120000    // 2分钟断线缓冲
 });
 
+// ========== 生产级中间件 ==========
+const compression = require('compression');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false // SPA 内联样式多，关闭 CSP
+})); // 安全头：XSS/点击劫持/嗅探防护
+app.use(compression({ level: 6, threshold: 256 }));
 app.use(cors());
-app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// 全局限流：每个 IP 每分钟 120 次
+app.use(rateLimit({
+  windowMs: 60 * 1000, max: 120,
+  standardHeaders: true, legacyHeaders: false,
+  message: { error: '请求过于频繁，请稍后重试' }
+}));
+
+// API 限流：登录/注册每分钟 10 次
+const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: '操作频繁，请稍后再试' } });
+app.use('/api/login', authLimiter);
+app.use('/api/register', authLimiter);
+
+app.use(express.json({ limit: '10mb' }));
+// 静态文件缓存
+const staticOpts = { maxAge: '7d', etag: true, lastModified: true, setHeaders: (res) => { res.setHeader('X-Content-Type-Options', 'nosniff'); } };
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), staticOpts));
+app.use('/releases', express.static(path.join(__dirname, '..', 'client', 'releases'), staticOpts));
 
 const JWT_SECRET = 'wechat-secret-key-2024';
 const PORT = process.env.PORT || 3001;
@@ -42,14 +72,48 @@ const recharges = collections.recharges;
 db.startAutoFlush(collections);
 
 // Graceful shutdown: flush data on exit
+// ========== 优雅关闭 ==========
+let isShuttingDown = false;
 function handleShutdown(signal) {
-  console.log(`\nReceived ${signal}, flushing data to disk...`);
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`\n[SHUTDOWN] ${signal} received, saving data...`);
   db.flushAll(collections);
   db.stopAutoFlush();
-  process.exit(0);
+  io.close(() => {
+    server.close(() => {
+      console.log('[SHUTDOWN] Server closed. Goodbye.');
+      process.exit(0);
+    });
+  });
+  // 5 秒超时强制退出
+  setTimeout(() => { console.log('[SHUTDOWN] Force exit'); process.exit(0); }, 5000);
 }
 process.on('SIGINT', () => handleShutdown('SIGINT'));
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGUSR2', () => handleShutdown('SIGUSR2')); // PM2 reload
+
+// ========== 自动备份（每小时） ==========
+const BACKUP_DIR = path.join(__dirname, 'data', 'backups');
+setInterval(() => {
+  try {
+    const now = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupDir = path.join(BACKUP_DIR, now);
+    fs.mkdirSync(backupDir, { recursive: true });
+    for (const name of Object.keys(FILES)) {
+      const src = path.join(DATA_DIR, FILES[name]);
+      if (fs.existsSync(src)) {
+        fs.copyFileSync(src, path.join(backupDir, FILES[name]));
+      }
+    }
+    // 保留最近 24 个备份
+    const backups = fs.readdirSync(BACKUP_DIR).sort().reverse();
+    backups.slice(24).forEach(d => {
+      fs.rmSync(path.join(BACKUP_DIR, d), { recursive: true, force: true });
+    });
+  } catch (e) { console.error('[BACKUP] Error:', e.message); }
+}, 60 * 60 * 1000);
+console.log('[BACKUP] Hourly backup enabled (keeps 24h)');
 
 const onlineUsers = new Map(); // userId -> { id, username, socketIds: Set }
 const userSockets = new Map(); // userId -> socket (最新连接)
@@ -74,6 +138,31 @@ function updateUserBalance(username, newBalance) {
 function isRoomMember(room, username) {
   return room && room.members && room.members.includes(username);
 }
+
+// ========== 健康检查 ==========
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    memory: Math.round(process.memoryUsage().rss / 1024 / 1024) + 'MB',
+    users: users.size,
+    rooms: rooms.size,
+    connections: io.engine.clientsCount,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ========== 请求日志 ==========
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    if (req.path.startsWith('/api') || req.path === '/health') {
+      console.log(`${res.statusCode} ${req.method} ${req.path} ${ms}ms`);
+    }
+  });
+  next();
+});
 
 function generateSixDigitId() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -1060,7 +1149,7 @@ app.get('/api/bilibili/search', verifyToken, (req, res) => {
   if (!keyword) {
     return res.status(400).json({ error: 'Keyword required' });
   }
-  const path = `/x/web-interface/wbi/search/type?search_type=video&keyword=${encodeURIComponent(keyword)}&page=1&page_size=20`;
+  const path = `/x/web-interface/wbi/search/type?search_type=video&keyword=${encodeURIComponent(keyword)}&page=1&page_size=10`;
   biliRequest(path, (err, json) => {
     if (err) {
       return res.status(500).json({ error: err.message });
@@ -1070,7 +1159,7 @@ app.get('/api/bilibili/search', verifyToken, (req, res) => {
 });
 
 app.get('/api/bilibili/popular', verifyToken, (req, res) => {
-  biliRequest('/x/web-interface/popular/precious?page=1&page_size=20', (err, json) => {
+  biliRequest('/x/web-interface/popular/precious?page=1&page_size=10', (err, json) => {
     if (err) {
       return res.json({ code: -1, data: { list: [] } });
     }
@@ -1162,7 +1251,9 @@ app.post('/api/upload/init', verifyToken, (req, res) => {
   res.json({ uploadId });
 });
 
-app.post('/api/upload/chunk', verifyToken, upload.single('chunk'), (req, res) => {
+// 分片上传使用内存存储
+const chunkUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+app.post('/api/upload/chunk', verifyToken, chunkUpload.single('chunk'), (req, res) => {
   const { uploadId, chunkIndex } = req.body;
   const uploadData = chunksStore.get(uploadId);
   if (!uploadData) {
@@ -1807,7 +1898,7 @@ app.get('/api/news/hot', verifyToken, (req, res) => {
 
 // 1.4 二维码生成
 const QRCode = require('qrcode');
-app.get('/api/qrcode', verifyToken, (req, res) => {
+app.get('/api/qrcode', (req, res) => {
   const { text } = req.query;
   if (!text) return res.status(400).json({ error: '请提供 text 参数' });
   QRCode.toBuffer(text.substring(0, 500), { width: 300, margin: 2, type: 'png' }, (err, buffer) => {
@@ -1863,47 +1954,52 @@ app.get('/api/link-preview', verifyToken, (req, res) => {
   }).on('error', () => res.status(500).json({ error: '抓取失败' }));
 });
 
-// 2.2 地图 POI 搜索 + 静态地图 (OpenStreetMap/Nominatim, 免费免 Key)
+// 2.2 地图 POI 搜索 + 静态地图 (高德地图 AMap)
+const AMAP_KEY = process.env.AMAP_KEY || '';
+
 app.get('/api/map/poi', verifyToken, (req, res) => {
-  const { keyword, lat, lng } = req.query;
-  if (!keyword) return res.status(400).json({ error: '请提供搜索关键词' });
-  const q = lat && lng
-    ? `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(keyword)}&format=json&limit=10&accept-language=zh&lat=${lat}&lon=${lng}&bounded=1`
-    : `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(keyword)}&format=json&limit=10&accept-language=zh`;
-  const mapReq = https.get(q, {
-    headers: { 'User-Agent': 'WeChatApp/1.0', 'Accept-Language': 'zh' },
-    timeout: 8000
-  }, (response) => {
+  const { keyword } = req.query;
+  if (!keyword) return res.status(400).json({ error: '请输入搜索关键词' });
+  if (!AMAP_KEY) return res.status(500).json({ error: 'AMAP_KEY 未配置' });
+
+  const url = `https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(keyword)}&key=${AMAP_KEY}&offset=15`;
+  const mapReq = https.get(url, { timeout: 8000 }, (response) => {
     let data = '';
     response.on('data', chunk => data += chunk);
     response.on('end', () => {
       try {
-        const pois = JSON.parse(data).map(p => ({
-          name: p.display_name?.split(',')[0] || p.name || '',
-          fullName: p.display_name || '',
-          lat: parseFloat(p.lat), lng: parseFloat(p.lon),
-          type: p.type || '', category: p.category || ''
+        const json = JSON.parse(data);
+        if (json.status !== '1') return res.json({ pois: [] });
+        const pois = (json.pois || []).map(p => ({
+          name: p.name,
+          fullName: p.address || p.name,
+          lat: parseFloat(p.location?.split(',')[1] || 0),
+          lng: parseFloat(p.location?.split(',')[0] || 0),
+          type: p.type || '', category: p.typecode || ''
         }));
         res.json({ pois });
       } catch { res.json({ pois: [] }); }
     });
   });
-  mapReq.on('timeout', () => { mapReq.destroy(); res.status(500).json({ error: '地图搜索超时，请检查网络连接' }); });
+  mapReq.on('timeout', () => { mapReq.destroy(); res.status(500).json({ error: '地图搜索超时' }); });
   mapReq.on('error', () => res.json({ pois: [] }));
 });
 
-// 静态地图图片 (OpenStreetMap 瓦片拼图)
-app.get('/api/map/static', verifyToken, (req, res) => {
+// 高德静态地图 (无需 Key 的 HTML iframe，使用高德 JS API)
+app.get('/api/map/static', (req, res) => {
   const { lat, lng, zoom } = req.query;
   if (!lat || !lng) return res.status(400).json({ error: '缺少坐标' });
   const z = zoom || 15;
-  // 使用免费 tile 服务生成静态地图 HTML
+  const akScript = AMAP_KEY ? `<script src="https://webapi.amap.com/maps?v=2.0&key=${AMAP_KEY}"></script>` : '';
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>*{margin:0;padding:0}html,body{width:100%;height:100%}#map{width:100%;height:100%}.marker{position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);font-size:32px;z-index:1000;pointer-events:none}</style>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script></head><body>
-<div id="map"></div><div class="marker">📍</div>
-<script>var m=L.map('map').setView([${lat},${lng}],${z});L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy;OSM'}).addTo(m);</script></body></html>`;
+<style>*{margin:0;padding:0}html,body{width:100%;height:100%}#map{width:100%;height:100%}</style>
+${akScript}</head><body><div id="map"></div>
+<script>
+var m = new AMap.Map('map', { center: [${lng},${lat}], zoom: ${z}, resizeEnable: true });
+var marker = new AMap.Marker({ position: [${lng},${lat}] });
+m.add(marker);
+m.setFitView(null, false, [60, 60, 60, 60]);
+</script></body></html>`;
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
 });
@@ -2959,7 +3055,7 @@ setInterval(() => {
 // 静态文件 + SPA 路由（在所有 API 路由之后，确保 API 优先匹配）
 // APK 下载（放在 static 之前，确保正确的 MIME）
 app.get('/WeChat-v2.0.apk', (req, res) => {
-  const apkPath = path.join(__dirname, '..', 'client', 'build', 'WeChat-v2.0.apk');
+  const apkPath = path.join(__dirname, '..', 'client', 'releases', 'WeChat-v2.0.apk');
   if (fs.existsSync(apkPath)) {
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
     res.setHeader('Content-Disposition', 'attachment; filename="WeChat-v2.0.apk"');

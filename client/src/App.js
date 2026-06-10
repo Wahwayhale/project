@@ -4,11 +4,48 @@ import axios from 'axios';
 import { I } from './components/Icon';
 
 const isCapacitor = typeof window !== 'undefined' && window.Capacitor?.isNativePlatform;
-// OTA 模式下 APP 从服务器加载，API 用相对路径即可
-// 本地模式（file://）才需要指定服务器公网地址
-const isLocalApp = isCapacitor && window.location.protocol === 'file:';
+// App 服务器 ngrok 地址
 const SERVER_URL = 'https://parakeet-nimble-cage.ngrok-free.dev';
-const API_URL = isLocalApp ? SERVER_URL : '';
+// Capacitor App 始终用绝对 URL（capacitor://localhost 不是 file://）
+const API_URL = isCapacitor ? SERVER_URL : '';
+// axios 全局配置
+axios.defaults.timeout = 15000;
+axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+// Capacitor App 使用 ngrok 时，跳过 ngrok 浏览器安全警告页
+if (isCapacitor) {
+  axios.defaults.headers.common['ngrok-skip-browser-warning'] = '1';
+}
+// 请求重试 + 401 自动重新登录
+let isReloggingIn = false;
+axios.interceptors.response.use(null, async (err) => {
+  const config = err.config;
+  // 401 → 尝试重新登录
+  if (err.response?.status === 401 && !isReloggingIn && !config.url?.includes('/api/login')) {
+    isReloggingIn = true;
+    const savedUser = localStorage.getItem('savedUsername');
+    const savedPass = localStorage.getItem('savedPassword');
+    if (savedUser && savedPass) {
+      try {
+        const loginRes = await axios.post(`${API_URL}/api/login`, { username: savedUser, password: savedPass });
+        const newToken = loginRes.data.token;
+        localStorage.setItem('token', newToken);
+        config.headers.Authorization = newToken;
+        isReloggingIn = false;
+        return axios(config); // 用新 token 重试原请求
+      } catch {}
+    }
+    isReloggingIn = false;
+  }
+  // 网络重试
+  if (!config || config._retryCount >= 2) return Promise.reject(err);
+  if (!err.response && err.code !== 'ECONNABORTED') {
+    config._retryCount = (config._retryCount || 0) + 1;
+    await new Promise(r => setTimeout(r, 1000 * config._retryCount));
+    return axios(config);
+  }
+  return Promise.reject(err);
+});
+console.log('[APP] Capacitor:', isCapacitor, 'API_URL:', API_URL || '(relative)');
 const DEFAULT_AVATAR = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="50" fill="#e0e0e0"/><text x="50" y="58" text-anchor="middle" font-size="40" fill="#999">👤</text></svg>');
 const CHUNK_SIZE = 2 * 1024 * 1024;
 
@@ -161,7 +198,7 @@ function App() {
   // OTA 更新
   const [otaInfo, setOtaInfo] = useState(null);
   const [showOtaModal, setShowOtaModal] = useState(false);
-  const appVersion = '1.0.0';
+  const appVersion = '2.0.0';
   
   // 手机号绑定（验证码流程）
   const [phoneInfo, setPhoneInfo] = useState({ phone: null, phoneBound: false, phoneBoundAt: null });
@@ -437,14 +474,65 @@ function App() {
   const fileInputRef = useRef(null);
   const avatarInputRef = useRef(null);
 
+  // 诊断信息
+  const [diag, setDiag] = useState('');
   useEffect(() => {
+    // APK 启动流程：1.重新登录 2.检测连接 3.加载数据
+    const startup = async () => {
+      if (isCapacitor) {
+        const u = localStorage.getItem('savedUsername');
+        const p = localStorage.getItem('savedPassword');
+        if (u && p) {
+          try {
+            const res = await axios.post(`${API_URL}/api/login`, { username: u, password: p }, { timeout: 10000 });
+            localStorage.setItem('token', res.data.token);
+            setToken(res.data.token);
+            setUser(res.data.user);
+            setIsAuthenticated(true);
+            setDiag(d => d + '🔐 OK | ');
+          } catch {
+            localStorage.removeItem('token'); localStorage.removeItem('user');
+            setToken(null); setUser(null);
+            setDiag(d => d + '🔐 FAIL | ');
+          }
+        }
+      }
+      // 连接检测（不弹 toast，静默）
+      if (isCapacitor) {
+        try {
+          await axios.get(`${API_URL}/api/ai/models`, { timeout: 5000 });
+          setDiag(d => d + '✅ | ');
+        } catch {
+          setDiag(d => d + '❌ | ');
+        }
+      }
+    };
+    startup();
+
+    // Token 验证 + 自动重新登录（Web 端）
     const checkAuth = async () => {
       if (!token) return;
       try {
-        await axios.get(`${API_URL}/api/profile`, {
-          headers: { Authorization: token }
-        });
+        await axios.get(`${API_URL}/api/profile`, { headers: { Authorization: token } });
       } catch (err) {
+        // Token 无效，尝试用保存的密码重新登录
+        const savedUser = localStorage.getItem('savedUsername');
+        const savedPass = localStorage.getItem('savedPassword');
+        if (savedUser && savedPass) {
+          try {
+            const res = await axios.post(`${API_URL}/api/login`, { username: savedUser, password: savedPass });
+            const newToken = res.data.token;
+            localStorage.setItem('token', newToken);
+            setToken(newToken);
+            setUser(res.data.user);
+            setIsAuthenticated(true);
+            setDiag(d => d + 'Auto-relogin OK | ');
+            return; // 登录成功，不需要清除
+          } catch (e2) {
+            setDiag(d => d + 'Auto-relogin FAILED | ');
+          }
+        }
+        // 无法恢复，清除
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         setToken(null);
@@ -506,7 +594,12 @@ function App() {
   useEffect(() => {
     if (currentRoomId && socketRef.current) {
       socketRef.current.emit('joinRoom', currentRoomId);
-      setMessagesLoading(true);
+      // 先加载本地缓存，秒开
+      try {
+        const cached = JSON.parse(localStorage.getItem('msgCache_' + currentRoomId) || '[]');
+        if (cached.length > 0) { setMessages(cached); setMessagesLoading(false); }
+        else { setMessagesLoading(true); }
+      } catch { setMessagesLoading(true); }
     }
   }, [currentRoomId]);
 
@@ -601,12 +694,14 @@ function App() {
     const wsUrl = API_URL || window.location.origin;
     console.log('Socket connecting to:', wsUrl);
     socketRef.current = io(wsUrl, {
-      transports: ['websocket', 'polling'],
+      transports: ['websocket'],
       reconnection: true,
-      reconnectionAttempts: Infinity,
+      reconnectionAttempts: 50,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 20000
+      reconnectionDelayMax: 10000,
+      timeout: 20000,
+      upgrade: false,
+      perMessageDeflate: true
     });
     socketRef.current.on('connect', () => {
       console.log('Socket connected');
@@ -638,14 +733,18 @@ function App() {
       setFriends(prev => prev.map(f => f.id === data.id ? { ...f, online: false } : f));
     });
     socketRef.current.on('newMessage', (message) => {
-      setMessages(prev => [...prev, message]);
+      setMessages(prev => {
+        const next = [...prev, message];
+        // 本地缓存最近 100 条消息
+        try { localStorage.setItem('msgCache_' + message.roomId, JSON.stringify(next.slice(-100))); } catch {}
+        return next;
+      });
       setRooms(prev => prev.map(room => {
         if (room.id === message.roomId) {
           return { ...room, lastMessage: message };
         }
         return room;
       }));
-      // 桌面通知（仅支持 Notification API 的浏览器）
       if (typeof Notification !== 'undefined' && notifyRef.current.enabled && !notifyRef.current.muted && message.sender?.id !== user?.id && document.hidden) {
         try {
           new Notification(message.sender?.username || '新消息', {
@@ -936,26 +1035,19 @@ function App() {
 
   const fetchRooms = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/rooms`, {
-        headers: { Authorization: token }
-      });
+      const response = await axios.get(`${API_URL}/api/rooms`, { headers: { Authorization: token } });
       setRooms(Array.isArray(response.data) ? response.data : []);
-    } catch (err) {
-      console.error('Failed to fetch rooms', err);
-      setRooms([]);
-    }
+      setDiag(d => d + 'Rooms:' + (Array.isArray(response.data)?response.data.length:'err') + ' | ');
+    } catch (err) { console.error('Failed to fetch rooms', err); setRooms([]); setDiag(d => d + 'Rooms:FAIL | '); }
   };
 
   const fetchFriends = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/friends`, {
-        headers: { Authorization: token }
-      });
-      setFriends(Array.isArray(response.data) ? response.data : []);
-    } catch (err) {
-      console.error('Failed to fetch friends', err);
-      setFriends([]);
-    }
+      const response = await axios.get(`${API_URL}/api/friends`, { headers: { Authorization: token } });
+      const data = Array.isArray(response.data) ? response.data : [];
+      setFriends(data);
+      setDiag(d => d + 'Friends:' + data.length + ' | ');
+    } catch (err) { console.error('Failed to fetch friends', err); setFriends([]); setDiag(d => d + 'Friends:FAIL | '); }
   };
 
   const fetchFriendRequests = async () => {
@@ -1169,26 +1261,79 @@ function App() {
     }
   };
 
+  // 图片压缩（Canvas 缩放，目标 < 1MB）
+  const compressImage = (file) => new Promise((resolve) => {
+    if (!file.type.startsWith('image/') || file.size < 500 * 1024) return resolve(file);
+    const img = new Image();
+    img.onload = () => {
+      const maxW = 1920, maxH = 1920;
+      let w = img.width, h = img.height;
+      if (w > maxW || h > maxH) { const r = Math.min(maxW / w, maxH / h); w *= r; h *= r; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => resolve(new File([blob], file.name, { type: 'image/jpeg' })), 'image/jpeg', 0.85);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+
   const uploadFile = async (file) => {
     if (!file || !currentRoomId) return;
+    const maxChunk = 2 * 1024 * 1024;
     try {
-      await uploadSimple(file);
+      const processed = await compressImage(file);
+      if (processed.size > maxChunk) {
+        await uploadChunked(processed, maxChunk);
+      } else {
+        await uploadSimple(processed);
+      }
     } catch (err) {
-      console.error('Upload failed', err);
-      alert('上传失败: ' + err.message);
+      setUploadProgress(null);
+      showToast('上传失败: ' + (err.message || '网络错误'), 'error');
     }
   };
 
   const uploadSimple = async (file) => {
+    setUploadProgress({ filename: file.name, progress: 0 });
     const formData = new FormData();
     formData.append('file', file);
     const response = await axios.post(`${API_URL}/api/upload/simple`, formData, {
-      headers: {
-        Authorization: token,
-        'Content-Type': 'multipart/form-data'
-      }
+      headers: { Authorization: token, 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (e) => setUploadProgress({ filename: file.name, progress: Math.round((e.loaded / e.total) * 100) })
     });
+    setUploadProgress(null);
     sendMediaMessage(response.data.url, file.name, file.type, file.size);
+  };
+
+  const uploadChunked = async (file, chunkSize) => {
+    const totalChunks = Math.ceil(file.size / chunkSize);
+    // 1. Init
+    const initRes = await axios.post(`${API_URL}/api/upload/init`, {
+      filename: file.name, totalChunks, fileSize: file.size, mimeType: file.type
+    }, { headers: { Authorization: token } });
+    const uploadId = initRes.data.uploadId;
+
+    // 2. Upload chunks sequentially (avoids server overload)
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * chunkSize;
+      const end = Math.min(start + chunkSize, file.size);
+      const chunk = file.slice(start, end);
+      const fd = new FormData();
+      fd.append('chunk', chunk, `chunk_${i}`);
+      fd.append('uploadId', uploadId);
+      fd.append('chunkIndex', String(i));
+      await axios.post(`${API_URL}/api/upload/chunk`, fd, {
+        headers: { Authorization: token, 'Content-Type': 'multipart/form-data' }
+      });
+      setUploadProgress({ filename: file.name, progress: Math.round(((i + 1) / totalChunks) * 100) });
+    }
+
+    // 3. Complete
+    const compRes = await axios.post(`${API_URL}/api/upload/complete`, { uploadId }, {
+      headers: { Authorization: token }
+    });
+    setUploadProgress(null);
+    sendMediaMessage(compRes.data.url, file.name, file.type, file.size);
   };
 
   const sendMediaMessage = (fileUrl, filename, mimeType, fileSize) => {
@@ -1590,23 +1735,15 @@ function App() {
       setSearchResults(res.data.messages || []);
     } catch { setSearchResults([]); }
   };
-  // 天气（直连 wttr.in，无需服务端代理）
+  // 天气（统一走服务端代理）
   const searchWeather = async (e) => {
     e?.preventDefault();
     if (!weatherCity.trim() || weatherLoading) return;
     setWeatherLoading(true);
     try {
-      const res = await axios.get(`https://wttr.in/${encodeURIComponent(weatherCity.trim())}?format=j1&lang=zh`, { timeout: 8000 });
-      const json = res.data;
-      const now = json.current_condition?.[0] || {};
-      const today = json.weather?.[0] || {};
-      setWeatherData({
-        city: json.nearest_area?.[0]?.areaName?.[0]?.value || weatherCity,
-        temp: now.temp_C, desc: now.lang_zh?.[0]?.value || now.weatherDesc?.[0]?.value || '',
-        humidity: now.humidity, wind: (now.winddir16Point||'') + ' ' + (now.windspeedKmph||'') + 'km/h',
-        feelsLike: now.FeelsLikeC, high: today.maxtempC, low: today.mintempC
-      });
-    } catch { showToast('天气查询失败，请简化搜索词', 'error'); }
+      const res = await axios.get(`${API_URL}/api/weather/${encodeURIComponent(weatherCity.trim())}`, { headers: { Authorization: token } });
+      setWeatherData(res.data);
+    } catch { showToast('天气查询失败', 'error'); }
     finally { setWeatherLoading(false); }
   };
   const shareWeather = () => {
@@ -1616,39 +1753,43 @@ function App() {
     socketRef.current?.emit('sendMessage', { roomId: currentRoomId, content, type: 'text' });
     showToast('已分享天气', 'success');
   };
-  // 地图
+  // 地图 (高德)
+  const [mapSearch, setMapSearch] = useState('');
+  const [mapResults, setMapResults] = useState([]);
+  const searchMap = async (e) => {
+    e?.preventDefault();
+    if (!mapSearch.trim() || mapLoading) return;
+    setMapLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/api/map/poi`, { params: { keyword: mapSearch.trim() }, headers: { Authorization: token } });
+      setMapResults(res.data.pois || []);
+    } catch { setMapResults([]); showToast('搜索失败', 'error'); }
+    finally { setMapLoading(false); }
+  };
   const getMyLocation = async () => {
     setMapLoading(true);
     try {
       let lat, lng;
-      // Capacitor 原生 App 使用插件获取位置
       if (isCapacitor) {
         const { Geolocation } = await import('@capacitor/geolocation');
         const pos = await Geolocation.getCurrentPosition({ timeout: 10000, enableHighAccuracy: true });
-        lat = pos.coords.latitude;
-        lng = pos.coords.longitude;
+        lat = pos.coords.latitude; lng = pos.coords.longitude;
       } else if (navigator.geolocation) {
-        // 浏览器环境
         const pos = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true });
         });
-        lat = pos.coords.latitude;
-        lng = pos.coords.longitude;
-      } else {
-        showToast('此设备不支持定位', 'error'); setMapLoading(false); return;
-      }
+        lat = pos.coords.latitude; lng = pos.coords.longitude;
+      } else { showToast('不支持定位', 'error'); setMapLoading(false); return; }
       setShowMapViewer({ lat, lng, name: '我的位置' });
-    } catch {
-      showToast('定位失败，请检查位置权限', 'error');
-    }
+    } catch { showToast('定位失败', 'error'); }
     setMapLoading(false);
   };
   const shareMap = (poi) => {
     if (!currentRoomId) { showToast('请先选择聊天室', 'error'); return; }
     const mapUrl = `${API_URL}/api/map/static?lat=${poi.lat}&lng=${poi.lng}&zoom=16`;
-    socketRef.current?.emit('sendMessage', { roomId: currentRoomId, content: `🗺 ${poi.name}\n${mapUrl}`, type: 'text' });
+    socketRef.current?.emit('sendMessage', { roomId: currentRoomId, content: `📍 ${poi.name || poi.fullName}\n${mapUrl}`, type: 'text' });
     setShowMapPanel(false); setShowMapViewer(null);
-    showToast('已分享地图', 'success');
+    showToast('已分享', 'success');
   };
 
   // ===== 音乐播放器 =====
@@ -2694,6 +2835,11 @@ function App() {
                 <>已有账号？<a onClick={() => setAuthMode('login')}>登录</a></>
               )}
             </div>
+            {isCapacitor && (
+              <div style={{ marginTop: 12, fontSize: 10, color: 'var(--text-tertiary)', textAlign: 'center' }}>
+                服务器：{SERVER_URL}
+              </div>
+            )}
             {authMode === 'login' && (
               <span className="forgot-pw-link" onClick={() => { setShowResetPw(true); setResetPwStep(0); setResetPwPhone(''); setResetPwCode(''); setResetPwNewPw(''); }}>
                 忘记密码？
@@ -2721,6 +2867,11 @@ function App() {
           </div>
         </div>
         
+        {isCapacitor && diag && (
+          <div style={{ padding: '4px 12px', fontSize: 9, color: 'var(--text-secondary)', background: 'var(--bg)', borderBottom: '1px solid var(--border)', wordBreak: 'break-all', lineHeight: 1.4 }}>
+            {diag}
+          </div>
+        )}
         {/* 简洁搜索框和聊天列表 */}
         <div className="search-box">
           <div className="search-wrapper">
@@ -4289,7 +4440,7 @@ function App() {
           <div className="splash-content">
             <div className="splash-icon"><I name="chat" size={48} color="#fff" /></div>
             <h1 className="splash-title">你无只因</h1>
-            <p className="splash-subtitle">现代化即时通讯平台</p>
+            <p className="splash-subtitle">v{appVersion}</p>
             <div className="splash-loader">
               <div className="splash-loader-bar"></div>
             </div>
@@ -4858,38 +5009,50 @@ function App() {
 
       {/* ===== 地图面板 ===== */}
       {showMapPanel && (
-        <div className="modal-overlay" onClick={() => { setShowMapPanel(false); setShowMapViewer(null); }}>
+        <div className="modal-overlay" onClick={() => { setShowMapPanel(false); setShowMapViewer(null); setMapResults([]); }}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <h3 style={{ margin: 0 }}><I name="location" size={20} /> 地图</h3>
-              <button onClick={() => { setShowMapPanel(false); setShowMapViewer(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={20} /></button>
+              <button onClick={() => { setShowMapPanel(false); setShowMapViewer(null); setMapResults([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={20} /></button>
             </div>
-            {!showMapViewer ? (
-              <div style={{ textAlign: 'center', padding: 40 }}>
-                <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}><I name="location" size={64} /></div>
-                <div style={{ color: 'var(--text-secondary)', marginBottom: 20 }}>使用 GPS 获取当前位置并分享到聊天</div>
-                <button onClick={getMyLocation} disabled={mapLoading}
-                  style={{ padding: '12px 28px', background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: 700 }}>
-                  {mapLoading ? '定位中...' : '📍 获取我的位置'}
-                </button>
-              </div>
-            ) : (
-              <>
-                <div style={{ marginBottom: 12, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                  <div style={{ padding: '8px 12px', background: 'var(--bg)', fontWeight: 600, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span><I name="location" size={14} /> {showMapViewer.name} ({showMapViewer.lat.toFixed(4)}, {showMapViewer.lng.toFixed(4)})</span>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button onClick={() => shareMap(showMapViewer)} style={{ background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>📤 分享</button>
-                      <button onClick={() => setShowMapViewer(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={14} /></button>
+            {/* 搜索栏 */}
+            <form onSubmit={searchMap} style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input type="text" value={mapSearch} onChange={e => setMapSearch(e.target.value)} placeholder="搜索地点..." style={{ flex: 1, padding: '10px 14px', border: '2px solid var(--border)', borderRadius: 10, fontSize: 14, outline: 'none', background: 'var(--bg)' }} />
+              <button type="submit" disabled={mapLoading} style={{ padding: '10px 16px', background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}>{mapLoading ? '搜索中' : '搜索'}</button>
+              <button type="button" onClick={getMyLocation} disabled={mapLoading} title="GPS定位" style={{ padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer' }}><I name="location" size={18} /></button>
+            </form>
+            {/* 搜索结果 */}
+            {mapResults.length > 0 && !showMapViewer && (
+              <div style={{ flex: 1, overflowY: 'auto', marginBottom: 12 }}>
+                {mapResults.map((poi, i) => (
+                  <div key={i} onClick={() => setShowMapViewer({ lat: poi.lat, lng: poi.lng, name: poi.name })} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+                    <I name="location" size={16} color="var(--primary)" />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 500 }}>{poi.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{poi.fullName}</div>
                     </div>
+                    <button onClick={(e) => { e.stopPropagation(); setShowMapViewer({ lat: poi.lat, lng: poi.lng, name: poi.name }); shareMap({ lat: poi.lat, lng: poi.lng, name: poi.name, fullName: poi.fullName }); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="forward" size={16} /></button>
                   </div>
-                  <iframe src={`${API_URL}/api/map/static?lat=${showMapViewer.lat}&lng=${showMapViewer.lng}&zoom=17`} title="地图" style={{ width: '100%', height: 350, border: 'none' }} />
+                ))}
+              </div>
+            )}
+            {/* 地图视图 */}
+            {showMapViewer ? (
+              <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                <div style={{ padding: '8px 12px', background: 'var(--bg)', fontWeight: 600, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span><I name="location" size={14} /> {showMapViewer.name}</span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button onClick={() => shareMap(showMapViewer)} style={{ background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>分享</button>
+                    <button onClick={() => setShowMapViewer(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={14} /></button>
+                  </div>
                 </div>
-                <button onClick={getMyLocation} disabled={mapLoading}
-                  style={{ width: '100%', padding: '10px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>
-                  {mapLoading ? '定位中...' : '🔄 重新定位'}
-                </button>
-              </>
+                <iframe src={`${API_URL}/api/map/static?lat=${showMapViewer.lat}&lng=${showMapViewer.lng}&zoom=17`} title="高德地图" style={{ width: '100%', height: 350, border: 'none' }} />
+              </div>
+            ) : mapResults.length === 0 && !mapLoading && (
+              <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>
+                <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.3 }}><I name="location" size={64} /></div>
+                <div>搜索地点或点击 GPS 获取当前位置</div>
+              </div>
             )}
           </div>
         </div>

@@ -1660,6 +1660,66 @@
         ],
         "edited": false,
         "pinned": false
+      },
+      {
+        "id": "d079e91a-67bc-44d8-a547-c1cd00a977b7",
+        "content": "你好",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "/uploads/1780722892167-c748e576-146c-46ec-a830-25c9b6528eb0.jpg"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-09T07:01:17.804Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "71e8cdb4-ba28-4768-96c0-4da89fb166f5",
+        "content": "666",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "/uploads/1780990162780-aee74210-0474-4df5-b086-0294c30d481b.jpg"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-09T09:45:52.996Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "e24cfc94-9fa0-417a-901a-455056050f58",
+        "content": "？",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "username": "ycx",
+          "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-09T10:48:52.063Z",
+        "readBy": [
+          "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "edited": false,
+        "pinned": false
       }
     ]
   },
@@ -2153,5 +2213,17 @@
     "messages": [],
     "createdBy": "admin",
     "createdAt": "2026-06-09T01:26:21.952Z"
+  },
+  "44c76eff-1e5d-487f-9106-a85ab1b4cd90": {
+    "id": "44c76eff-1e5d-487f-9106-a85ab1b4cd90",
+    "name": "admin & ycx",
+    "type": "group",
+    "members": [
+      "admin",
+      "ycx"
+    ],
+    "messages": [],
+    "createdBy": "ycx",
+    "createdAt": "2026-06-09T10:49:11.119Z"
   }
 }

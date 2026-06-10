@@ -1,8 +1,8 @@
 {
   "version": "2.0.0",
-  "buildNumber": 214,
-  "releaseNotes": "🎉 WeChat 2.0 大版本更新\n\n🆕 新增功能：\n�?AI 智能回复 / 文字润色 / 每日摘要\n�?网易云音乐搜歌听�?+ 歌词显示\n�?GIF 表情包搜索发送\n�?天气查询 / 知乎热搜 / 一言语录\n�?GPS 地图定位分享\n�?二维码生�?/ 链接预览\n�?AI 图片识别 (GLM-4V)\n�?群日程创建与提醒\n�?桌面通知 (浏览�?\n\n🔧 优化：\n�?Lucide 线性图标全面升级\n�?移动端全面适配\n�?聊天记录删除 (微信�?\n�?消息上限 3000 条\n�?聊天隐私安全加固\n�?数据原子写入防损坏\n�?发现页可滚动 + 两排输入区\n�?主题色切�?,
-  "apkUrl": "/WeChat-v2.0.apk",
+  "buildNumber": 220,
+  "releaseNotes": "WeChat 2.0 - Major Update\n\nNew Features:\n- AI Smart Reply / Polish / Daily Digest\n- Netease Cloud Music search & player\n- GIF search & send\n- Weather query / Zhihu Daily News\n- GPS Map location sharing\n- QR Code generator\n- AI Image Recognition (GLM-4V)\n- Group Events & Reminders\n- Desktop Notifications\n\nImprovements:\n- Lucide linear icon system (1.2px stroke)\n- Full mobile responsive layout\n- Chat message delete (WeChat-style)\n- Message limit 3000\n- Chat privacy hardening\n- Atomic file writes (crash-safe)\n- Discover page scrollable\n- Theme presets",
+  "apkUrl": "/releases/WeChat-v2.0.apk",
   "apkSize": "5.4MB",
   "forceUpdate": false
 }
