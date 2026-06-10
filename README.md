@@ -1,87 +1,54 @@
-# 你无只因 - 微信风格聊天应用
+# 你无只因 (WeChat App) v2.0.2
 
-一个类似微信的实时聊天网站，支持群聊、私聊、图片视频上传、好友系统。
+微信风格的现代化即时通讯平台，支持 AI、音乐、地图等 30+ 功能。
 
-## 功能特性
+## 快速启动
 
-- ✅ 用户注册/登录（JWT认证）
-- ✅ 6位数字ID搜索添加好友
-- ✅ 个人主页（头像、签名编辑）
-- ✅ 创建群聊
-- ✅ 实时消息发送（WebSocket）
-- ✅ 消息类型：文本、图片、视频
-- ✅ 分片上传（支持大文件）
-- ✅ 好友在线状态显示
-- ✅ 好友请求通知
+```bash
+# 一键启动（自动安装依赖 + 构建 + 启动服务器 + ngrok）
+start.bat
+```
+
+浏览器打开 `http://localhost:3001`
+
+## 功能
+
+| 分类 | 功能 |
+|------|------|
+| 聊天 | 文字/图片/视频/文件/GIF，撤回/编辑/删除，已读回执，@提醒 |
+| AI | 多模型对话、智能回复、文字润色、每日摘要、翻译(13语言)、图片识别 |
+| 社交 | 好友系统、朋友圈、红包、投票、骰子、猜拳、接龙 |
+| 娱乐 | B站视频、网易云音乐、GIF搜索、天气、热搜 |
+| 工具 | 高德地图、二维码、链接预览、一言语录 |
+| 办公 | 群日程提醒、群公告、禁言、踢人 |
+| App | Android APK (Capacitor)、OTA自动更新、GPS定位 |
 
 ## 技术栈
 
-### 后端
-- Node.js + Express
-- Socket.IO（实时通信）
-- JWT（用户认证）
-- Multer（文件上传）
+| 层 | 技术 |
+|----|------|
+| 前端 | React 18 + Socket.io + Lucide Icons |
+| 后端 | Express + Socket.io + JWT + bcrypt |
+| AI | 智谱 GLM-4V / Kimi / DeepSeek R1 / Pollinations |
+| 移动 | Capacitor 8 + Android WebView |
+| 部署 | PM2 + ngrok |
 
-### 前端
-- React
-- Socket.IO Client
-- Axios
+## 文档
 
-## 运行项目
+| 文档 | 内容 |
+|------|------|
+| [PRODUCT_SPEC.md](PRODUCT_SPEC.md) | 产品规格 |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 系统架构 |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | 部署指南 |
+| [SECURITY.md](SECURITY.md) | 安全策略 |
+| [CHANGELOG.md](CHANGELOG.md) | 更新日志 |
+| [huashu-design.md](huashu-design.md) | 设计系统 |
+| [CLAUDE.md](CLAUDE.md) | 开发规范 |
 
-### 1. 克隆项目
-```bash
-git clone <你的仓库地址>
-cd wechat-app
-```
-
-### 2. 安装后端依赖
-```bash
-cd server
-npm install
-```
-
-### 3. 安装前端依赖
-```bash
-cd ../client
-npm install
-```
-
-### 4. 启动后端
-```bash
-cd server
-npm start
-# 服务运行在 http://localhost:3001
-```
-
-### 5. 启动前端
-```bash
-cd client
-npm start
-# 应用运行在 http://localhost:3000
-```
-
-## 使用说明
-
-1. 打开 http://localhost:3000
-2. 注册账号
-3. 查看自己的6位ID（点击左上角用户名）
-4. 通过ID搜索添加好友
-5. 开始聊天！
-
-## 项目结构
+## APK 下载
 
 ```
-wechat-app/
-├── server/                 # 后端服务
-│   ├── server.js           # 主服务器
-│   └── package.json
-└── client/                # 前端应用
-    ├── src/
-    │   ├── App.js         # 主组件
-    │   ├── index.js
-    │   └── index.css      # 样式
-    └── package.json
+https://parakeet-nimble-cage.ngrok-free.dev/releases/WeChat-v2.0.2.apk
 ```
 
 ## 许可证
