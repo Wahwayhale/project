@@ -417,7 +417,7 @@ export function useChat({ socketRef, user, currentRoomId, currentRoom, showToast
     searchResults, setSearchResults,
     recalledMessages, setRecalledMessages,
     reactionPicker, setReactionPicker,
-    forwardMsg, showForwardModal, setShowForwardModal,
+    forwardMsg, setForwardMsg, showForwardModal, setShowForwardModal,
     fileInputRef,
     // 函数
     sendMessage,

@@ -280,7 +280,7 @@ function App() {
     searchResults, setSearchResults,
     recalledMessages, setRecalledMessages,
     reactionPicker, setReactionPicker,
-    forwardMsg, showForwardModal, setShowForwardModal,
+    forwardMsg, setForwardMsg, showForwardModal, setShowForwardModal,
     fileInputRef,
     sendMessage, handleKeyDown, handleInputChange,
     handleFileSelect,
@@ -854,6 +854,42 @@ function App() {
     return parts.map((part, i) =>
       regex.test(part) ? <mark key={i} className="search-highlight">{part}</mark> : part
     );
+  };
+
+  // 密码找回
+  const handleSendResetCode = async () => {
+    if (!resetPwPhone || !/^1[3-9]\d{9}$/.test(resetPwPhone)) {
+      showToast('请输入正确的手机号', 'error');
+      return;
+    }
+    try {
+      await axios.post(`${API_URL}/api/user/send-reset-code`, { phone: resetPwPhone });
+      setResetPwStep(1);
+      setResetPwCountdown(60);
+      const timer = setInterval(() => {
+        setResetPwCountdown(prev => { if (prev <= 1) { clearInterval(timer); return 0; } return prev - 1; });
+      }, 1000);
+      showToast('验证码已发送', 'success');
+    } catch (err) {
+      showToast(err.response?.data?.error || '发送失败', 'error');
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPwCode || resetPwCode.length !== 6) { showToast('请输入6位验证码', 'error'); return; }
+    if (!resetPwNewPw || resetPwNewPw.length < 3) { showToast('新密码至少3位', 'error'); return; }
+    try {
+      await axios.post(`${API_URL}/api/user/reset-password`, {
+        phone: resetPwPhone, code: resetPwCode, newPassword: resetPwNewPw
+      });
+      showToast('密码重置成功，请登录', 'success');
+      setShowResetPw(false);
+      setResetPwPhone(''); setResetPwCode(''); setResetPwNewPw('');
+      setResetPwStep(0); setResetPwCountdown(0);
+      setAuthMode('login');
+    } catch (err) {
+      showToast(err.response?.data?.error || '重置失败', 'error');
+    }
   };
 
   // 群公告
