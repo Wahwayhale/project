@@ -22,6 +22,8 @@ import RoomAvatar from './components/ui/RoomAvatar';
 import EmptyState from './components/ui/EmptyState';
 import FeatureItem from './components/ui/FeatureItem';
 import MeMenuItem from './components/ui/MeMenuItem';
+import BottomTabBar from './components/BottomTabBar';
+import GameModal from './components/modals/GameModal';
 // axios 全局配置
 axios.defaults.timeout = 15000;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -815,6 +817,25 @@ function App() {
     }
     
     return { groups, letters: letters.filter(l => groups[l]?.length > 0) };
+  };
+
+  // ===== 图片查看器工具 =====
+  const openImageViewer = (url, urls) => {
+    const index = urls?.indexOf(url) || 0;
+    setImageViewer({ url, urls, index });
+  };
+  const imageViewerNav = (dir) => {
+    setImageViewer(prev => {
+      if (!prev?.urls?.length) return prev;
+      const idx = ((prev.index || 0) + dir + prev.urls.length) % prev.urls.length;
+      return { ...prev, url: prev.urls[idx], index: idx };
+    });
+  };
+  const downloadImage = (url) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = url.split('/').pop() || 'image';
+    a.click();
   };
 
   // @提及
@@ -2419,22 +2440,7 @@ function App() {
       )}
 
       {/* 小游戏弹窗 */}
-      {showGameModal && (
-        <div className="modal-overlay" onClick={() => setShowGameModal(false)}>
-          <div className="modal game-modal" onClick={e => e.stopPropagation()}>
-            <h3><I name="hand" size={20} /> 猜拳游戏</h3>
-            <p>选择你的出拳：</p>
-            <div className="game-choices">
-              <button className="choice-btn" onClick={() => { sendRockPaperScissors('石头'); setShowGameModal(false); }}>✊ 石头</button>
-              <button className="choice-btn" onClick={() => { sendRockPaperScissors('剪刀'); setShowGameModal(false); }}>✌️ 剪刀</button>
-              <button className="choice-btn" onClick={() => { sendRockPaperScissors('布'); setShowGameModal(false); }}>🖐️ 布</button>
-            </div>
-            <div className="modal-buttons">
-              <button className="cancel" onClick={() => setShowGameModal(false)}>关闭</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <GameModal showGameModal={showGameModal} setShowGameModal={setShowGameModal} sendRockPaperScissors={sendRockPaperScissors} />
 
       {/* 音乐分享弹窗 */}
       {showMusicModal && (
@@ -2512,25 +2518,7 @@ function App() {
       )}
 
       {/* 底部Tab导航 */}
-      <div className="bottom-tab-bar">
-        <button className={`bottom-tab ${bottomTab === 'chats' ? 'active' : ''}`} onClick={() => { setBottomTab('chats'); }}>
-          <span className="tab-icon"><I name="chat" size={22} /></span>
-          <span className="tab-label">聊天</span>
-        </button>
-        <button className={`bottom-tab ${bottomTab === 'contacts' ? 'active' : ''}`} onClick={() => { setBottomTab('contacts'); fetchFriendRequests(); }}>
-          <span className="tab-icon"><I name="contacts" size={22} /></span>
-          <span className="tab-label">通讯录</span>
-          {friendRequests.length > 0 && <span className="tab-badge">{friendRequests.length}</span>}
-        </button>
-        <button className={`bottom-tab ${bottomTab === 'discover' ? 'active' : ''}`} onClick={() => setBottomTab('discover')}>
-          <span className="tab-icon"><I name="discover" size={22} /></span>
-          <span className="tab-label">发现</span>
-        </button>
-        <button className={`bottom-tab ${bottomTab === 'me' ? 'active' : ''}`} onClick={() => setBottomTab('me')}>
-          <span className="tab-icon"><I name="me" size={22} /></span>
-          <span className="tab-label">我</span>
-        </button>
-      </div>
+      <BottomTabBar bottomTab={bottomTab} setBottomTab={setBottomTab} friendRequests={friendRequests} fetchFriendRequests={fetchFriendRequests} />
 
       {/* 启动闪屏 */}
       {showSplash && (
