@@ -846,6 +846,29 @@ function App() {
     }
   };
 
+  // 高亮搜索匹配文本
+  const highlightText = (text, query) => {
+    if (!query || !text) return text;
+    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    return parts.map((part, i) =>
+      regex.test(part) ? <mark key={i} className="search-highlight">{part}</mark> : part
+    );
+  };
+
+  // 群公告
+  const setAnnouncement = () => {
+    if (!currentRoomId) return;
+    const announcement = window.prompt('请输入群公告内容：');
+    if (announcement !== null) {
+      socketRef.current.emit('setAnnouncement', { roomId: currentRoomId, announcement });
+    }
+  };
+
+  const isRoomOwner = () => {
+    return currentRoom && user && currentRoom.owner === user.username;
+  };
+
   // 设置聊天背景
   const setChatBackground = (bg) => {
     setChatBackgrounds(prev => ({ ...prev, [currentRoomId]: bg }));
