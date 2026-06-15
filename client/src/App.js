@@ -25,6 +25,7 @@ import FeatureItem from './components/ui/FeatureItem';
 import MeMenuItem from './components/ui/MeMenuItem';
 import BottomTabBar from './components/BottomTabBar';
 import GameModal from './components/modals/GameModal';
+import MusicShareModal from './components/modals/MusicShareModal';
 // axios 全局配置
 axios.defaults.timeout = 15000;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -2444,28 +2445,7 @@ function App() {
       <GameModal showGameModal={showGameModal} setShowGameModal={setShowGameModal} sendRockPaperScissors={sendRockPaperScissors} />
 
       {/* 音乐分享弹窗 */}
-      {showMusicModal && (
-        <div className="modal-overlay" onClick={() => setShowMusicModal(false)}>
-          <div className="modal music-modal" onClick={e => e.stopPropagation()}>
-            <h3><I name="music" size={20} /> 分享音乐</h3>
-            <div className="form-group">
-              <label>音乐链接</label>
-              <input type="url" value={musicUrl} onChange={e => setMusicUrl(e.target.value)} placeholder="输入音乐链接" />
-            </div>
-            <div className="modal-buttons">
-              <button className="cancel" onClick={() => setShowMusicModal(false)}>取消</button>
-              <button className="confirm" onClick={() => {
-                if (musicUrl && currentRoomId) {
-                  socketRef.current.emit('sendMessage', { roomId: currentRoomId, content: musicUrl, type: 'music' });
-                  setShowMusicModal(false);
-                  setMusicUrl('');
-                  showToast('音乐已分享', 'success');
-                }
-              }}>分享</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <MusicShareModal showMusicModal={showMusicModal} setShowMusicModal={setShowMusicModal} musicUrl={musicUrl} setMusicUrl={setMusicUrl} currentRoomId={currentRoomId} socketRef={socketRef} showToast={showToast} />
 
       {/* 朋友圈 */}
       {showMoments && (
