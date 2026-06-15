@@ -10,6 +10,9 @@ import { useRooms } from './hooks/useRooms';
 import { useChat } from './hooks/useChat';
 import { useAI } from './hooks/useAI';
 import { usePanels } from './hooks/usePanels';
+import { useWallet } from './hooks/useWallet';
+import { useSocial } from './hooks/useSocial';
+import { useCall } from './hooks/useCall';
 import Toast from './components/ui/Toast';
 import { isCapacitor, SERVER_URL, API_URL, APP_VERSION, MAJOR_VERSION, WEB_BUILD, NATIVE_BUILD, CHUNK_SIZE, DEFAULT_AVATAR, EMOJIS } from './utils/constants';
 import { formatFileSize, getFileIcon, parseBilibiliUrl, formatTime, formatRecordingTime, formatMessagePreview } from './utils/format';
@@ -82,30 +85,6 @@ function App() {
   // 快捷回复
   const [quickReplies] = useState(['好的', '收到', '没问题', '稍等', '哈哈哈', '嗯嗯', '谢谢', '再见']);
   
-  // 红包
-  const [redPackets, setRedPackets] = useState({});
-  const [showRedPacketModal, setShowRedPacketModal] = useState(false);
-  const [redPacketAmount, setRedPacketAmount] = useState('');
-  const [redPacketCount, setRedPacketCount] = useState('');
-  const [redPacketMessage, setRedPacketMessage] = useState('恭喜发财，大吉大利');
-  
-  // 投票
-  const [polls, setPolls] = useState({});
-  const [showPollModal, setShowPollModal] = useState(false);
-  const [pollQuestion, setPollQuestion] = useState('');
-  const [pollOptions, setPollOptions] = useState(['', '']);
-  
-  // 小游戏
-  const [gameResult, setGameResult] = useState(null);
-  const [showGameModal, setShowGameModal] = useState(false);
-  
-  // 朋友圈
-  const [moments, setMoments] = useState([]);
-  const [showMoments, setShowMoments] = useState(false);
-  const [newMoment, setNewMoment] = useState('');
-  
-  // 数据统计
-  const [messageStats, setMessageStats] = useState({ totalMessages: 0, todayMessages: 0, activeUsers: 0 });
   
   
   // 聊天记录导出
@@ -162,11 +141,6 @@ function App() {
   // ===== 新功能状态 =====
   // 图片查看器
   const [imageViewer, setImageViewer] = useState(null); // { url, urls[] } or null
-  // 群接龙
-  const [showSolitaireModal, setShowSolitaireModal] = useState(false);
-  const [solitaireTitle, setSolitaireTitle] = useState('');
-  const [solitaireFormat, setSolitaireFormat] = useState('');
-  const [showSolitaireJoin, setShowSolitaireJoin] = useState(null); // solitaireId or null
   // 密码找回
   const [showResetPw, setShowResetPw] = useState(false);
   const [resetPwPhone, setResetPwPhone] = useState('');
@@ -175,30 +149,6 @@ function App() {
   const [resetPwStep, setResetPwStep] = useState(0); // 0=phone, 1=code, 2=newPw
   const [resetPwCountdown, setResetPwCountdown] = useState(0);
   // ===== 第2代新功能 =====
-  const [callState, setCallState] = useState(null); // { type, roomId, peerId, localStream, remoteStream, status }
-  const peerRef = useRef(null);
-  const localVideoRef = useRef(null);
-  // 位置共享
-  const [sharedLocations, setSharedLocations] = useState({});
-  const [isSharingLocation, setIsSharingLocation] = useState(false);
-  const locationWatchId = useRef(null);
-  // 打卡
-  const [checkInData, setCheckInData] = useState(null);
-  const [showCheckIn, setShowCheckIn] = useState(false);
-  const [checkInNote, setCheckInNote] = useState('');
-  const checkInNoteRef = useRef(null);
-  // 增强投票
-  const [pollAnonymous, setPollAnonymous] = useState(false);
-  const [pollDeadline, setPollDeadline] = useState('');
-  const [pollOptionImages, setPollOptionImages] = useState({});
-  // Wrapped
-  const [showWrapped, setShowWrapped] = useState(false);
-  const [wrappedData, setWrappedData] = useState(null);
-  const [wrappedLoading, setWrappedLoading] = useState(false);
-  // Bot
-  const [showBotModal, setShowBotModal] = useState(false);
-  const [bots, setBots] = useState([]);
-  const [botForm, setBotForm] = useState({ name: '', prompt: '', autoReply: false, scheduleCron: '', scheduleMsg: '' });
 
   // 闪屏自动消失
   useEffect(() => {
@@ -209,14 +159,6 @@ function App() {
   // 消息搜索
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [showRechargeModal, setShowRechargeModal] = useState(false);
-  const [rechargeAmount, setRechargeAmount] = useState('');
-  const [rechargePayCode, setRechargePayCode] = useState(null);
-  const [rechargeHistory, setRechargeHistory] = useState([]);
-  const [showAdminModal, setShowAdminModal] = useState(false);
-  const [pendingRecharges, setPendingRecharges] = useState([]);
-  const [adminDashboard, setAdminDashboard] = useState(null);
-  const [adminDashboardLoading, setAdminDashboardLoading] = useState(false);
   const [showRoomManage, setShowRoomManage] = useState(false);
 
   // ===== Socket 连接与在线用户 =====
@@ -466,6 +408,107 @@ function App() {
     socketRef,
   });
 
+  // ===== 钱包与红包 =====
+  const {
+    showRechargeModal, setShowRechargeModal,
+    rechargeAmount, setRechargeAmount,
+    rechargePayCode, setRechargePayCode,
+    rechargeHistory, setRechargeHistory,
+    showAdminModal, setShowAdminModal,
+    pendingRecharges, setPendingRecharges,
+    adminDashboard, setAdminDashboard,
+    adminDashboardLoading, setAdminDashboardLoading,
+    redPackets, setRedPackets,
+    showRedPacketModal, setShowRedPacketModal,
+    redPacketAmount, setRedPacketAmount,
+    redPacketCount, setRedPacketCount,
+    redPacketMessage, setRedPacketMessage,
+    fetchBalance,
+    requestRecharge,
+    fetchRechargeHistory,
+    fetchPendingRecharges,
+    confirmRecharge,
+    rejectRecharge,
+    fetchAdminDashboard,
+    openAdminCenter,
+    sendRedPacket,
+    generateRedPacketDistribution,
+    claimRedPacket,
+  } = useWallet({
+    token,
+    user,
+    showToast,
+    balance,
+    setBalance,
+    currentRoomId,
+    socketRef,
+    fetchAiStatus,
+  });
+
+  // ===== 社交功能 =====
+  const {
+    moments, setMoments,
+    showMoments, setShowMoments,
+    newMoment, setNewMoment,
+    polls, setPolls,
+    showPollModal, setShowPollModal,
+    pollQuestion, setPollQuestion,
+    pollOptions, setPollOptions,
+    pollAnonymous, setPollAnonymous,
+    pollDeadline, setPollDeadline,
+    pollOptionImages, setPollOptionImages,
+    showSolitaireModal, setShowSolitaireModal,
+    solitaireTitle, setSolitaireTitle,
+    solitaireFormat, setSolitaireFormat,
+    showSolitaireJoin, setShowSolitaireJoin,
+    checkInData, setCheckInData,
+    showCheckIn, setShowCheckIn,
+    checkInNote, setCheckInNote,
+    checkInNoteRef,
+    gameResult, setGameResult,
+    showGameModal, setShowGameModal,
+    showBotModal, setShowBotModal,
+    bots, setBots,
+    botForm, setBotForm,
+    showWrapped, setShowWrapped,
+    wrappedData, setWrappedData,
+    wrappedLoading, setWrappedLoading,
+    messageStats, setMessageStats,
+    publishMoment, likeMoment, commentMoment,
+    createPoll, votePoll, addPollOption, removePollOption, updatePollOption,
+    createEnhancedPoll,
+    createSolitaire, joinSolitaire,
+    doCheckIn, fetchCheckIns,
+    fetchWrapped,
+    fetchBots, createBot, deleteBot,
+    exportChat, fetchStats,
+  } = useSocial({
+    token,
+    showToast,
+    currentRoomId,
+    socketRef,
+    setExportingChat,
+  });
+
+  // ===== 通话与位置 =====
+  const {
+    callState, setCallState,
+    localVideoRef,
+    sharedLocations, setSharedLocations,
+    isSharingLocation, setIsSharingLocation,
+    locationWatchId,
+    startCall, acceptCall, hangUp, toggleMute,
+    startSharingLocation, stopSharingLocation,
+    openLocationMap,
+  } = useCall({
+    showToast,
+    currentRoomId,
+    socketRef,
+    user,
+    allUsers,
+    peerRef,
+  });
+
   const avatarInputRef = useRef(null);
 
   useEffect(() => {
@@ -672,28 +715,6 @@ function App() {
     setCodeCountdown(0);
   };
 
-  const fetchAdminDashboard = async () => {
-    if (user?.username !== 'admin') return;
-    setAdminDashboardLoading(true);
-    try {
-      const response = await axios.get(`${API_URL}/api/admin/dashboard`, {
-        headers: { Authorization: token }
-      });
-      setAdminDashboard(response.data);
-    } catch (err) {
-      showToast(err.response?.data?.error || '管理概览获取失败', 'error');
-    } finally {
-      setAdminDashboardLoading(false);
-    }
-  };
-
-  const openAdminCenter = () => {
-    setShowAdminModal(true);
-    fetchPendingRecharges();
-    fetchAiStatus();
-    fetchAdminDashboard();
-  };
-
   const changeTheme = (preset) => {
     setThemePreset(preset);
     localStorage.setItem('themePreset', preset);
@@ -764,530 +785,6 @@ function App() {
     } catch (err) {
       showToast('更新失败', 'error');
     }
-  };
-
-  // 获取余额
-  const fetchBalance = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/api/user/balance`, {
-        headers: { Authorization: token }
-      });
-      setBalance(response.data.balance);
-    } catch (err) {
-      console.error('获取余额失败:', err);
-    }
-  };
-
-  // 充值请求
-  const requestRecharge = async () => {
-    if (!rechargeAmount || parseFloat(rechargeAmount) < 1) {
-      showToast('充值金额至少1元', 'error');
-      return;
-    }
-    try {
-      const response = await axios.post(`${API_URL}/api/recharge/request`, 
-        { amount: parseFloat(rechargeAmount) },
-        { headers: { Authorization: token } }
-      );
-      setRechargePayCode(response.data);
-      fetchRechargeHistory();
-    } catch (err) {
-      alert(err.response?.data?.error || '充值请求失败');
-    }
-  };
-
-  // 获取充值记录
-  const fetchRechargeHistory = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/api/recharge/history`, {
-        headers: { Authorization: token }
-      });
-      setRechargeHistory(response.data);
-    } catch (err) {
-      console.error('获取充值记录失败:', err);
-    }
-  };
-
-  // 管理员：获取待确认充值
-  const fetchPendingRecharges = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/api/admin/recharges/pending`, {
-        headers: { Authorization: token }
-      });
-      setPendingRecharges(response.data);
-    } catch (err) {
-      if (err.response?.status === 403) {
-        showToast('需要管理员权限', 'error');
-      } else {
-        alert(err.response?.data?.error || '获取待确认充值失败');
-      }
-    }
-  };
-
-  // 管理员：确认充值
-  const confirmRecharge = async (rechargeId) => {
-    try {
-      await axios.post(`${API_URL}/api/admin/recharge/confirm`, 
-        { rechargeId },
-        { headers: { Authorization: token } }
-      );
-      fetchPendingRecharges();
-      showToast('充值已确认', 'success');
-    } catch (err) {
-      alert(err.response?.data?.error || '确认失败');
-    }
-  };
-
-  // 管理员：拒绝充值
-  const rejectRecharge = async (rechargeId) => {
-    try {
-      await axios.post(`${API_URL}/api/admin/recharge/reject`, 
-        { rechargeId },
-        { headers: { Authorization: token } }
-      );
-      fetchPendingRecharges();
-      showToast('已拒绝', 'info');
-    } catch (err) {
-      alert(err.response?.data?.error || '拒绝失败');
-    }
-  };
-
-  const uploadAvatar = async (file) => {
-    const formData = new FormData();
-    formData.append('avatar', file);
-    try {
-      const response = await axios.post(`${API_URL}/api/upload/avatar`, formData, {
-        headers: {
-          Authorization: token,
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-      // 存储相对路径，渲染时由 getAvatarUrl 自动补全
-      const avatarPath = response.data.avatar;
-      const newAvatar = avatarPath.startsWith('http') ? avatarPath : avatarPath;
-      setUser(prev => ({ ...prev, avatar: newAvatar }));
-      await axios.put(`${API_URL}/api/profile`, { avatar: newAvatar }, {
-        headers: { Authorization: token }
-      });
-    } catch (err) {
-      showToast('上传头像失败', 'error');
-    }
-  };
-
-  // 高亮搜索匹配文本
-  const highlightText = (text, query) => {
-    if (!query || !text) return text;
-    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-    const parts = text.split(regex);
-    return parts.map((part, i) => 
-      regex.test(part) ? <mark key={i} className="search-highlight">{part}</mark> : part
-    );
-  };
-
-  // 发送红包
-  const sendRedPacket = () => {
-    if (!redPacketAmount || !redPacketCount || !currentRoomId) return;
-    const amount = parseFloat(redPacketAmount);
-    const count = parseInt(redPacketCount);
-    
-    // 检查余额
-    if (balance < amount) {
-      showToast(`余额不足，当前余额：¥${(balance || 0).toFixed(2)}，需要：¥${amount.toFixed(2)}`, 'error');
-      return;
-    }
-    
-    // 验证红包规则
-    if (amount < 1) {
-      showToast('红包金额最少为1元', 'error');
-      return;
-    }
-    if (count < 1 || count > 100) {
-      showToast('红包个数必须在1-100之间', 'error');
-      return;
-    }
-    if (amount / count < 0.01) {
-      showToast('每个红包金额不能低于0.01元', 'error');
-      return;
-    }
-    
-    // 生成随机分配
-    const distribution = generateRedPacketDistribution(amount, count);
-    
-    socketRef.current.emit('sendRedPacket', {
-      roomId: currentRoomId,
-      amount,
-      count,
-      message: redPacketMessage,
-      distribution
-    });
-    setShowRedPacketModal(false);
-    setRedPacketAmount('');
-    setRedPacketCount('');
-    setRedPacketMessage('恭喜发财，大吉大利');
-    showToast('红包已发送', 'success');
-  };
-
-  // 生成红包随机分配
-  const generateRedPacketDistribution = (totalAmount, totalCount) => {
-    const distribution = [];
-    let remaining = totalAmount;
-    
-    for (let i = 0; i < totalCount - 1; i++) {
-      // 确保剩余每人至少0.01元
-      const maxPossible = remaining - (totalCount - i - 1) * 0.01;
-      const minPossible = 0.01;
-      const amount = minPossible + Math.random() * (maxPossible - minPossible);
-      distribution.push(parseFloat(amount.toFixed(2)));
-      remaining -= amount;
-    }
-    
-    // 最后一个红包拿剩余金额
-    distribution.push(parseFloat(remaining.toFixed(2)));
-    
-    // 打乱顺序
-    for (let i = distribution.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [distribution[i], distribution[j]] = [distribution[j], distribution[i]];
-    }
-    
-    return distribution;
-  };
-
-  // 抢红包
-  const claimRedPacket = (packetId) => {
-    socketRef.current.emit('claimRedPacket', { roomId: currentRoomId, packetId });
-  };
-
-  // 创建投票
-  const createPoll = () => {
-    if (!pollQuestion || pollOptions.filter(o => o.trim()).length < 2 || !currentRoomId) return;
-    socketRef.current.emit('createPoll', {
-      roomId: currentRoomId,
-      question: pollQuestion,
-      options: pollOptions.filter(o => o.trim())
-    });
-    setShowPollModal(false);
-    setPollQuestion('');
-    setPollOptions(['', '']);
-    showToast('投票已创建', 'success');
-  };
-
-  // 投票
-  const votePoll = (pollId, optionIndex) => {
-    socketRef.current.emit('votePoll', { roomId: currentRoomId, pollId, optionIndex });
-  };
-
-  // 添加投票选项
-  const addPollOption = () => setPollOptions(prev => [...prev, '']);
-  const removePollOption = (index) => setPollOptions(prev => prev.filter((_, i) => i !== index));
-  const updatePollOption = (index, value) => {
-    setPollOptions(prev => prev.map((opt, i) => i === index ? value : opt));
-  };
-
-  // 发送骰子
-
-  // 发送猜拳
-
-  // 设置群公告
-  const setAnnouncement = () => {
-    if (!currentRoomId) return;
-    const announcement = prompt('请输入群公告内容：');
-    if (announcement !== null) {
-      socketRef.current.emit('setAnnouncement', { roomId: currentRoomId, announcement });
-    }
-  };
-
-  const isRoomOwner = () => currentRoom?.owner === user?.username || user?.username === 'admin';
-
-  const muteRoomMember = (username) => {
-    if (!currentRoomId || !username) return;
-    socketRef.current.emit('muteMember', { roomId: currentRoomId, username });
-    showToast(`已禁言 ${username}`, 'info');
-  };
-
-  const unmuteRoomMember = (username) => {
-    if (!currentRoomId || !username) return;
-    socketRef.current.emit('unmuteMember', { roomId: currentRoomId, username });
-    showToast(`已解除 ${username} 的禁言`, 'success');
-  };
-
-  const kickRoomMember = (username) => {
-    if (!currentRoomId || !username || username === user?.username) return;
-    if (!window.confirm(`确定将 ${username} 移出群聊吗？`)) return;
-    socketRef.current.emit('kickMember', { roomId: currentRoomId, username });
-  };
-
-  // 发布朋友圈
-  const publishMoment = () => {
-    if (!newMoment.trim()) return;
-    socketRef.current.emit('publishMoment', { content: newMoment.trim() });
-    setNewMoment('');
-    setShowMoments(false);
-    showToast('动态已发布', 'success');
-  };
-
-  // 点赞朋友圈
-  const likeMoment = (momentId) => {
-    socketRef.current.emit('likeMoment', { momentId });
-  };
-
-  // 评论朋友圈
-  const commentMoment = (momentId) => {
-    const content = prompt('请输入评论内容：');
-    if (content) {
-      socketRef.current.emit('commentMoment', { momentId, content });
-    }
-  };
-
-  // 导出聊天记录
-  const exportChat = () => {
-    if (!currentRoomId) return;
-    setExportingChat(true);
-    socketRef.current.emit('exportChat', { roomId: currentRoomId });
-  };
-
-  // 获取统计
-  const fetchStats = () => {
-    socketRef.current.emit('getStats');
-  };
-
-  // 插入快捷回复
-
-  // 打开图片查看器
-  const openImageViewer = (url, allUrls) => {
-    setImageViewer({ url, urls: allUrls || [url], index: allUrls ? allUrls.indexOf(url) : 0 });
-  };
-
-  // 图片查看器导航
-  const imageViewerNav = (dir) => {
-    if (!imageViewer?.urls) return;
-    const len = imageViewer.urls.length;
-    const newIdx = ((imageViewer.index || 0) + dir + len) % len;
-    setImageViewer(prev => ({ ...prev, url: prev.urls[newIdx], index: newIdx }));
-  };
-
-  // 下载图片
-  const downloadImage = (url) => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = url.split('/').pop() || 'image';
-    a.click();
-  };
-
-  // 消息反应
-
-  // 打开反应选择器
-
-  // 密码找回流程
-  const handleSendResetCode = async () => {
-    if (!resetPwPhone || !/^1[3-9]\d{9}$/.test(resetPwPhone)) {
-      showToast('请输入正确的手机号', 'error');
-      return;
-    }
-    try {
-      await axios.post(`${API_URL}/api/user/send-reset-code`, { phone: resetPwPhone });
-      setResetPwStep(1);
-      setResetPwCountdown(60);
-      const timer = setInterval(() => {
-        setResetPwCountdown(prev => { if (prev <= 1) { clearInterval(timer); return 0; } return prev - 1; });
-      }, 1000);
-      showToast('验证码已发送', 'success');
-    } catch (err) {
-      showToast(err.response?.data?.error || '发送失败', 'error');
-    }
-  };
-
-  const handleResetPassword = async () => {
-    if (!resetPwCode || resetPwCode.length !== 6) { showToast('请输入6位验证码', 'error'); return; }
-    if (!resetPwNewPw || resetPwNewPw.length < 3) { showToast('新密码至少3位', 'error'); return; }
-    try {
-      await axios.post(`${API_URL}/api/user/reset-password`, {
-        phone: resetPwPhone, code: resetPwCode, newPassword: resetPwNewPw
-      });
-      showToast('密码重置成功，请登录', 'success');
-      // 重置表单并返回登录
-      setShowResetPw(false);
-      setResetPwPhone(''); setResetPwCode(''); setResetPwNewPw('');
-      setResetPwStep(0); setResetPwCountdown(0);
-      setAuthMode('login');
-    } catch (err) {
-      showToast(err.response?.data?.error || '重置失败', 'error');
-    }
-  };
-
-  // 群接龙
-  const createSolitaire = () => {
-    if (!solitaireTitle.trim() || !currentRoomId) return;
-    socketRef.current.emit('createSolitaire', {
-      roomId: currentRoomId,
-      title: solitaireTitle.trim(),
-      format: solitaireFormat.trim() || '{序号}. {内容}'
-    });
-    setShowSolitaireModal(false);
-    setSolitaireTitle('');
-    setSolitaireFormat('');
-    showToast('接龙已发起', 'success');
-  };
-
-  const joinSolitaire = (solitaireId, content) => {
-    if (!currentRoomId || !content) return;
-    socketRef.current.emit('joinSolitaire', { roomId: currentRoomId, solitaireId, content });
-    setShowSolitaireJoin(null);
-    showToast('已参与接龙', 'success');
-  };
-
-  // 获取未读计数
-  useEffect(() => {
-    if (socketRef.current?.connected && isAuthenticated) {
-      socketRef.current.emit('getUnreadCounts');
-      const interval = setInterval(() => {
-        socketRef.current?.emit('getUnreadCounts');
-      }, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [isAuthenticated]);
-
-  // ===== WebRTC 通话 =====
-  const startCall = async (targetUserId, callType) => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: true });
-      setCallState({ type: callType, status: 'calling', localStream: stream, remoteStream: null, peerId: targetUserId, roomId: currentRoomId });
-      // Create peer connection
-      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-      stream.getTracks().forEach(t => pc.addTrack(t, stream));
-      pc.onicecandidate = (e) => { if (e.candidate) socketRef.current.emit('iceCandidate', { toUserId: targetUserId, candidate: e.candidate }); };
-      pc.ontrack = (e) => { setCallState(prev => prev ? { ...prev, remoteStream: e.streams[0] } : null); };
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      pc.onconnectionstatechange = () => { if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') hangUp(); };
-      peerRef.current = pc;
-      socketRef.current.emit('callUser', { toUserId: targetUserId, roomId: currentRoomId, signal: offer, callType });
-    } catch (err) { showToast('无法访问摄像头/麦克风', 'error'); }
-  };
-
-  const acceptCall = async () => {
-    if (!callState) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: callState.type === 'video', audio: true });
-      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-      stream.getTracks().forEach(t => pc.addTrack(t, stream));
-      pc.onicecandidate = (e) => { if (e.candidate) socketRef.current.emit('iceCandidate', { toUserId: callState.peerId, candidate: e.candidate }); };
-      pc.ontrack = (e) => { setCallState(prev => prev ? { ...prev, remoteStream: e.streams[0], status: 'connected' } : null); };
-      await pc.setRemoteDescription(new RTCSessionDescription(callState.signal));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      socketRef.current.emit('answerCall', { toUserId: callState.peerId, signal: answer });
-      pc.onconnectionstatechange = () => { if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') hangUp(); };
-      peerRef.current = pc;
-      setCallState(prev => prev ? { ...prev, localStream: stream, remoteStream: null, status: 'connecting' } : null);
-    } catch (err) { showToast('无法访问摄像头/麦克风', 'error'); }
-  };
-
-  const hangUp = () => {
-    try {
-      if (peerRef.current) { peerRef.current.close(); peerRef.current = null; }
-    } catch(e) {}
-    if (callState?.localStream) {
-      try { callState.localStream.getTracks().forEach(t => t.stop()); } catch(e) {}
-    }
-    if (callState?.peerId && socketRef.current) {
-      socketRef.current.emit('hangUp', { toUserId: callState.peerId });
-    }
-    setCallState(null);
-  };
-
-  const toggleMute = () => {
-    if (!callState?.localStream) return;
-    try {
-      callState.localStream.getAudioTracks().forEach(t => t.enabled = !t.enabled);
-      setCallState(prev => prev ? { ...prev, muted: !prev.muted } : null);
-    } catch(e) {}
-  };
-
-  // ===== 位置共享 =====
-  const startSharingLocation = () => {
-    if (!currentRoomId) return;
-    if (navigator.geolocation) {
-      locationWatchId.current = navigator.geolocation.watchPosition(
-        (pos) => {
-          const { latitude, longitude } = pos.coords;
-          socketRef.current.emit('shareLocation', { roomId: currentRoomId, lat: latitude, lng: longitude });
-          setSharedLocations(prev => ({ ...prev, [user?.id]: { lat: latitude, lng: longitude, username: user?.username } }));
-        },
-        (err) => showToast('获取位置失败: ' + err.message, 'error'),
-        { enableHighAccuracy: true, maximumAge: 5000 }
-      );
-      setIsSharingLocation(true);
-      showToast('开始共享位置', 'success');
-    } else { showToast('浏览器不支持定位', 'error'); }
-  };
-
-  const stopSharingLocation = () => {
-    if (locationWatchId.current) { navigator.geolocation.clearWatch(locationWatchId.current); locationWatchId.current = null; }
-    socketRef.current.emit('stopSharingLocation', { roomId: currentRoomId });
-    setIsSharingLocation(false);
-    setSharedLocations({});
-    showToast('已停止位置共享', 'info');
-  };
-
-  const openLocationMap = (lat, lng) => {
-    window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
-  };
-
-  // ===== 打卡 =====
-  const doCheckIn = (note) => {
-    if (!currentRoomId) return;
-    socketRef.current.emit('checkIn', { roomId: currentRoomId, note });
-  };
-
-  const fetchCheckIns = () => {
-    if (!currentRoomId) return;
-    socketRef.current.emit('getCheckIns', { roomId: currentRoomId });
-  };
-
-  // ===== Wrapped =====
-  const fetchWrapped = async () => {
-    setWrappedLoading(true);
-    try {
-      const res = await axios.get(`${API_URL}/api/stats/yearly`, { headers: { Authorization: token } });
-      setWrappedData(res.data);
-      setShowWrapped(true);
-    } catch (err) { showToast('获取统计失败', 'error'); }
-    finally { setWrappedLoading(false); }
-  };
-
-  // ===== Bot =====
-  const fetchBots = async () => {
-    try {
-      const res = await axios.get(`${API_URL}/api/bots`, { headers: { Authorization: token } });
-      setBots(res.data);
-    } catch (err) { /* ignore */ }
-  };
-
-  const createBot = async () => {
-    if (!botForm.name.trim()) { showToast('请输入机器人名称', 'error'); return; }
-    try {
-      const schedule = botForm.scheduleCron ? { cron: botForm.scheduleCron, message: botForm.scheduleMsg || '定时消息' } : null;
-      await axios.post(`${API_URL}/api/bots`, { ...botForm, schedule }, { headers: { Authorization: token } });
-      setShowBotModal(false); setBotForm({ name: '', prompt: '', autoReply: false, scheduleCron: '', scheduleMsg: '' });
-      fetchBots(); showToast('机器人已创建', 'success');
-    } catch (err) { showToast(err.response?.data?.error || '创建失败', 'error'); }
-  };
-
-  const deleteBot = async (botId) => {
-    try {
-      await axios.delete(`${API_URL}/api/bots/${botId}`, { headers: { Authorization: token } });
-      fetchBots(); showToast('机器人已删除', 'success');
-    } catch (err) { showToast('删除失败', 'error'); }
-  };
-
-  // ===== 增强投票 =====
-  const createEnhancedPoll = () => {
-    if (!pollQuestion || pollOptions.filter(o => o.trim()).length < 2 || !currentRoomId) return;
-    const opts = pollOptions.filter(o => o.trim()).map((text, i) => ({ text, image: pollOptionImages[i] || null }));
-    socketRef.current.emit('createPollEnhanced', { roomId: currentRoomId, question: pollQuestion, options: opts, anonymous: pollAnonymous, deadline: pollDeadline || null });
-    setShowPollModal(false); setPollQuestion(''); setPollOptions(['', '']); setPollAnonymous(false); setPollDeadline(''); setPollOptionImages({});
-    showToast('投票已创建', 'success');
   };
 
   // 设置聊天背景
