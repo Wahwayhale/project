@@ -4,6 +4,7 @@ import axios from 'axios';
 import { I } from './components/Icon';
 import { isCapacitor, SERVER_URL, API_URL, APP_VERSION, MAJOR_VERSION, WEB_BUILD, NATIVE_BUILD, CHUNK_SIZE, DEFAULT_AVATAR, EMOJIS } from './utils/constants';
 import { formatFileSize, getFileIcon, parseBilibiliUrl, formatTime, formatRecordingTime, formatMessagePreview } from './utils/format';
+import { getAvatarUrl } from './utils/avatar';
 // axios 全局配置
 axios.defaults.timeout = 15000;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -42,14 +43,6 @@ axios.interceptors.response.use(null, async (err) => {
   return Promise.reject(err);
 });
 console.log('[APP] Capacitor:', isCapacitor, 'API_URL:', API_URL || '(relative)');
-
-// 修复头像 URL：补全地址 + 兜底默认头像
-function getAvatarUrl(avatar) {
-  if (!avatar) return DEFAULT_AVATAR;
-  if (avatar.startsWith('http://') || avatar.startsWith('https://')) return avatar;
-  if (avatar.startsWith('/')) return `${API_URL}${avatar}`;
-  return avatar;
-}
 
 // AvatarImg 组件：在 App 环境中通过 axios 加载图片，绕过 ngrok 安全提示页
 function AvatarImg({ src, alt, className, style }) {
