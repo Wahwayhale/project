@@ -1,0 +1,100 @@
+{
+  "123": {
+    "id": "18cb273d-061d-448a-bbde-f8e71d10a219",
+    "username": "123",
+    "password": "$2a$10$OUa0FYMVHkuW.pU8Jv9FAOPw.kXW3qsD7k0IktQSL5kdrxq8J.lnm",
+    "sixDigitId": "233708",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=123",
+    "bio": "",
+    "createdAt": "2026-06-08T08:15:57.695Z",
+    "balance": 0.01
+  },
+  "admin": {
+    "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+    "username": "admin",
+    "password": "$2a$10$y4hEtLMH98VqqIwAB0ji/OVkQOGWueFnkiggq1MCD/WzBdQOdecUK",
+    "sixDigitId": "427669",
+    "avatar": "/uploads/1781062402249-95efde10-8b03-4353-8a15-95b7b9d2184b.jpg",
+    "bio": "",
+    "createdAt": "2026-06-03T01:09:50.993Z",
+    "phone": "19512240964",
+    "phoneBoundAt": "2026-06-06T05:58:30.909Z",
+    "balance": null,
+    "payCode": ""
+  },
+  "马": {
+    "id": "d445102e-cc18-41ec-9325-939f1d274f71",
+    "username": "马",
+    "password": "$2a$10$yiVl8ycetKhVSxLQyDNo4O61thrE9U3S/NQ/TAs5zMwTiEvYEg45.",
+    "sixDigitId": "815952",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=马",
+    "bio": "",
+    "createdAt": "2026-06-03T01:58:26.644Z",
+    "balance": null
+  },
+  "www.com": {
+    "id": "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+    "username": "www.com",
+    "password": "$2a$10$MZU7445zV1h4otZfatskEeWkNWffDPPQ/QhYaMZZekzFQlQNWgx56",
+    "sixDigitId": "285184",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=www.com",
+    "bio": "www.com",
+    "createdAt": "2026-06-03T02:01:00.184Z",
+    "balance": 1e+27
+  },
+  "gyyz": {
+    "id": "3947c8bb-9325-43b2-b196-4fd25f90fb67",
+    "username": "gyyz",
+    "password": "$2a$10$PdtPehdR8N/VHqaY9VTi2u1kxbPmkV/Bz4YkHj6KFfcSlLAhS7LBi",
+    "sixDigitId": "308909",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=gyyz",
+    "bio": "",
+    "createdAt": "2026-06-03T02:03:20.915Z"
+  },
+  "ycx": {
+    "id": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+    "username": "ycx",
+    "password": "$2a$10$uC8u.HJS6CU13KNF9W6FteztmLSSiXk5MfHKyeDDCBeKNSJgjjdKq",
+    "sixDigitId": "445610",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ycx",
+    "bio": "",
+    "createdAt": "2026-06-03T02:49:13.925Z",
+    "balance": null
+  },
+  "aitest": {
+    "id": "8102beab-9005-4871-b07e-491a60d9eff4",
+    "username": "aitest",
+    "password": "$2a$10$dnQEf4tEf4oVRVFmUscn3Ow8Axwsq8rExN.QLFZfqx/ziw6.vUvnK",
+    "sixDigitId": "985536",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=aitest",
+    "bio": "",
+    "createdAt": "2026-06-03T03:13:06.873Z"
+  },
+  "aitest2": {
+    "id": "54b7974b-9883-48aa-94c0-f338a9da1f1b",
+    "username": "aitest2",
+    "password": "$2a$10$8MjoSpnX8QtyVMndvuc8FuhNp7jOKQfB77VJHpHVa566rPRUyxsWu",
+    "sixDigitId": "675772",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=aitest2",
+    "bio": "",
+    "createdAt": "2026-06-03T03:13:26.277Z"
+  },
+  "。。。": {
+    "id": "953a942d-c9ca-4d96-8c5d-a7ea3edd0a24",
+    "username": "。。。",
+    "password": "$2a$10$On8r7CwK931CVgDHBpKXi.5ShaITMUlnJ7S9bBoZn4SHc/exuT7A2",
+    "sixDigitId": "654781",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=。。。",
+    "bio": "",
+    "createdAt": "2026-06-04T01:12:23.651Z"
+  },
+  "🐴": {
+    "id": "02e80f93-d30e-4fb7-94fb-ab4298ee02b3",
+    "username": "🐴",
+    "password": "$2a$10$cMrUkI9zxuzOCbJ1tklEtu9IX13NLPzq7d1MJx2efPDmCJutrSZQK",
+    "sixDigitId": "967402",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=🐴",
+    "bio": "",
+    "createdAt": "2026-06-08T12:03:54.437Z"
+  }
+}

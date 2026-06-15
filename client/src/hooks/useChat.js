@@ -23,11 +23,8 @@ const REACTION_EMOJIS = ['👍','❤️','😂','😮','😢','😡','🎉','�
  * @param {function} params.setPinnedMessages         — 设置置顶消息
  * @param {string} params.searchQuery                 — 当前搜索关键词
  */
-export function useChat({ socketRef, user, currentRoomId, currentRoom, showToast, token, allUsers, setPinnedMessages, searchQuery }) {
-  // ===== 消息状态 =====
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [messagesLoading, setMessagesLoading] = useState(false);
+export function useChat({ socketRef, user, currentRoomId, currentRoom, showToast, token, allUsers, setPinnedMessages, searchQuery, setMessages, setNewMessage, setMessagesLoading, setUploadProgress, messages, newMessage, uploadProgress, messageEndRef, setMessageEndRef, messagesContainerRef, messagesLoading }) {
+  // ===== 消息状态 (由 App.js 管理，通过参数传入) =====
 
   // 消息编辑
   const [editingMessage, setEditingMessage] = useState(null);
@@ -36,9 +33,7 @@ export function useChat({ socketRef, user, currentRoomId, currentRoom, showToast
   // 消息引用回复
   const [replyToMessage, setReplyToMessage] = useState(null);
 
-  // 消息列表滚动
-  const [messageEndRef, setMessageEndRef] = useState(null);
-  const messagesContainerRef = useRef(null);
+  // 消息列表滚动 (messageEndRef, messagesContainerRef 由 App.js 传入)
 
   // 表情面板
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -65,8 +60,7 @@ export function useChat({ socketRef, user, currentRoomId, currentRoom, showToast
   const [forwardMsg, setForwardMsg] = useState(null);
   const [showForwardModal, setShowForwardModal] = useState(false);
 
-  // 文件上传
-  const [uploadProgress, setUploadProgress] = useState(null);
+  // 文件上传 (uploadProgress 由 App.js 传入)
   const fileInputRef = useRef(null);
 
   // 输入中计时器
@@ -411,14 +405,9 @@ export function useChat({ socketRef, user, currentRoomId, currentRoom, showToast
 
   // ===== 返回值 =====
   return {
-    // 状态
-    messages, setMessages,
-    newMessage, setNewMessage,
-    messagesLoading, setMessagesLoading,
+    // 状态 (messages/newMessage/uploadProgress/messagesLoading 由 App.js 管理)
     editingMessage, editText,
     replyToMessage,
-    messageEndRef, setMessageEndRef,
-    messagesContainerRef,
     showEmojiPicker, setShowEmojiPicker,
     showMentionPicker, setShowMentionPicker,
     mentionFilter, setMentionFilter,
@@ -429,7 +418,6 @@ export function useChat({ socketRef, user, currentRoomId, currentRoom, showToast
     recalledMessages, setRecalledMessages,
     reactionPicker, setReactionPicker,
     forwardMsg, showForwardModal,
-    uploadProgress, setUploadProgress,
     fileInputRef,
     // 函数
     sendMessage,

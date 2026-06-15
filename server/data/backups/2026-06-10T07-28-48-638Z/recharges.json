@@ -1,0 +1,68 @@
+{
+  "24af1316-087c-448d-81d0-c05d8446a02a": {
+    "id": "24af1316-087c-448d-81d0-c05d8446a02a",
+    "userId": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+    "username": "admin",
+    "amount": 1,
+    "status": "rejected",
+    "createdAt": "2026-06-03T09:20:30.231Z",
+    "confirmedAt": "2026-06-08T07:26:24.530Z",
+    "rejectReason": "管理员拒绝"
+  },
+  "fa578d88-5b7e-43bb-ab8f-194bbd23a2d8": {
+    "id": "fa578d88-5b7e-43bb-ab8f-194bbd23a2d8",
+    "userId": "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
+    "username": "ycx",
+    "amount": 666666,
+    "status": "rejected",
+    "createdAt": "2026-06-06T02:52:46.493Z",
+    "confirmedAt": "2026-06-08T07:26:27.509Z",
+    "rejectReason": "管理员拒绝"
+  },
+  "d7a75a72-6684-4a87-bd7e-d377d052e368": {
+    "id": "d7a75a72-6684-4a87-bd7e-d377d052e368",
+    "userId": "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+    "username": "www.com",
+    "amount": 1e+27,
+    "status": "confirmed",
+    "createdAt": "2026-06-08T07:34:13.705Z",
+    "confirmedAt": "2026-06-08T07:34:55.912Z"
+  },
+  "464fad12-cc2a-45d9-bc17-480cbe843e57": {
+    "id": "464fad12-cc2a-45d9-bc17-480cbe843e57",
+    "userId": "d445102e-cc18-41ec-9325-939f1d274f71",
+    "username": "马",
+    "amount": 1000000,
+    "status": "rejected",
+    "createdAt": "2026-06-08T07:34:40.307Z",
+    "confirmedAt": "2026-06-08T07:35:12.271Z",
+    "rejectReason": "管理员拒绝"
+  },
+  "0202826e-f373-483c-904d-6bbcedda0a20": {
+    "id": "0202826e-f373-483c-904d-6bbcedda0a20",
+    "userId": "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+    "username": "www.com",
+    "amount": 10000,
+    "status": "confirmed",
+    "createdAt": "2026-06-08T07:35:42.371Z",
+    "confirmedAt": "2026-06-08T07:35:45.507Z"
+  },
+  "3d355206-c0a3-46e1-8214-480d9bea1d75": {
+    "id": "3d355206-c0a3-46e1-8214-480d9bea1d75",
+    "userId": "9dfe57ef-ebe3-4ddd-9c66-9ec52f662239",
+    "username": "www.com",
+    "amount": 100000,
+    "status": "confirmed",
+    "createdAt": "2026-06-08T07:39:23.071Z",
+    "confirmedAt": "2026-06-08T07:39:30.443Z"
+  },
+  "924b9357-5689-4e2a-b61a-ee15af3018d1": {
+    "id": "924b9357-5689-4e2a-b61a-ee15af3018d1",
+    "userId": "18cb273d-061d-448a-bbde-f8e71d10a219",
+    "username": "123",
+    "amount": 1,
+    "status": "confirmed",
+    "createdAt": "2026-06-08T08:16:04.756Z",
+    "confirmedAt": "2026-06-08T08:16:14.410Z"
+  }
+}

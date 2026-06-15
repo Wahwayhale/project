@@ -7,6 +7,7 @@ import { useAuth } from './hooks/useAuth';
 import { useSocket } from './hooks/useSocket';
 import { useFriends } from './hooks/useFriends';
 import { useRooms } from './hooks/useRooms';
+import { useChat } from './hooks/useChat';
 import Toast from './components/ui/Toast';
 import { isCapacitor, SERVER_URL, API_URL, APP_VERSION, MAJOR_VERSION, WEB_BUILD, NATIVE_BUILD, CHUNK_SIZE, DEFAULT_AVATAR, EMOJIS } from './utils/constants';
 import { formatFileSize, getFileIcon, parseBilibiliUrl, formatTime, formatRecordingTime, formatMessagePreview } from './utils/format';
@@ -383,6 +384,51 @@ function App() {
       showToast,
     }
   });
+
+  // ===== 聊天核心逻辑 =====
+  const chatHook = useChat({
+    socketRef,
+    user,
+    currentRoomId,
+    currentRoom,
+    showToast,
+    token,
+    allUsers,
+    setPinnedMessages,
+    searchQuery,
+    setMessages, setNewMessage,
+    setMessagesLoading, setUploadProgress,
+    messages, newMessage, uploadProgress,
+    messageEndRef, setMessageEndRef,
+    messagesContainerRef, messagesLoading,
+  });
+  const {
+    editingMessage, editText,
+    replyToMessage,
+    showEmojiPicker, setShowEmojiPicker,
+    showMentionPicker, setShowMentionPicker,
+    mentionFilter, setMentionFilter,
+    showQuickReplies, setShowQuickReplies,
+    showSearch, setShowSearch,
+    searchFilter, setSearchFilter,
+    searchResults, setSearchResults,
+    recalledMessages, setRecalledMessages,
+    reactionPicker, setReactionPicker,
+    forwardMsg, showForwardModal,
+    fileInputRef,
+    sendMessage, handleKeyDown, handleInputChange,
+    handleFileSelect,
+    recallMessage, deleteMessage,
+    startEditMessage, cancelEdit,
+    startReply, cancelReply,
+    insertEmoji, insertMention, getFilteredMentionUsers,
+    insertQuickReply,
+    sendDice, sendRockPaperScissors,
+    toggleReaction, openReactionPicker,
+    togglePinMessage,
+    openForwardModal, forwardMessage,
+    doSearch, getReadInfo,
+  } = chatHook;
 
   // ===== 音乐播放器 =====
   const [musicSearch, setMusicSearch] = useState('');
