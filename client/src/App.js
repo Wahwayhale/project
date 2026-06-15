@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import io from 'socket.io-client';
 import axios from 'axios';
 import { I } from './components/Icon';
 import { useToast } from './hooks/useToast';
 import { useSettings } from './hooks/useSettings';
 import { useAuth } from './hooks/useAuth';
+import { useSocket } from './hooks/useSocket';
 import Toast from './components/ui/Toast';
 import { isCapacitor, SERVER_URL, API_URL, APP_VERSION, MAJOR_VERSION, WEB_BUILD, NATIVE_BUILD, CHUNK_SIZE, DEFAULT_AVATAR, EMOJIS } from './utils/constants';
 import { formatFileSize, getFileIcon, parseBilibiliUrl, formatTime, formatRecordingTime, formatMessagePreview } from './utils/format';
@@ -69,7 +69,6 @@ function App() {
   const [currentRoomId, setCurrentRoomId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  const [onlineUsers, setOnlineUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [typingUser, setTypingUser] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -347,6 +346,44 @@ function App() {
   const notifyRef = useRef({ enabled: notifyEnabled, muted: notifyMuted });
   useEffect(() => { notifyRef.current = { enabled: notifyEnabled, muted: notifyMuted }; }, [notifyEnabled, notifyMuted]);
 
+  // ===== Socket 连接与在线用户 =====
+  const { socketRef, onlineUsers } = useSocket({
+    token,
+    user,
+    isAuthenticated,
+    handlers: {
+      // State setters
+      setFriends,
+      setMessages,
+      setRooms,
+      setTypingUser,
+      setRecalledMessages,
+      setBalance,
+      setRoomAnnouncements,
+      setCurrentRoom,
+      setCurrentRoomId,
+      setMoments,
+      setMessageStats,
+      setUnreadCounts,
+      setCallState,
+      setSharedLocations,
+      setCheckInData,
+      setExportingChat,
+      setShowCreateModal,
+      setFriendRequests,
+      setMessagesLoading,
+      // Current state values
+      currentRoomId,
+      // Refs
+      peerRef,
+      // Notification flags
+      notifyEnabled,
+      notifyMuted,
+      // Toast callback
+      showToast,
+    }
+  });
+
   // ===== 音乐播放器 =====
   const [musicSearch, setMusicSearch] = useState('');
   const [musicResults, setMusicResults] = useState([]);
@@ -391,14 +428,12 @@ function App() {
   }, []);
 
   const aiMessagesEndRef = useRef(null);
-  const socketRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
   const avatarInputRef = useRef(null);
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      connectSocket();
       fetchRooms();
       fetchFriends();
       fetchFriendRequests();
@@ -408,23 +443,6 @@ function App() {
       fetchPhoneInfo();
     }
     return () => {
-      if (socketRef.current) {
-        socketRef.current.off('reactionUpdated');
-        socketRef.current.off('solitaireUpdated');
-        socketRef.current.off('unreadCounts');
-        socketRef.current.off('solitaireError');
-        socketRef.current.off('incomingCall');
-        socketRef.current.off('callAccepted');
-        socketRef.current.off('iceCandidate');
-        socketRef.current.off('callEnded');
-        socketRef.current.off('locationUpdate');
-        socketRef.current.off('locationStopped');
-        socketRef.current.off('locationsList');
-        socketRef.current.off('checkInUpdate');
-        socketRef.current.off('checkInList');
-        socketRef.current.off('checkInError');
-        socketRef.current.disconnect();
-      }
       // 清理位置共享
       if (locationWatchId.current) {
         navigator.geolocation?.clearWatch(locationWatchId.current);
@@ -479,370 +497,6 @@ function App() {
     };
     if (isAuthenticated) checkUpdate();
   }, [isAuthenticated]);
-
-  const connectSocket = () => {
-    if (socketRef.current?.connected) {
-      socketRef.current.disconnect();
-    }
-    const wsUrl = API_URL || window.location.origin;
-    console.log('Socket connecting to:', wsUrl);
-    socketRef.current = io(wsUrl, {
-      transports: ['websocket'],
-      reconnection: true,
-      reconnectionAttempts: 50,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 10000,
-      timeout: 20000,
-      upgrade: false,
-      perMessageDeflate: true
-    });
-    socketRef.current.on('connect', () => {
-      console.log('Socket connected');
-      socketRef.current.emit('authenticate', token);
-    });
-    socketRef.current.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason);
-      showToast('连接已断开，正在重连...', 'info');
-    });
-    socketRef.current.on('connect_error', (err) => {
-      console.error('Socket connect error:', err.message);
-      showToast('网络连接异常，请检查服务器是否运行', 'error');
-    });
-    socketRef.current.on('authenticated', (data) => {
-      console.log('Socket authenticated', data);
-    });
-    // 接收完整在线用户列表（首次连接时）
-    socketRef.current.on('onlineUsersList', (list) => {
-      const ids = new Set(list.map(u => u.id));
-      setOnlineUsers(list);
-      setFriends(prev => prev.map(f => ({ ...f, online: ids.has(f.id) })));
-    });
-    socketRef.current.on('userOnline', (data) => {
-      setOnlineUsers(prev => [...prev.filter(u => u.id !== data.id), data]);
-      setFriends(prev => prev.map(f => f.id === data.id ? { ...f, online: true } : f));
-    });
-    socketRef.current.on('userOffline', (data) => {
-      setOnlineUsers(prev => prev.filter(u => u.id !== data.id));
-      setFriends(prev => prev.map(f => f.id === data.id ? { ...f, online: false } : f));
-    });
-    socketRef.current.on('newMessage', (message) => {
-      setMessages(prev => {
-        const next = [...prev, message];
-        // 本地缓存最近 100 条消息
-        try { localStorage.setItem('msgCache_' + message.roomId, JSON.stringify(next.slice(-100))); } catch {}
-        return next;
-      });
-      setRooms(prev => prev.map(room => {
-        if (room.id === message.roomId) {
-          return { ...room, lastMessage: message };
-        }
-        return room;
-      }));
-      if (typeof Notification !== 'undefined' && notifyRef.current.enabled && !notifyRef.current.muted && message.sender?.id !== user?.id && document.hidden) {
-        try {
-          new Notification(message.sender?.username || '新消息', {
-            body: (message.content || `[${message.type}]`).substring(0, 100),
-            icon: message.sender?.avatar || undefined,
-            tag: message.roomId
-          });
-        } catch {}
-      }
-    });
-    socketRef.current.on('joinedRoom', (data) => {
-      setMessages(data.messages || []);
-      setMessagesLoading(false);
-    });
-    socketRef.current.on('userTyping', ({ username }) => {
-      setTypingUser(username);
-    });
-    socketRef.current.on('userStopTyping', () => {
-      setTypingUser(null);
-    });
-    socketRef.current.on('roomCreated', (room) => {
-      setRooms(prev => {
-        if (prev.find(r => r.id === room.id)) return prev;
-        return [...prev, room];
-      });
-    });
-    socketRef.current.on('groupCreated', (room) => {
-      setCurrentRoom(room);
-      setCurrentRoomId(room.id);
-      setShowCreateModal(false);
-    });
-    socketRef.current.on('friendRequest', (data) => {
-      setFriendRequests(prev => {
-        if (prev.find(r => r.id === data.id)) return prev;
-        return [...prev, data];
-      });
-    });
-    socketRef.current.on('friendAccepted', (data) => {
-      setFriends(prev => {
-        if (prev.find(f => f.id === data.id)) return prev;
-        return [...prev, { ...data, online: true }];
-      });
-    });
-    socketRef.current.on('messageRecalled', ({ messageId, roomId }) => {
-      setRecalledMessages(prev => new Set([...prev, messageId]));
-      setMessages(prev => prev.map(msg => 
-        msg.id === messageId ? { ...msg, recalled: true } : msg
-      ));
-      showToast('一条消息已被撤回', 'info');
-    });
-
-    // 消息被删除
-    socketRef.current.on('messageDeleted', ({ messageId, roomId }) => {
-      setMessages(prev => prev.filter(msg => msg.id !== messageId));
-      showToast('一条消息已被删除', 'info');
-    });
-
-    // 删除错误
-    socketRef.current.on('deleteError', ({ error }) => {
-      showToast(error, 'error');
-    });
-
-    // 聊天被删除（自己退出或被移出房间）
-    socketRef.current.on('chatDeleted', ({ roomId }) => {
-      setRooms(prev => prev.filter(r => r.id !== roomId));
-      if (currentRoomId === roomId) {
-        setCurrentRoom(null);
-        setCurrentRoomId(null);
-        setMessages([]);
-      }
-      showToast('已删除聊天', 'info');
-    });
-
-    // 已读回执更新
-    socketRef.current.on('messageReadUpdate', ({ messageId, userId, readBy }) => {
-      setMessages(prev => prev.map(msg => 
-        msg.id === messageId ? { ...msg, readBy } : msg
-      ));
-    });
-    
-    // @提及通知
-    socketRef.current.on('mentionNotification', ({ messageId, roomId, roomName, sender }) => {
-      showToast(`${sender} 在 ${roomName} 中提到了你`, 'info');
-    });
-    
-    // 所有消息已读
-    socketRef.current.on('allMessagesRead', ({ roomId, userId }) => {
-      if (userId === socketRef.current.userId) return;
-      setMessages(prev => prev.map(msg => ({
-        ...msg,
-        readBy: (msg.readBy || []).includes(userId) ? msg.readBy : [...(msg.readBy || []), userId]
-      })));
-    });
-
-    // 消息编辑
-    socketRef.current.on('messageEdited', ({ messageId, content, editedAt }) => {
-      setMessages(prev => prev.map(msg => 
-        msg.id === messageId ? { ...msg, content, edited: true, editedAt } : msg
-      ));
-    });
-
-    // 消息转发
-    socketRef.current.on('messageForwarded', (message) => {
-      setMessages(prev => [...prev, message]);
-      setRooms(prev => prev.map(room => {
-        if (room.id === message.roomId) {
-          return { ...room, lastMessage: message };
-        }
-        return room;
-      }));
-    });
-
-    // 红包相关
-    socketRef.current.on('redPacketClaimed', ({ packetId, userId, share }) => {
-      setMessages(prev => prev.map(msg => {
-        if (msg.id === packetId) {
-          const newClaimed = [...(msg.claimed || []), userId];
-          return { ...msg, claimed: newClaimed, remaining: msg.remaining - 1 };
-        }
-        return msg;
-      }));
-      if (userId === user?.id) {
-        showToast(`抢到红包 ¥${share.toFixed(2)}！`, 'success');
-      }
-    });
-
-    // 红包错误
-    socketRef.current.on('redPacketError', ({ error }) => {
-      showToast(error, 'error');
-    });
-
-    // 余额更新
-    socketRef.current.on('balanceUpdated', ({ balance }) => {
-      setBalance(balance);
-    });
-
-    // 投票更新
-    socketRef.current.on('pollUpdated', ({ pollId, optionIndex, userId }) => {
-      setMessages(prev => prev.map(msg => {
-        if (msg.id === pollId) {
-          const newOptions = [...msg.options];
-          newOptions[optionIndex] = {
-            ...newOptions[optionIndex],
-            votes: [...(newOptions[optionIndex].votes || []), userId]
-          };
-          return { ...msg, options: newOptions };
-        }
-        return msg;
-      }));
-    });
-
-    // 群公告
-    socketRef.current.on('announcementUpdated', ({ roomId, announcement }) => {
-      setRoomAnnouncements(prev => ({ ...prev, [roomId]: announcement }));
-      setCurrentRoom(prev => prev?.id === roomId ? { ...prev, announcement } : prev);
-      setRooms(prev => prev.map(r => r.id === roomId ? { ...r, announcement } : r));
-      showToast('群公告已更新', 'info');
-    });
-
-    // 被踢出群
-    socketRef.current.on('youWereKicked', ({ roomId, roomName }) => {
-      showToast(`你已被移出群聊「${roomName}」`, 'error');
-      if (currentRoomId === roomId) {
-        setCurrentRoomId(null);
-        setCurrentRoom(null);
-        setMessages([]);
-      }
-    });
-
-    socketRef.current.on('memberKicked', ({ roomId, username }) => {
-      setCurrentRoom(prev => prev?.id === roomId ? { ...prev, members: (prev.members || []).filter(m => m !== username) } : prev);
-      setRooms(prev => prev.map(r => r.id === roomId ? { ...r, members: (r.members || []).filter(m => m !== username) } : r));
-      showToast(`${username} 已被移出群聊`, 'info');
-    });
-
-    socketRef.current.on('memberMuted', ({ roomId, username }) => {
-      setCurrentRoom(prev => prev?.id === roomId ? { ...prev, mutedMembers: [...new Set([...(prev.mutedMembers || []), username])] } : prev);
-      setRooms(prev => prev.map(r => r.id === roomId ? { ...r, mutedMembers: [...new Set([...(r.mutedMembers || []), username])] } : r));
-    });
-
-    socketRef.current.on('memberUnmuted', ({ roomId, username }) => {
-      setCurrentRoom(prev => prev?.id === roomId ? { ...prev, mutedMembers: (prev.mutedMembers || []).filter(m => m !== username) } : prev);
-      setRooms(prev => prev.map(r => r.id === roomId ? { ...r, mutedMembers: (r.mutedMembers || []).filter(m => m !== username) } : r));
-    });
-
-    // 朋友圈
-    socketRef.current.on('newMoment', (moment) => {
-      setMoments(prev => [moment, ...prev]);
-    });
-
-    socketRef.current.on('momentLiked', ({ momentId, userId }) => {
-      setMoments(prev => prev.map(m => {
-        if (m.id === momentId) {
-          const likes = [...(m.likes || [])];
-          if (!likes.includes(userId)) likes.push(userId);
-          return { ...m, likes };
-        }
-        return m;
-      }));
-    });
-
-    socketRef.current.on('momentComment', ({ momentId, comment }) => {
-      setMoments(prev => prev.map(m => {
-        if (m.id === momentId) {
-          return { ...m, comments: [...(m.comments || []), comment] };
-        }
-        return m;
-      }));
-    });
-
-    // 聊天导出
-    socketRef.current.on('chatExport', ({ roomId, roomName, messages }) => {
-      const data = JSON.stringify(messages, null, 2);
-      const blob = new Blob([data], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${roomName}_chat_export.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      showToast('聊天记录已导出', 'success');
-      setExportingChat(false);
-    });
-
-    // 统计
-    socketRef.current.on('statsResult', (stats) => {
-      setMessageStats(stats);
-    });
-
-    // ===== 新功能 Socket 监听 =====
-    // 消息反应更新
-    socketRef.current.on('reactionUpdated', ({ messageId, reactions }) => {
-      setMessages(prev => prev.map(msg =>
-        msg.id === messageId ? { ...msg, reactions } : msg
-      ));
-    });
-
-    // 群接龙更新
-    socketRef.current.on('solitaireUpdated', ({ solitaireId, participants }) => {
-      setMessages(prev => prev.map(msg =>
-        msg.id === solitaireId ? { ...msg, participants } : msg
-      ));
-    });
-
-    // 未读消息计数
-    socketRef.current.on('unreadCounts', (counts) => {
-      setUnreadCounts(counts);
-    });
-
-    // 接龙错误
-    socketRef.current.on('solitaireError', ({ error }) => {
-      showToast(error, 'error');
-    });
-
-    // ===== WebRTC 信令监听 =====
-    socketRef.current.on('incomingCall', ({ from, roomId, signal, callType }) => {
-      setCallState({ type: callType || 'video', status: 'incoming', signal, peerId: from.id, localStream: null, remoteStream: null, roomId, caller: from });
-      showToast(`${from.username} 正在呼叫你...`, 'info');
-    });
-    socketRef.current.on('callAccepted', ({ from, signal }) => {
-      try {
-        if (peerRef.current && peerRef.current.signalingState !== 'closed') {
-          peerRef.current.setRemoteDescription(new RTCSessionDescription(signal)).catch(() => {});
-          setCallState(prev => prev ? { ...prev, status: 'connecting' } : null);
-        }
-      } catch(e) {}
-    });
-    socketRef.current.on('iceCandidate', ({ from, candidate }) => {
-      try {
-        if (peerRef.current && peerRef.current.signalingState !== 'closed' && candidate) {
-          peerRef.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
-        }
-      } catch(e) {}
-    });
-    socketRef.current.on('callEnded', () => {
-      setCallState(prev => {
-        if (!prev) return null;
-        if (prev.localStream) {
-          try { prev.localStream.getTracks().forEach(t => t.stop()); } catch(e) {}
-        }
-        return null;
-      });
-      try { if (peerRef.current) { peerRef.current.close(); peerRef.current = null; } } catch(e) {}
-      showToast('通话已结束', 'info');
-    });
-
-    // ===== 位置 + 打卡监听 =====
-    socketRef.current.on('locationUpdate', ({ userId, username, lat, lng }) => {
-      setSharedLocations(prev => ({ ...prev, [userId]: { lat, lng, username } }));
-    });
-    socketRef.current.on('locationStopped', ({ userId }) => {
-      setSharedLocations(prev => { const n = { ...prev }; delete n[userId]; return n; });
-    });
-    socketRef.current.on('locationsList', (locations) => {
-      const map = {}; locations.forEach(l => { map[l.userId] = l; });
-      setSharedLocations(map);
-    });
-    socketRef.current.on('checkInUpdate', ({ entry, total }) => {
-      showToast(`${entry.username} 打卡成功！今日 ${total} 人已打卡`, 'success');
-    });
-    socketRef.current.on('checkInList', (data) => {
-      setCheckInData(data);
-    });
-    socketRef.current.on('checkInError', ({ error }) => { showToast(error, 'error'); });
-  };
 
   const fetchRooms = async () => {
     try {
