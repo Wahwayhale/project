@@ -185,9 +185,6 @@ function App() {
   // ===== 新功能状态 =====
   // 图片查看器
   const [imageViewer, setImageViewer] = useState(null); // { url, urls[] } or null
-  // 消息反应
-  const [reactionPicker, setReactionPicker] = useState(null); // { messageId, x, y } or null
-  const REACTION_EMOJIS = ['👍','❤️','😂','😮','😢','😡','🎉','💯','🔥','👏'];
   // 群接龙
   const [showSolitaireModal, setShowSolitaireModal] = useState(false);
   const [solitaireTitle, setSolitaireTitle] = useState('');
@@ -216,11 +213,9 @@ function App() {
   // AI 翻译
   const [translatingMsg, setTranslatingMsg] = useState(null);
   const [translations, setTranslations] = useState({});
-  // WebRTC
   const [callState, setCallState] = useState(null); // { type, roomId, peerId, localStream, remoteStream, status }
   const peerRef = useRef(null);
   const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
   // 位置共享
   const [sharedLocations, setSharedLocations] = useState({});
   const [isSharingLocation, setIsSharingLocation] = useState(false);
@@ -286,8 +281,6 @@ function App() {
   const [rechargeHistory, setRechargeHistory] = useState([]);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [pendingRecharges, setPendingRecharges] = useState([]);
-  const [aiStatus, setAiStatus] = useState(null);
-  const [aiStatusLoading, setAiStatusLoading] = useState(false);
   const [adminDashboard, setAdminDashboard] = useState(null);
   const [adminDashboardLoading, setAdminDashboardLoading] = useState(false);
   const [showRoomManage, setShowRoomManage] = useState(false);
@@ -447,8 +440,6 @@ function App() {
   }, []);
 
   const aiMessagesEndRef = useRef(null);
-  const typingTimeoutRef = useRef(null);
-  const fileInputRef = useRef(null);
   const avatarInputRef = useRef(null);
 
   useEffect(() => {
@@ -479,8 +470,6 @@ function App() {
 
   useEffect(() => {
     if (currentRoomId && socketRef.current) {
-      socketRef.current.emit('joinRoom', currentRoomId);
-      // 先加载本地缓存，秒开
       try {
         const cached = JSON.parse(localStorage.getItem('msgCache_' + currentRoomId) || '[]');
         if (cached.length > 0) { setMessages(cached); setMessagesLoading(false); }
@@ -525,77 +514,12 @@ function App() {
     } catch (err) { console.error('Failed to fetch rooms', err); setRooms([]); setDiag(d => d + 'Rooms:FAIL | '); }
   };
 
-  const sendMessage = () => {
-    if (!newMessage.trim() && !editingMessage) return;
-    
-    if (editingMessage) {
-      // 编辑消息
-      socketRef.current.emit('editMessage', {
-        roomId: currentRoomId,
-        messageId: editingMessage,
-        content: newMessage.trim()
-      });
-      setEditingMessage(null);
-      setEditText('');
-      setNewMessage('');
-      showToast('消息已编辑', 'success');
-      return;
-    }
-    
-    // 解析@提及
-    const mentions = [];
-    const content = newMessage.trim();
-    const mentionRegex = /@(\w+)/g;
-    let match;
-    while ((match = mentionRegex.exec(content)) !== null) {
-      const mentionedUser = allUsers.find(u => u.username === match[1]);
-      if (mentionedUser) mentions.push(mentionedUser.id);
-    }
-    
-    socketRef.current.emit('sendMessage', {
-      roomId: currentRoomId,
-      content,
-      type: 'text',
-      replyTo: replyToMessage ? replyToMessage.id : null,
-      mentions: [...new Set(mentions)]
-    });
-    setMessages(prev => [...prev, {id:'temp-'+Date.now(),content,type:'text',sender:{id:user?.id,username:user?.username,avatar:user?.avatar},roomId:currentRoomId,timestamp:new Date(),readBy:[user?.id]}]);
-    socketRef.current.emit('stopTyping', currentRoomId);
-    setNewMessage('');
-    setReplyToMessage(null);
-    setShowEmojiPicker(false);
-    setShowMentionPicker(false);
-  };
 
   // 编辑消息
-  const startEditMessage = (msg) => {
-    setEditingMessage(msg.id);
-    setNewMessage(msg.content);
-    setEditText(msg.content);
-  };
 
   // 取消编辑
-  const cancelEdit = () => {
-    setEditingMessage(null);
-    setEditText('');
-    setNewMessage('');
-  };
 
   // 置顶/取消置顶
-  const togglePinMessage = (messageId) => {
-    setPinnedMessages(prev => {
-      const next = { ...prev };
-      if (next[currentRoomId]?.includes(messageId)) {
-        next[currentRoomId] = next[currentRoomId].filter(id => id !== messageId);
-        showToast('已取消置顶', 'info');
-      } else {
-        if (!next[currentRoomId]) next[currentRoomId] = [];
-        next[currentRoomId].push(messageId);
-        showToast('已置顶消息', 'success');
-      }
-      return next;
-    });
-  };
 
   // 免打扰切换
   const toggleMuteRoom = (roomId) => {
@@ -613,23 +537,8 @@ function App() {
   };
 
   // 撤回消息
-  const recallMessage = (messageId) => {
-    if (!currentRoomId) return;
-    socketRef.current.emit('recallMessage', {
-      roomId: currentRoomId,
-      messageId,
-    });
-    showToast('已撤回消息', 'success');
-  };
 
   // 删除消息
-  const deleteMessage = (messageId) => {
-    if (!currentRoomId || !window.confirm('确定要删除这条消息吗？')) return;
-    socketRef.current.emit('deleteMessage', {
-      roomId: currentRoomId,
-      messageId,
-    });
-  };
 
   // 删除/退出聊天
   const deleteChat = (roomId, e) => {
@@ -639,131 +548,15 @@ function App() {
   };
 
   // 插入表情
-  const insertEmoji = (emoji) => {
-    setNewMessage(prev => prev + emoji);
-    setShowEmojiPicker(false);
-  };
 
-  const handleInputChange = (e) => {
-    setNewMessage(e.target.value);
-    if (currentRoomId && e.target.value) {
-      socketRef.current.emit('typing', currentRoomId);
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      typingTimeoutRef.current = setTimeout(() => {
-        socketRef.current.emit('stopTyping', currentRoomId);
-      }, 2000);
-    }
-  };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
 
   // 图片压缩（Canvas 缩放，目标 < 1MB）
-  const compressImage = (file) => new Promise((resolve) => {
-    if (!file.type.startsWith('image/') || file.size < 500 * 1024) return resolve(file);
-    const img = new Image();
-    img.onload = () => {
-      const maxW = 1920, maxH = 1920;
-      let w = img.width, h = img.height;
-      if (w > maxW || h > maxH) { const r = Math.min(maxW / w, maxH / h); w *= r; h *= r; }
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      canvas.toBlob((blob) => resolve(new File([blob], file.name, { type: 'image/jpeg' })), 'image/jpeg', 0.85);
-    };
-    img.src = URL.createObjectURL(file);
-  });
 
-  const uploadFile = async (file) => {
-    if (!file || !currentRoomId) return;
-    const maxChunk = 2 * 1024 * 1024;
-    try {
-      const processed = await compressImage(file);
-      if (processed.size > maxChunk) {
-        await uploadChunked(processed, maxChunk);
-      } else {
-        await uploadSimple(processed);
-      }
-    } catch (err) {
-      setUploadProgress(null);
-      showToast('上传失败: ' + (err.message || '网络错误'), 'error');
-    }
-  };
 
-  const uploadSimple = async (file) => {
-    setUploadProgress({ filename: file.name, progress: 0 });
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await axios.post(`${API_URL}/api/upload/simple`, formData, {
-      headers: { Authorization: token, 'Content-Type': 'multipart/form-data' },
-      onUploadProgress: (e) => setUploadProgress({ filename: file.name, progress: Math.round((e.loaded / e.total) * 100) })
-    });
-    setUploadProgress(null);
-    sendMediaMessage(response.data.url, file.name, file.type, file.size);
-  };
 
-  const uploadChunked = async (file, chunkSize) => {
-    const totalChunks = Math.ceil(file.size / chunkSize);
-    // 1. Init
-    const initRes = await axios.post(`${API_URL}/api/upload/init`, {
-      filename: file.name, totalChunks, fileSize: file.size, mimeType: file.type
-    }, { headers: { Authorization: token } });
-    const uploadId = initRes.data.uploadId;
 
-    // 2. Upload chunks sequentially (avoids server overload)
-    for (let i = 0; i < totalChunks; i++) {
-      const start = i * chunkSize;
-      const end = Math.min(start + chunkSize, file.size);
-      const chunk = file.slice(start, end);
-      const fd = new FormData();
-      fd.append('chunk', chunk, `chunk_${i}`);
-      fd.append('uploadId', uploadId);
-      fd.append('chunkIndex', String(i));
-      await axios.post(`${API_URL}/api/upload/chunk`, fd, {
-        headers: { Authorization: token, 'Content-Type': 'multipart/form-data' }
-      });
-      setUploadProgress({ filename: file.name, progress: Math.round(((i + 1) / totalChunks) * 100) });
-    }
 
-    // 3. Complete
-    const compRes = await axios.post(`${API_URL}/api/upload/complete`, { uploadId }, {
-      headers: { Authorization: token }
-    });
-    setUploadProgress(null);
-    sendMediaMessage(compRes.data.url, file.name, file.type, file.size);
-  };
-
-  const sendMediaMessage = (fileUrl, filename, mimeType, fileSize) => {
-    if (!currentRoomId) return;
-    let type = 'file';
-    if (mimeType.startsWith('image/')) type = 'image';
-    else if (mimeType.startsWith('video/')) type = 'video';
-    else if (mimeType.startsWith('audio/')) type = 'audio';
-    
-    socketRef.current.emit('sendMessage', {
-      roomId: currentRoomId,
-      content: '',
-      type,
-      fileUrl: `${API_URL}${fileUrl}`,
-      filename,
-      fileSize,
-      mimeType
-    });
-  };
-
-  const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      uploadFile(file);
-    }
-    e.target.value = '';
-  };
 
   const handleRoomClick = (room) => {
     setCurrentRoom(room);
@@ -1140,16 +933,6 @@ function App() {
     const t = themes[preset] || themes.mint;
     document.documentElement.style.setProperty('--primary', t.primary);
     document.documentElement.style.setProperty('--primary-gradient', t.primaryGrad);
-  };
-  const doSearch = async () => {
-    if (!currentRoomId || !searchQuery) return;
-    try {
-      const res = await axios.get(`${API_URL}/api/rooms/${currentRoomId}/search`, {
-        params: { q: searchQuery, type: searchFilter === 'all' ? '' : searchFilter, limit: 50 },
-        headers: { Authorization: token }
-      });
-      setSearchResults(res.data.messages || []);
-    } catch { setSearchResults([]); }
   };
   // 天气（统一走服务端代理）
   const searchWeather = async (e) => {
@@ -1598,16 +1381,8 @@ function App() {
   };
 
   // 发送骰子
-  const sendDice = () => {
-    if (!currentRoomId) return;
-    socketRef.current.emit('sendDice', { roomId: currentRoomId });
-  };
 
   // 发送猜拳
-  const sendRockPaperScissors = (choice) => {
-    if (!currentRoomId) return;
-    socketRef.current.emit('sendRockPaperScissors', { roomId: currentRoomId, choice });
-  };
 
   // 设置群公告
   const setAnnouncement = () => {
@@ -1673,10 +1448,6 @@ function App() {
   };
 
   // 插入快捷回复
-  const insertQuickReply = (reply) => {
-    setNewMessage(prev => prev + reply);
-    setShowQuickReplies(false);
-  };
 
   // 打开图片查看器
   const openImageViewer = (url, allUrls) => {
@@ -1700,24 +1471,8 @@ function App() {
   };
 
   // 消息反应
-  const toggleReaction = (messageId, emoji) => {
-    if (!currentRoomId) return;
-    const msg = messages.find(m => m.id === messageId);
-    if (!msg) return;
-    const hasReacted = msg.reactions?.[emoji]?.includes(user?.id);
-    if (hasReacted) {
-      socketRef.current.emit('removeReaction', { roomId: currentRoomId, messageId, emoji });
-    } else {
-      socketRef.current.emit('addReaction', { roomId: currentRoomId, messageId, emoji });
-    }
-    setReactionPicker(null);
-  };
 
   // 打开反应选择器
-  const openReactionPicker = (messageId, e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setReactionPicker({ messageId, x: rect.left, y: rect.top - 50 });
-  };
 
   // AI 摘要
   const summarizeChat = async () => {
@@ -1989,38 +1744,9 @@ function App() {
   };
 
   // 引用回复
-  const startReply = (msg) => {
-    setReplyToMessage(msg);
-  };
 
   // 取消引用
-  const cancelReply = () => setReplyToMessage(null);
 
-  // === 消息转发 ===
-  const openForwardModal = (msg) => {
-    setForwardMsg(msg);
-    setShowForwardModal(true);
-  };
-
-  const forwardMessage = (targetRoom) => {
-    if (!forwardMsg || !targetRoom) return;
-    const msg = forwardMsg;
-    socketRef.current.emit('forwardMessage', {
-      roomId: targetRoom.id,
-      originalMessage: {
-        content: msg.content,
-        type: msg.type,
-        fileUrl: msg.fileUrl,
-        filename: msg.filename,
-        mimeType: msg.mimeType,
-        fileSize: msg.fileSize
-      },
-      forwardedFrom: currentRoom?.name || '未知'
-    });
-    setShowForwardModal(false);
-    setForwardMsg(null);
-    showToast(`已转发到 ${targetRoom.name}`, 'success');
-  };
 
   // === 通讯录字母分组 ===
   const getContactsGrouped = () => {
@@ -2043,36 +1769,12 @@ function App() {
   };
 
   // @提及
-  const insertMention = (username) => {
-    setNewMessage(prev => prev + `@${username} `);
-    setShowMentionPicker(false);
-    setMentionFilter('');
-  };
 
   // 获取已读人数文本
-  const getReadInfo = (msg) => {
-    if (!msg.readBy || msg.readBy.length <= 1) return '';
-    const count = msg.readBy.length - 1; // 排除自己
-    return `${count}人已读`;
-  };
 
   // 获取@提及的用户列表
-  const getMentionableUsers = () => {
-    if (!currentRoom) return allUsers;
-    // 如果是群聊，返回群成员
-    if (currentRoom.members) {
-      return allUsers.filter(u => currentRoom.members.includes(u.username) || u.username === user.username);
-    }
-    // 如果是私聊，返回对方
-    return allUsers.filter(u => u.username !== user.username);
-  };
 
   // 获取过滤后的@用户列表
-  const getFilteredMentionUsers = () => {
-    const users = getMentionableUsers();
-    if (!mentionFilter) return users;
-    return users.filter(u => u.username.toLowerCase().includes(mentionFilter.toLowerCase()));
-  };
 
   // 开始录音
   const startRecording = async () => {
@@ -3008,7 +2710,7 @@ function App() {
                       placeholder="输入消息... 输入 @ 提及用户"
                       value={newMessage}
                       onChange={handleInputChange}
-                      onKeyPress={handleKeyPress}
+                      onKeyDown={handleKeyDown}
                     />
                     <button className="send-button" onClick={sendMessage} disabled={!newMessage.trim() && !editingMessage}>
                       {editingMessage ? '保存' : '发送'}
