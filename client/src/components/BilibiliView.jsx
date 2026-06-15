@@ -2,7 +2,7 @@ import React from 'react';
 import { I } from './Icon';
 import EmptyState from './ui/EmptyState';
 
-const BilibiliView = ({
+export default function BilibiliView({
   setView,
   setBottomTab,
   bilibiliQuery,
@@ -14,7 +14,7 @@ const BilibiliView = ({
   bilibiliResults,
   shareBilibiliToChat,
   observeVideo,
-}) => {
+}) {
   return (
     /* ===== B站视频全屏视图 ===== */
     <div className="video-fullview">
@@ -60,6 +60,4 @@ const BilibiliView = ({
       </div>
     </div>
   );
-};
-
-export default BilibiliView;
+}

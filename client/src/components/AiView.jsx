@@ -4,7 +4,7 @@ import AvatarImg from './ui/AvatarImg';
 import EmptyState from './ui/EmptyState';
 import { getAvatarUrl } from '../utils/avatar';
 
-const AiView = ({
+export default function AiView({
   user,
   balance,
   setView,
@@ -26,7 +26,7 @@ const AiView = ({
   fetchRechargeHistory,
   resetAiChat,
   openAdminCenter,
-}) => {
+}) {
   return (
     /* ===== AI助手全屏视图 ===== */
     <div className="ai-fullview">
@@ -89,6 +89,4 @@ const AiView = ({
       </div>
     </div>
   );
-};
-
-export default AiView;
+}

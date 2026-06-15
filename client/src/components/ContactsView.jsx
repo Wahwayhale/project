@@ -2,7 +2,7 @@ import React from 'react';
 import { getAvatarUrl } from '../utils/avatar';
 import AvatarImg from './ui/AvatarImg';
 
-const getContactsGrouped = (friends, friendRequests) => {
+function getContactsGrouped(friends, friendRequests) {
   const groups = {};
   const allLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
   allLetters.forEach(l => groups[l] = []);
