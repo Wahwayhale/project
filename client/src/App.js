@@ -26,6 +26,7 @@ import MeMenuItem from './components/ui/MeMenuItem';
 import BottomTabBar from './components/BottomTabBar';
 import ContactsView from './components/ContactsView';
 import DiscoverView from './components/DiscoverView';
+import MeView from './components/MeView';
 import GameModal from './components/modals/GameModal';
 import MusicShareModal from './components/modals/MusicShareModal';
 import ForwardModal from './components/modals/ForwardModal';
@@ -1095,35 +1096,20 @@ function App() {
           />
         ) : bottomTab === 'me' ? (
           /* ===== 我的页面 ===== */
-          <div className="me-page">
-            <div className="me-header" onClick={() => setShowProfileModal(true)}>
-              <AvatarImg src={getAvatarUrl(user?.avatar)} alt="" className="me-avatar" />
-              <div className="me-info">
-                <div className="me-name">{user?.username}</div>
-                <div className="me-id">ID: {user?.sixDigitId || '000000'}</div>
-                <div className="me-bio">{user?.bio || '这个人很懒，什么都没写'}</div>
-              </div>
-              <span className="me-arrow">›</span>
-            </div>
-            <div className="me-menu">
-              <MeMenuItem icon="camera" tone="moments" label="朋友圈" onClick={() => { setShowMoments(true); }} />
-              <MeMenuItem icon="wallet" tone="wallet" label="钱包" meta={`¥${(balance || 0).toFixed(2)}`} onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }} />
-              <MeMenuItem icon="backup" tone="backup" label="聊天记录管理" onClick={() => setShowBackupModal(true)} />
-              <MeMenuItem icon="phone" tone="phone" label={phoneInfo.phoneBound ? phoneInfo.phone : '绑定手机号'} onClick={() => { fetchPhoneInfo(); setShowPhoneModal(true); }} />
-              <MeMenuItem icon="settings" tone="primary" label="设置" onClick={() => { setShowProfileModal(true); }} />
-            </div>
-            <div className="me-footer">
-              <MeMenuItem icon="security" tone="security" label="聊天记录备份与恢复" onClick={() => setShowBackupModal(true)} />
-            </div>
-            <MeMenuItem icon="download" tone="download" label={`下载最新安装包 (v${otaInfo?.appVersion || appVersion})`} onClick={() => {
-              const apkPath = otaInfo?.apkUrl || `/releases/ChatRoom-v${appVersion}.apk`;
-              const u = apkPath.startsWith('http') ? apkPath : `${API_URL}${apkPath}`;
-              isCapacitor ? window.location.href = u : window.open(u, '_blank');
-            }} />
-            <div className="me-version">
-              <span>聊天室 v{otaInfo?.appVersion || appVersion} · Web {otaInfo?.webBuild || WEB_BUILD}</span>
-            </div>
-          </div>
+          <MeView
+            user={user}
+            setShowProfileModal={setShowProfileModal}
+            balance={balance}
+            setShowMoments={setShowMoments}
+            setShowRechargeModal={setShowRechargeModal}
+            fetchRechargeHistory={fetchRechargeHistory}
+            setShowBackupModal={setShowBackupModal}
+            phoneInfo={phoneInfo}
+            fetchPhoneInfo={fetchPhoneInfo}
+            setShowPhoneModal={setShowPhoneModal}
+            otaInfo={otaInfo}
+            appVersion={appVersion}
+          />
         ) : view === 'ai' ? (
           /* ===== AI助手全屏视图 ===== */
           <div className="ai-fullview">
