@@ -24,12 +24,19 @@ import SplashScreen from './components/ui/SplashScreen';
 import FeatureItem from './components/ui/FeatureItem';
 import MeMenuItem from './components/ui/MeMenuItem';
 import BottomTabBar from './components/BottomTabBar';
+import ContactsView from './components/ContactsView';
 import GameModal from './components/modals/GameModal';
 import MusicShareModal from './components/modals/MusicShareModal';
 import ForwardModal from './components/modals/ForwardModal';
 import BackupModal from './components/modals/BackupModal';
 import MajorUpdateModal from './components/modals/MajorUpdateModal';
 import SolitaireModal from './components/modals/SolitaireModal';
+import CheckInModal from './components/modals/CheckInModal';
+import WrappedModal from './components/modals/WrappedModal';
+import RedPacketModal from './components/modals/RedPacketModal';
+import PollModal from './components/modals/PollModal';
+import CreateGroupModal from './components/modals/CreateGroupModal';
+import ChatView from './components/ChatView';
 // axios 全局配置
 axios.defaults.timeout = 15000;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -299,6 +306,7 @@ function App() {
     togglePinMessage,
     openForwardModal, forwardMessage,
     doSearch, getReadInfo,
+    REACTION_EMOJIS,
   } = chatHook;
 
   // ===== AI 功能 =====
@@ -1054,63 +1062,16 @@ function App() {
       <div className={`main-chat ${bottomTab !== 'chats' && !currentRoom ? 'full-view' : ''}`}>
         {bottomTab === 'contacts' ? (
           /* ===== 通讯录页面 ===== */
-          <div className="contacts-page">
-            <div className="contacts-header">
-              <h2>通讯录</h2>
-              <span className="contacts-count">{friends.length} 位联系人</span>
-            </div>
-            <div className="contacts-search">
-              <input type="text" placeholder="搜索联系人..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-            </div>
-            <div className="contacts-body">
-              {friendRequests.length > 0 && (
-                <div className="contacts-section">
-                  <div className="contacts-section-title">新的好友 <span className="badge">{friendRequests.length}</span></div>
-                  {friendRequests.map(r => (
-                    <div key={r.id} className="contact-item request-item">
-                      <AvatarImg src={getAvatarUrl(r.avatar)} alt="" className="contact-avatar" />
-                      <div className="contact-info">
-                        <div className="contact-name">{r.username}</div>
-                        <div className="contact-desc">想加你为好友</div>
-                      </div>
-                      <div className="contact-actions">
-                        <button className="accept-btn" onClick={() => acceptFriendRequest(r.username)}>接受</button>
-                        <button className="reject-btn" onClick={() => rejectFriendRequest(r.username)}>拒绝</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {(() => {
-                const { groups, letters } = getContactsGrouped();
-                return letters.map(letter => (
-                  <div key={letter} className="contacts-section" id={`contact-${letter}`}>
-                    <div className="contacts-section-title">{letter}</div>
-                    {groups[letter].map(friend => (
-                      <div key={friend.id || friend.username} className="contact-item" onClick={() => { if (!friend.isRequest) startChatWithFriend(friend); }}>
-                        <AvatarImg src={getAvatarUrl(friend.avatar)} alt="" className="contact-avatar" />
-                        <div className="contact-info">
-                          <div className="contact-name">{friend.username}</div>
-                          {!friend.isRequest && <div className="contact-desc">在线</div>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ));
-              })()}
-            </div>
-            <div className="contacts-index">
-              {(() => {
-                const { letters } = getContactsGrouped();
-                return letters.map(l => (
-                  <span key={l} className="index-letter" onClick={() => {
-                    setContactsLetter(l);
-                    document.getElementById(`contact-${l}`)?.scrollIntoView({ behavior: 'smooth' });
-                  }}>{l}</span>
-                ));
-              })()}
-            </div>
-          </div>
+          <ContactsView
+            friends={friends}
+            friendRequests={friendRequests}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            setContactsLetter={setContactsLetter}
+            startChatWithFriend={startChatWithFriend}
+            acceptFriendRequest={acceptFriendRequest}
+            rejectFriendRequest={rejectFriendRequest}
+          />
         ) : bottomTab === 'discover' ? (
           /* ===== 发现页面 ===== */
           <div className="discover-page">
