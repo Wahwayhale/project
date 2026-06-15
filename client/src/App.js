@@ -869,6 +869,21 @@ function App() {
     return currentRoom && user && currentRoom.owner === user.username;
   };
 
+  const muteRoomMember = (username) => {
+    if (!currentRoomId || !socketRef.current) return;
+    socketRef.current.emit('muteRoomMember', { roomId: currentRoomId, username });
+  };
+
+  const unmuteRoomMember = (username) => {
+    if (!currentRoomId || !socketRef.current) return;
+    socketRef.current.emit('unmuteRoomMember', { roomId: currentRoomId, username });
+  };
+
+  const kickRoomMember = (username) => {
+    if (!currentRoomId || !socketRef.current) return;
+    socketRef.current.emit('kickRoomMember', { roomId: currentRoomId, username });
+  };
+
   // 设置聊天背景
   const setChatBackground = (bg) => {
     setChatBackgrounds(prev => ({ ...prev, [currentRoomId]: bg }));
