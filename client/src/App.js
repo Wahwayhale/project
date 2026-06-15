@@ -675,19 +675,13 @@ function App() {
     }
   }, [messages, messagesLoading, messageEndRef]);
 
-  // OTA 版本检查 — 登录后自动运行，版本不同即弹窗
+  // OTA 版本检查 — 服务器版本不同就弹窗（不依赖 localStorage）
   useEffect(() => {
-    const APP_BUILD = 200;
     const checkUpdate = async () => {
       try {
         const res = await axios.get(`${API_URL}/ota-version.json`, { timeout: 5000 });
         const serverVer = res.data.version || '0.0.0';
-        const serverBuild = res.data.buildNumber || 0;
-        const lastSeenVer = localStorage.getItem('lastSeenVersion') || '';
-        const savedBuild = parseInt(localStorage.getItem('appBuild') || '0');
-
-        // 弹窗条件：服务器版本号变了 或 build 比本地新
-        if (serverVer !== lastSeenVer || serverBuild > savedBuild) {
+        if (serverVer !== appVersion) {
           setOtaInfo(res.data);
           setShowOtaModal(true);
         }
@@ -4527,7 +4521,7 @@ function App() {
       )}
       {/* OTA 更新弹窗 — 仅版本号不同时出现，不显示更新内容 */}
       {showOtaModal && otaInfo && (
-        <div className="modal-overlay" onClick={() => { setShowOtaModal(false); localStorage.setItem('lastSeenVersion', otaInfo.version || '0.0.0'); }}>
+        <div className="modal-overlay" onClick={() => setShowOtaModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 340, textAlign: 'center' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🔄</div>
             <h3 style={{ marginBottom: 8 }}>发现新版本 v{otaInfo.version}</h3>
@@ -4540,7 +4534,7 @@ function App() {
                 点击更新下载 ({otaInfo.apkSize || 'APK'})
               </button>
             )}
-            <button className="cancel" onClick={() => { setShowOtaModal(false); localStorage.setItem('lastSeenVersion', otaInfo.version || '0.0.0'); localStorage.setItem('appBuild', String(otaInfo.buildNumber || 0)); }} style={{ width: '100%' }}>
+            <button className="cancel" onClick={() => setShowOtaModal(false)} style={{ width: '100%' }}>
               知道了
             </button>
           </div>

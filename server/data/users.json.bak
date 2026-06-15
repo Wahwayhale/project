@@ -14,12 +14,13 @@
     "username": "admin",
     "password": "$2a$10$y4hEtLMH98VqqIwAB0ji/OVkQOGWueFnkiggq1MCD/WzBdQOdecUK",
     "sixDigitId": "427669",
-    "avatar": "/uploads/1780990162780-aee74210-0474-4df5-b086-0294c30d481b.jpg",
+    "avatar": "/uploads/1781062402249-95efde10-8b03-4353-8a15-95b7b9d2184b.jpg",
     "bio": "",
     "createdAt": "2026-06-03T01:09:50.993Z",
     "phone": "19512240964",
     "phoneBoundAt": "2026-06-06T05:58:30.909Z",
-    "balance": null
+    "balance": null,
+    "payCode": ""
   },
   "马": {
     "id": "d445102e-cc18-41ec-9325-939f1d274f71",

@@ -1638,7 +1638,8 @@
         "readBy": [
           "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          null
+          null,
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -1657,7 +1658,8 @@
         "readBy": [
           "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          null
+          null,
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "eventTime": "2026-12-31T12:00:00",
         "eventId": "a74604fb-1f2f-45b3-b12f-cd145ac552b2"
@@ -1678,7 +1680,8 @@
         "readBy": [
           "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          null
+          null,
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -1699,7 +1702,8 @@
         "readBy": [
           "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          null
+          null,
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -1720,7 +1724,8 @@
         "readBy": [
           "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          null
+          null,
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -1741,7 +1746,8 @@
         "readBy": [
           "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          null
+          null,
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -1762,7 +1768,8 @@
         "readBy": [
           "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
-          null
+          null,
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -1783,7 +1790,8 @@
         "readBy": [
           "2b8312af-39ba-452c-a7e0-1348f5d4f4dc",
           "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
-          null
+          null,
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false
@@ -1807,7 +1815,8 @@
         "timestamp": "2026-06-10T01:56:12.534Z",
         "readBy": [
           "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
-          null
+          null,
+          "d445102e-cc18-41ec-9325-939f1d274f71"
         ],
         "edited": false,
         "pinned": false,
@@ -1828,7 +1837,27 @@
         "timestamp": "2026-06-10T02:02:11.870Z",
         "readBy": [
           "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
-          null
+          null,
+          "d445102e-cc18-41ec-9325-939f1d274f71"
+        ],
+        "edited": false,
+        "pinned": false
+      },
+      {
+        "id": "eb5ebc9c-d56b-4e65-be97-c43d3a511dd2",
+        "content": "666",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "/uploads/1781062402249-95efde10-8b03-4353-8a15-95b7b9d2184b.jpg"
+        },
+        "roomId": "global",
+        "timestamp": "2026-06-10T03:33:53.771Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
         ],
         "edited": false,
         "pinned": false
@@ -2322,7 +2351,27 @@
       "ycx",
       "admin"
     ],
-    "messages": [],
+    "messages": [
+      {
+        "id": "9f504bdd-1495-4907-bb96-2eb6991a0fff",
+        "content": "hello",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "/uploads/1781062402249-95efde10-8b03-4353-8a15-95b7b9d2184b.jpg"
+        },
+        "roomId": "497ced73-8f2a-4dc6-b47e-480ab7a6edd0",
+        "timestamp": "2026-06-10T04:09:28.376Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "edited": false,
+        "pinned": false
+      }
+    ],
     "createdBy": "admin",
     "createdAt": "2026-06-09T01:26:21.952Z"
   },
@@ -2343,11 +2392,22 @@
     "name": "ycx & admin",
     "type": "group",
     "members": [
-      "ycx",
-      "admin"
+      "ycx"
     ],
     "messages": [],
     "createdBy": "admin",
     "createdAt": "2026-06-10T02:27:42.789Z"
+  },
+  "eda0ff4f-3b82-47bb-8fd0-72248eb3b9d9": {
+    "id": "eda0ff4f-3b82-47bb-8fd0-72248eb3b9d9",
+    "name": "admin & ycx",
+    "type": "group",
+    "members": [
+      "admin",
+      "ycx"
+    ],
+    "messages": [],
+    "createdBy": "ycx",
+    "createdAt": "2026-06-10T03:26:58.336Z"
   }
 }
