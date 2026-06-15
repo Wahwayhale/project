@@ -43,7 +43,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
+var root = ReactDOM.createRoot(document.getElementById('root'));
 
 // 全局未捕获错误处理（仅日志记录，不破坏 DOM）
 window.onerror = (msg, src, line, col, err) => {

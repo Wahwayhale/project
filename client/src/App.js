@@ -69,7 +69,7 @@ if (isCapacitor) {
   axios.defaults.headers.common['ngrok-skip-browser-warning'] = '1';
 }
 // 请求重试 + 401 自动重新登录
-let isReloggingIn = false;
+var isReloggingIn = false;
 axios.interceptors.response.use(null, async (err) => {
   const config = err.config;
   // 401 → 尝试重新登录

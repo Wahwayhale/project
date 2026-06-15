@@ -8,9 +8,9 @@ import {
   Calendar, Zap, ListOrdered, FileUp, LogOut, Info, Sun, Moon
 } from 'lucide-react';
 
-export const iconProps = { size: 24, strokeWidth: 1.2, absoluteStrokeWidth: true };
+export var iconProps = { size: 24, strokeWidth: 1.2, absoluteStrokeWidth: true };
 
-export const iconMap = {
+export var iconMap = {
   chat: MessageCircle, contacts: Users, discover: Compass, me: User,
   ai: Sparkles, sparkles: Sparkles, image: Image, location: MapPin, checkin: Check, music: Music,
   video: Video, search: Search, smart: Lightbulb, polish: Wand2,
