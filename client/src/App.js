@@ -825,6 +825,27 @@ function App() {
     }
   };
 
+  const uploadAvatar = async (file) => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    try {
+      const response = await axios.post(`${API_URL}/api/upload/avatar`, formData, {
+        headers: {
+          Authorization: token,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      const avatarPath = response.data.avatar;
+      const newAvatar = avatarPath.startsWith('http') ? avatarPath : avatarPath;
+      setUser(prev => ({ ...prev, avatar: newAvatar }));
+      await axios.put(`${API_URL}/api/profile`, { avatar: newAvatar }, {
+        headers: { Authorization: token }
+      });
+    } catch (err) {
+      showToast('上传头像失败', 'error');
+    }
+  };
+
   // 设置聊天背景
   const setChatBackground = (bg) => {
     setChatBackgrounds(prev => ({ ...prev, [currentRoomId]: bg }));
