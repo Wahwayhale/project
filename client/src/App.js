@@ -52,6 +52,15 @@ import BotModal from './components/modals/BotModal';
 import PolishModal from './components/modals/PolishModal';
 import DailyDigestModal from './components/modals/DailyDigestModal';
 import ChatView from './components/ChatView';
+import AiView from './components/AiView';
+import BilibiliView from './components/BilibiliView';
+import MusicPanel from './components/panels/MusicPanel';
+import GifPanel from './components/panels/GifPanel';
+import NewsPanel from './components/panels/NewsPanel';
+import WeatherPanel from './components/panels/WeatherPanel';
+import MapPanel from './components/panels/MapPanel';
+import CallOverlay from './components/call/CallOverlay';
+import CallIncoming from './components/call/CallIncoming';
 // axios 全局配置
 axios.defaults.timeout = 15000;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -1124,110 +1133,43 @@ function App() {
             appVersion={appVersion}
           />
         ) : view === 'ai' ? (
-          /* ===== AI助手全屏视图 ===== */
-          <div className="ai-fullview">
-            <div className="ai-fullview-header">
-              <button className="back-btn" onClick={() => { setView('chats'); setBottomTab('discover'); }}>← 返回</button>
-              <h3><I name="ai" size={20} /> AI 助手</h3>
-              <div className="ai-header-actions">
-                <span className="ai-balance">余额: ¥{(balance || 0).toFixed(2)}</span>
-                <button onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }} className="header-btn" title="充值"><I name="wallet" size={15} /></button>
-                {user?.username === 'admin' && (
-                  <button onClick={openAdminCenter} className="header-btn" title="管理"><I name="crown" size={15} /></button>
-                )}
-                <button onClick={resetAiChat} className="header-btn" title="新对话"><I name="reset" size={15} /></button>
-              </div>
-            </div>
-            <div className="ai-model-selector">
-              <label>模型</label>
-              <select value={aiModel} onChange={(e) => setAiModel(e.target.value)}>
-                {aiModels.map(m => (
-                  <option key={m.id} value={m.id}>{m.name} {m.free ? '免费' : '付费'}</option>
-                ))}
-              </select>
-            </div>
-            <div className="ai-messages">
-              {aiMessages.length === 0 && (
-                <EmptyState icon="ai" title="向 AI 助手提问吧" desc="支持多轮对话，连续上下文" />
-              )}
-              {aiMessages.map((msg, idx) => (
-                <div key={idx} className={`ai-message ${msg.role}`}>
-                  <div className="ai-avatar">{msg.role === 'user' ? <AvatarImg src={getAvatarUrl(user.avatar)} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} /> : <I name="ai" size={18} />}</div>
-                  <div className="ai-bubble">
-                    {msg.role === 'user' ? msg.content : (
-                      <>
-                        <div className="ai-content">{renderMarkdown(msg.content)}</div>
-                        {(msg.provider || msg.hint) && (
-                          <div className="ai-meta-line">
-                            {msg.provider && <span>{msg.provider} · {msg.model}</span>}
-                            {msg.hint && <span>{msg.hint}</span>}
-                          </div>
-                        )}
-                        {msg.rechargeUrl && (
-                          <a href={msg.rechargeUrl} target="_blank" rel="noopener noreferrer" className="recharge-link">前往充值</a>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {aiLoading && (
-                <div className="ai-message assistant">
-                  <div className="ai-avatar"><I name="ai" size={18} /></div>
-                  <div className="ai-bubble"><div className="ai-typing"><span></span><span></span><span></span></div></div>
-                </div>
-              )}
-              <div ref={aiMessagesEndRef} />
-            </div>
-            <div className="ai-input-area">
-              <textarea className="ai-input" placeholder="输入问题，Enter发送，Shift+Enter换行" value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={handleAiKeyPress} disabled={aiLoading} rows={2} />
-              <button className="ai-send-button" onClick={sendAiMessage} disabled={!aiInput.trim() || aiLoading}>{aiLoading ? '思考中...' : '发送'}</button>
-            </div>
-          </div>
+          <AiView
+            user={user}
+            balance={balance}
+            setView={setView}
+            setBottomTab={setBottomTab}
+            fetchDailyDigest={fetchDailyDigest}
+            showToast={showToast}
+            aiModel={aiModel}
+            setAiModel={setAiModel}
+            aiModels={aiModels}
+            aiMessages={aiMessages}
+            aiInput={aiInput}
+            setAiInput={setAiInput}
+            aiLoading={aiLoading}
+            handleAiKeyPress={handleAiKeyPress}
+            sendAiMessage={sendAiMessage}
+            renderMarkdown={renderMarkdown}
+            aiMessagesEndRef={aiMessagesEndRef}
+            setShowRechargeModal={setShowRechargeModal}
+            fetchRechargeHistory={fetchRechargeHistory}
+            resetAiChat={resetAiChat}
+            openAdminCenter={openAdminCenter}
+          />
         ) : view === 'video' ? (
-          /* ===== B站视频全屏视图 ===== */
-          <div className="video-fullview">
-            <div className="video-fullview-header">
-              <button className="back-btn" onClick={() => { setView('chats'); setBottomTab('discover'); }}>← 返回</button>
-              <h3><I name="bilibili" size={20} /> B站视频</h3>
-            </div>
-            <div className="panel-searchbar panel-bili-searchbar">
-              <form onSubmit={searchBilibili}>
-                <input type="text" placeholder="搜索B站视频..." value={bilibiliQuery} onChange={e => setBilibiliQuery(e.target.value)} />
-                <button type="submit" disabled={bilibiliLoading}>{bilibiliLoading ? '搜索中' : '搜索'}</button>
-              </form>
-            </div>
-            <div className="panel-scroll">
-              {selectedBiliVideo ? (
-                <div className="panel-detail">
-                  <div className="panel-detail-head">
-                    <button onClick={() => setSelectedBiliVideo(null)} className="panel-back">←</button>
-                    <span>{selectedBiliVideo.title}</span>
-                  </div>
-                  <div className="bilibili-embed">
-                    <iframe src={`https://player.bilibili.com/player.html?bvid=${selectedBiliVideo.bvid}`} title={selectedBiliVideo.title} allowFullScreen />
-                  </div>
-                  <div className="panel-meta">
-                    <div>{selectedBiliVideo.author} · ▶ {selectedBiliVideo.play}次 · {selectedBiliVideo.duration}</div>
-                  </div>
-                  <button onClick={() => shareBilibiliToChat(selectedBiliVideo)} className="panel-primary-btn"><I name="forward" size={15} color="#fff" /> 分享到聊天</button>
-                </div>
-              ) : bilibiliResults.length > 0 ? (
-                bilibiliResults.map((video, idx) => (
-                  <div key={idx} onClick={() => setSelectedBiliVideo(video)} className="panel-list-item">
-                    <img src={video.pic} alt={video.title} className="panel-thumb" />
-                    <div className="panel-list-copy">
-                      <div className="panel-list-title">{video.title}</div>
-                      <div className="panel-list-sub">{video.author}</div>
-                      <div className="panel-list-meta">▶ {video.play} · {video.duration}</div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <EmptyState icon="bilibili" title={bilibiliLoading ? '搜索中...' : '输入关键词搜索B站视频'} />
-              )}
-            </div>
-          </div>
+          <BilibiliView
+            setView={setView}
+            setBottomTab={setBottomTab}
+            bilibiliQuery={bilibiliQuery}
+            setBilibiliQuery={setBilibiliQuery}
+            bilibiliLoading={bilibiliLoading}
+            searchBilibili={searchBilibili}
+            selectedBiliVideo={selectedBiliVideo}
+            setSelectedBiliVideo={setSelectedBiliVideo}
+            bilibiliResults={bilibiliResults}
+            shareBilibiliToChat={shareBilibiliToChat}
+            observeVideo={observeVideo}
+          />
         ) : currentRoom ? (
           <ChatView
             currentRoom={currentRoom}
