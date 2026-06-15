@@ -5,7 +5,7 @@ import {
   X, ChevronRight, ArrowLeft, MoreHorizontal, Menu, Camera, Mic, MicOff, Square, Send,
   Paperclip, SmilePlus, Hash, Gift, Vote, Dice1, Hand, Swords, Crown, Volume2, Bell,
   BellOff, FileText, Download, Upload, Trash2, Copy, ExternalLink, RotateCcw, Clock,
-  Calendar, Zap, ListOrdered, FileUp, LogOut, Info
+  Calendar, Zap, ListOrdered, FileUp, LogOut, Info, Sun, Moon
 } from 'lucide-react';
 
 export const iconProps = { size: 24, strokeWidth: 1.2, absoluteStrokeWidth: true };
@@ -26,5 +26,5 @@ export const iconMap = {
   file: FileText, download: Download, upload: Upload, delete: Trash2,
   copy: Copy, link: ExternalLink, reset: RotateCcw, clock: Clock, calendar: Calendar,
   stop: Square, quick: Zap, solitaire: ListOrdered, export: FileUp, logout: LogOut,
-  info: Info,
+  info: Info, sun: Sun, moon: Moon,
 };

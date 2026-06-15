@@ -1,7 +1,7 @@
 {
   "appVersion": "3.0.0",
   "majorVersion": "3",
-  "webBuild": 225,
+  "webBuild": 226,
   "nativeBuild": 4,
   "minNativeBuild": 1,
   "apkUrl": "/releases/ChatRoom-v3.0.0.apk",

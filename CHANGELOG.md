@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.0.1 - 2026-06-15
+
+### 重构
+- App.js 从 5261 行拆分为 ~70 个文件（组件 + hooks + utils + styles）
+- CSS 从 6577 行拆分为模块文件（themes.css, auth.css, responsive.css）
+- 提取 12 个自定义 hooks（useAuth, useSocket, useChat, useRooms, useFriends, useAI, usePanels, useWallet, useSocial, useCall, useSettings, useToast）
+- 提取 30+ 组件（ChatView, ContactsView, DiscoverView, MeView, 23 个 Modal/Panel + BottomTabBar, SplashScreen, ImageViewer）
+- 修复 ErrorBoundary 破坏性错误处理（document.body.innerHTML → console.error）
+- 修复深色模式切换图标（search/star → moon/sun）
+- 修复 onKeyPress → onKeyDown
+
 ## v2.0.2 (2026-06-10)
 
 ### Fixed

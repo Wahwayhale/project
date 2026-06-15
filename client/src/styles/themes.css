@@ -1,0 +1,49 @@
+/* CSS Variables — Design Tokens */
+:root {
+  /* 主色调 - 温暖的品牌色 */
+  --primary: #5b6ef7;
+  --primary-light: #7b8ffa;
+  --primary-dark: #4a5bd6;
+  --primary-gradient: linear-gradient(135deg, #5b6ef7 0%, #8b5cf6 100%);
+  --primary-bg: rgba(91, 110, 247, 0.08);
+
+  /* 语义色 */
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #3b82f6;
+
+  /* 中性色 */
+  --bg: #f0f2f5;
+  --bg-card: #ffffff;
+  --bg-hover: #f5f6fa;
+  --bg-active: #eef0f7;
+  --border: #e8eaef;
+  --border-light: #f0f1f5;
+
+  /* 文字 */
+  --text: #1a1a2e;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --text-white: #ffffff;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.1);
+
+  /* 圆角 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  /* 动画 */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* 尺寸 */
+  --sidebar-width: 320px;
+  --header-height: 60px;
+}

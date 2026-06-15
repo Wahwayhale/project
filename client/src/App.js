@@ -1448,7 +1448,7 @@ function App() {
 
       {/* 深色模式切换按钮 */}
       <button className="dark-mode-toggle" onClick={toggleDarkMode} title={darkMode ? '切换浅色模式' : '切换深色模式'}>
-        {darkMode ? <I name="search" size={15} /> : <I name="star" size={15} />}
+        {darkMode ? <I name="moon" size={15} /> : <I name="sun" size={15} />}
       </button>
 
       {/* 红包弹窗 */}

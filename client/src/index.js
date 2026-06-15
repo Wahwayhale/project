@@ -45,13 +45,13 @@ class ErrorBoundary extends React.Component {
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
-// 全局未捕获错误处理
+// 全局未捕获错误处理（仅日志记录，不破坏 DOM）
 window.onerror = (msg, src, line, col, err) => {
-  document.body.innerHTML = '<div style="padding:30px;font-family:sans-serif;max-width:650px;margin:40px auto;background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.12)"><h2 style="color:#ef4444">⚠️ 运行时错误</h2><pre style="background:#fee2e2;padding:16px;border-radius:8px;overflow:auto;font-size:13px;white-space:pre-wrap">' + (err?.message || msg) + '</pre><pre style="background:#f3f4f6;padding:12px;border-radius:8px;margin-top:8px;font-size:11px;overflow:auto;max-height:100px">' + (err?.stack?.slice(0,600) || '') + '</pre></div>';
+  console.error('Global error:', { msg, src, line, col, err });
   return true;
 };
 window.onunhandledrejection = (e) => {
-  document.body.innerHTML = '<div style="padding:30px;font-family:sans-serif;max-width:650px;margin:40px auto;background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.12)"><h2 style="color:#f59e0b">⚠️ Promise 错误</h2><pre style="background:#fef3c7;padding:16px;border-radius:8px;overflow:auto;font-size:13px;white-space:pre-wrap">' + (e.reason?.message || String(e.reason)) + '</pre></div>';
+  console.error('Unhandled rejection:', e.reason);
 };
 
 root.render(

@@ -6,7 +6,7 @@ export const API_URL = isCapacitor ? SERVER_URL : '';
 // 版本信息
 export const APP_VERSION = '3.0.0';
 export const MAJOR_VERSION = '3';
-export const WEB_BUILD = 225;
+export const WEB_BUILD = 226; // was 225
 export const NATIVE_BUILD = 4;
 
 // 文件分片
