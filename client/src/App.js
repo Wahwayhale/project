@@ -280,7 +280,7 @@ function App() {
     searchResults, setSearchResults,
     recalledMessages, setRecalledMessages,
     reactionPicker, setReactionPicker,
-    forwardMsg, showForwardModal,
+    forwardMsg, showForwardModal, setShowForwardModal,
     fileInputRef,
     sendMessage, handleKeyDown, handleInputChange,
     handleFileSelect,
