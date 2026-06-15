@@ -3,6 +3,7 @@ import io from 'socket.io-client';
 import axios from 'axios';
 import { I } from './components/Icon';
 import { useToast } from './hooks/useToast';
+import { useSettings } from './hooks/useSettings';
 import Toast from './components/ui/Toast';
 import { isCapacitor, SERVER_URL, API_URL, APP_VERSION, MAJOR_VERSION, WEB_BUILD, NATIVE_BUILD, CHUNK_SIZE, DEFAULT_AVATAR, EMOJIS } from './utils/constants';
 import { formatFileSize, getFileIcon, parseBilibiliUrl, formatTime, formatRecordingTime, formatMessagePreview } from './utils/format';
@@ -82,32 +83,9 @@ function App() {
   const messagesContainerRef = useRef(null);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [view, setView] = useState('chats');
-  
-  // 深色模式
-  const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
-  
-  // 聊天背景
-  const [chatBackgrounds, setChatBackgrounds] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('chatBackgrounds') || '{}'); } catch { return {}; }
-  });
-  
-  // 消息免打扰
-  const [mutedRooms, setMutedRooms] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('mutedRooms') || '[]')); } catch { return new Set(); }
-  });
-  
-  // 消息收藏
-  const [starredMessages, setStarredMessages] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('starredMessages') || '[]')); } catch { return new Set(); }
-  });
-  
+
   // 快捷回复
   const [quickReplies] = useState(['好的', '收到', '没问题', '稍等', '哈哈哈', '嗯嗯', '谢谢', '再见']);
-  
-  // 消息置顶
-  const [pinnedMessages, setPinnedMessages] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('pinnedMessages') || '{}'); } catch { return {}; }
-  });
   
   // 红包
   const [redPackets, setRedPackets] = useState({});
@@ -159,11 +137,6 @@ function App() {
   const [phoneBinding, setPhoneBinding] = useState(false);
   const [phoneSendingCode, setPhoneSendingCode] = useState(false);
   
-  // 群公告
-  const [roomAnnouncements, setRoomAnnouncements] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('roomAnnouncements') || '{}'); } catch { return {}; }
-  });
-  
   // 消息编辑
   const [editingMessage, setEditingMessage] = useState(null);
   const [editText, setEditText] = useState('');
@@ -187,6 +160,18 @@ function App() {
   // Toast 通知系统
   const { toast, showToast } = useToast();
 
+  // 设置系统
+  const {
+    darkMode, toggleDarkMode, fontSize, setFontSize,
+    themePreset, setThemePreset,
+    chatBackgrounds, setChatBackgrounds,
+    mutedRooms, setMutedRooms,
+    starredMessages, toggleStarMessage,
+    pinnedMessages, setPinnedMessages,
+    roomAnnouncements, setRoomAnnouncements,
+    pinnedChats, togglePinChat,
+  } = useSettings();
+
   // === 聊天室功能 ===
   // 底部Tab (聊天/通讯录/发现/我)
   const [bottomTab, setBottomTab] = useState('chats');
@@ -199,18 +184,12 @@ function App() {
   const [contactsLetter, setContactsLetter] = useState('');
   // 聊天记录备份
   const [showBackupModal, setShowBackupModal] = useState(false);
-  // 字体大小 (默认16px)
-  const [fontSize, setFontSize] = useState(parseInt(localStorage.getItem('chatFontSize') || '15'));
   // 聊天背景选择
   const [showBgPicker, setShowBgPicker] = useState(false);
 
   // ===== 新功能状态 =====
   // 图片查看器
   const [imageViewer, setImageViewer] = useState(null); // { url, urls[] } or null
-  // 聊天置顶
-  const [pinnedChats, setPinnedChats] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('pinnedChats') || '[]')); } catch { return new Set(); }
-  });
   // 消息反应
   const [reactionPicker, setReactionPicker] = useState(null); // { messageId, x, y } or null
   const REACTION_EMOJIS = ['👍','❤️','😂','😮','😢','😡','🎉','💯','🔥','👏'];
@@ -268,10 +247,6 @@ function App() {
   const [showBotModal, setShowBotModal] = useState(false);
   const [bots, setBots] = useState([]);
   const [botForm, setBotForm] = useState({ name: '', prompt: '', autoReply: false, scheduleCron: '', scheduleMsg: '' });
-
-  useEffect(() => {
-    localStorage.setItem('chatFontSize', fontSize.toString());
-  }, [fontSize]);
 
   // 闪屏自动消失
   useEffect(() => {
@@ -357,8 +332,6 @@ function App() {
   // Search
   const [searchFilter, setSearchFilter] = useState('all');
   const [searchResults, setSearchResults] = useState([]);
-  // Theme
-  const [themePreset, setThemePreset] = useState(localStorage.getItem('themePreset') || 'mint');
   // Weather
   const [showWeatherPanel, setShowWeatherPanel] = useState(false);
   const [weatherCity, setWeatherCity] = useState('');
@@ -552,40 +525,9 @@ function App() {
     }
   }, [currentRoomId]);
 
-  // 深色模式
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode);
-    localStorage.setItem('darkMode', darkMode);
-  }, [darkMode]);
-
   useEffect(() => {
     changeTheme(themePreset);
   }, []);
-
-  // 保存聊天背景
-  useEffect(() => {
-    localStorage.setItem('chatBackgrounds', JSON.stringify(chatBackgrounds));
-  }, [chatBackgrounds]);
-
-  // 保存免打扰设置
-  useEffect(() => {
-    localStorage.setItem('mutedRooms', JSON.stringify([...mutedRooms]));
-  }, [mutedRooms]);
-
-  // 保存收藏
-  useEffect(() => {
-    localStorage.setItem('starredMessages', JSON.stringify([...starredMessages]));
-  }, [starredMessages]);
-
-  // 保存置顶
-  useEffect(() => {
-    localStorage.setItem('pinnedMessages', JSON.stringify(pinnedMessages));
-  }, [pinnedMessages]);
-
-  // 保存群公告
-  useEffect(() => {
-    localStorage.setItem('roomAnnouncements', JSON.stringify(roomAnnouncements));
-  }, [roomAnnouncements]);
 
   // 消息加载后滚动到底部
   useEffect(() => {
@@ -1123,21 +1065,6 @@ function App() {
     setEditingMessage(null);
     setEditText('');
     setNewMessage('');
-  };
-
-  // 收藏/取消收藏
-  const toggleStarMessage = (messageId) => {
-    setStarredMessages(prev => {
-      const next = new Set(prev);
-      if (next.has(messageId)) {
-        next.delete(messageId);
-        showToast('已取消收藏', 'info');
-      } else {
-        next.add(messageId);
-        showToast('已收藏消息', 'success');
-      }
-      return next;
-    });
   };
 
   // 置顶/取消置顶
@@ -2308,23 +2235,6 @@ function App() {
     setShowQuickReplies(false);
   };
 
-  // 切换聊天置顶
-  const togglePinChat = (roomId, e) => {
-    if (e) e.stopPropagation();
-    setPinnedChats(prev => {
-      const next = new Set(prev);
-      if (next.has(roomId)) {
-        next.delete(roomId);
-        showToast('已取消置顶', 'info');
-      } else {
-        next.add(roomId);
-        showToast('已置顶聊天', 'success');
-      }
-      localStorage.setItem('pinnedChats', JSON.stringify([...next]));
-      return next;
-    });
-  };
-
   // 打开图片查看器
   const openImageViewer = (url, allUrls) => {
     setImageViewer({ url, urls: allUrls || [url], index: allUrls ? allUrls.indexOf(url) : 0 });
@@ -2442,14 +2352,6 @@ function App() {
     setShowSolitaireJoin(null);
     showToast('已参与接龙', 'success');
   };
-
-  // 切换深色模式
-  const toggleDarkMode = () => setDarkMode(prev => !prev);
-
-  // 保存置顶
-  useEffect(() => {
-    localStorage.setItem('pinnedChats', JSON.stringify([...pinnedChats]));
-  }, [pinnedChats]);
 
   // 获取未读计数
   useEffect(() => {
