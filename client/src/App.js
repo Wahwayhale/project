@@ -5,6 +5,11 @@ import { I } from './components/Icon';
 import { isCapacitor, SERVER_URL, API_URL, APP_VERSION, MAJOR_VERSION, WEB_BUILD, NATIVE_BUILD, CHUNK_SIZE, DEFAULT_AVATAR, EMOJIS } from './utils/constants';
 import { formatFileSize, getFileIcon, parseBilibiliUrl, formatTime, formatRecordingTime, formatMessagePreview } from './utils/format';
 import { getAvatarUrl } from './utils/avatar';
+import AvatarImg from './components/ui/AvatarImg';
+import RoomAvatar from './components/ui/RoomAvatar';
+import EmptyState from './components/ui/EmptyState';
+import FeatureItem from './components/ui/FeatureItem';
+import MeMenuItem from './components/ui/MeMenuItem';
 // axios 全局配置
 axios.defaults.timeout = 15000;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -43,81 +48,6 @@ axios.interceptors.response.use(null, async (err) => {
   return Promise.reject(err);
 });
 console.log('[APP] Capacitor:', isCapacitor, 'API_URL:', API_URL || '(relative)');
-
-// AvatarImg 组件：在 App 环境中通过 axios 加载图片，绕过 ngrok 安全提示页
-function AvatarImg({ src, alt, className, style }) {
-  const [imgSrc, setImgSrc] = useState(src);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    if (!src || src === DEFAULT_AVATAR || !src.startsWith('http')) {
-      setImgSrc(src || DEFAULT_AVATAR);
-      return;
-    }
-    // 在 App 环境中，使用 axios 获取图片并转换为 blob URL
-    if (isCapacitor) {
-      axios.get(src, { responseType: 'blob' })
-        .then(res => {
-          const blobUrl = URL.createObjectURL(res.data);
-          setImgSrc(blobUrl);
-          setError(false);
-        })
-        .catch(() => {
-          setError(true);
-          setImgSrc(DEFAULT_AVATAR);
-        });
-    } else {
-      setImgSrc(src);
-    }
-  }, [src]);
-
-  if (error) {
-    return <img src={DEFAULT_AVATAR} alt={alt} className={className} style={style} />;
-  }
-
-  return <img src={imgSrc} alt={alt} className={className} style={style} onError={(e) => { e.target.src = DEFAULT_AVATAR; }} />;
-}
-
-function RoomAvatar({ name, size = 'md' }) {
-  return (
-    <div className={`room-avatar room-avatar-${size}`}>
-      {(name || '群')[0]}
-    </div>
-  );
-}
-
-function EmptyState({ icon = 'chat', title, desc }) {
-  return (
-    <div className="empty-state">
-      <div className="empty-state-icon"><I name={icon} size={44} /></div>
-      <div className="empty-state-title">{title}</div>
-      {desc && <div className="empty-state-desc">{desc}</div>}
-    </div>
-  );
-}
-
-function FeatureItem({ icon, tone, title, desc, onClick, loading }) {
-  return (
-    <button className="feature-item" onClick={onClick}>
-      <span className={`feature-icon feature-${tone}`}><I name={icon} size={20} /></span>
-      <span className="feature-copy">
-        <span className="feature-title">{title}</span>
-        <span className="feature-desc">{loading || desc}</span>
-      </span>
-      <I name="arrowRight" size={17} className="feature-arrow" />
-    </button>
-  );
-}
-
-function MeMenuItem({ icon, tone, label, meta, onClick }) {
-  return (
-    <button className="me-menu-item" onClick={onClick}>
-      <span className={`menu-icon menu-${tone}`}><I name={icon} size={18} /></span>
-      <span>{label}</span>
-      {meta ? <span className="menu-badge">{meta}</span> : <I name="arrowRight" size={17} className="menu-arrow" />}
-    </button>
-  );
-}
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
