@@ -26,6 +26,7 @@ import MeMenuItem from './components/ui/MeMenuItem';
 import BottomTabBar from './components/BottomTabBar';
 import GameModal from './components/modals/GameModal';
 import MusicShareModal from './components/modals/MusicShareModal';
+import ForwardModal from './components/modals/ForwardModal';
 // axios 全局配置
 axios.defaults.timeout = 15000;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -2505,27 +2506,7 @@ function App() {
       <SplashScreen showSplash={showSplash} appVersion={appVersion} />
 
       {/* 转发弹窗 */}
-      {showForwardModal && (
-        <div className="modal-overlay" onClick={() => { setShowForwardModal(false); setForwardMsg(null); }}>
-          <div className="modal forward-modal" onClick={e => e.stopPropagation()}>
-            <h3><I name="forward" size={20} /> 转发消息</h3>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
-              选择要转发到的聊天
-            </p>
-            <div className="forward-list">
-              {rooms?.filter(r => r.type !== 'private')?.map(room => (
-                <div key={room.id} className="forward-item" onClick={() => forwardMessage(room)}>
-                  <div className="forward-avatar">{(room.name || '群')[0]}</div>
-                  <span>{room.name}</span>
-                </div>
-              ))}
-            </div>
-            <div className="modal-buttons">
-              <button className="cancel" onClick={() => { setShowForwardModal(false); setForwardMsg(null); }}>取消</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ForwardModal showForwardModal={showForwardModal} setShowForwardModal={setShowForwardModal} setForwardMsg={setForwardMsg} rooms={rooms} forwardMessage={forwardMessage} />
 
       {/* 聊天记录备份弹窗 */}
       {showBackupModal && (
