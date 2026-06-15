@@ -5,6 +5,7 @@ import { useToast } from './hooks/useToast';
 import { useSettings } from './hooks/useSettings';
 import { useAuth } from './hooks/useAuth';
 import { useSocket } from './hooks/useSocket';
+import { useFriends } from './hooks/useFriends';
 import Toast from './components/ui/Toast';
 import { isCapacitor, SERVER_URL, API_URL, APP_VERSION, MAJOR_VERSION, WEB_BUILD, NATIVE_BUILD, CHUNK_SIZE, DEFAULT_AVATAR, EMOJIS } from './utils/constants';
 import { formatFileSize, getFileIcon, parseBilibiliUrl, formatTime, formatRecordingTime, formatMessagePreview } from './utils/format';
@@ -63,21 +64,15 @@ function App() {
     profileEdit, setProfileEdit,
   } = useAuth();
   const [rooms, setRooms] = useState([]);
-  const [friends, setFriends] = useState([]);
-  const [friendRequests, setFriendRequests] = useState([]);
   const [currentRoom, setCurrentRoom] = useState(null);
   const [currentRoomId, setCurrentRoomId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  const [allUsers, setAllUsers] = useState([]);
   const [typingUser, setTypingUser] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showSearchModal, setShowSearchModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPayCodeModal, setShowPayCodeModal] = useState(false);
   const [selectedFriendPayCode, setSelectedFriendPayCode] = useState(null);
-  const [searchId, setSearchId] = useState('');
-  const [searchResult, setSearchResult] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(null);
   const [messageEndRef, setMessageEndRef] = useState(null);
   const messagesContainerRef = useRef(null);
@@ -347,7 +342,31 @@ function App() {
   useEffect(() => { notifyRef.current = { enabled: notifyEnabled, muted: notifyMuted }; }, [notifyEnabled, notifyMuted]);
 
   // ===== Socket 连接与在线用户 =====
-  const { socketRef, onlineUsers } = useSocket({
+  const socketRef = useRef(null);
+  const friendsHook = useFriends({
+    socketRef,
+    user,
+    token,
+    showToast,
+    rooms,
+    setCurrentRoom,
+    setCurrentRoomId,
+    setView,
+  });
+  const {
+    friends, setFriends,
+    friendRequests, setFriendRequests,
+    allUsers, setAllUsers,
+    searchId, setSearchId,
+    searchResult, setSearchResult,
+    showSearchModal, setShowSearchModal,
+    fetchFriends, fetchFriendRequests, fetchUsers,
+    searchUser, sendFriendRequest,
+    acceptFriendRequest, rejectFriendRequest,
+    startChatWithFriend,
+  } = friendsHook;
+  const { onlineUsers } = useSocket({
+    socketRef,
     token,
     user,
     isAuthenticated,
@@ -504,39 +523,6 @@ function App() {
       setRooms(Array.isArray(response.data) ? response.data : []);
       setDiag(d => d + 'Rooms:' + (Array.isArray(response.data)?response.data.length:'err') + ' | ');
     } catch (err) { console.error('Failed to fetch rooms', err); setRooms([]); setDiag(d => d + 'Rooms:FAIL | '); }
-  };
-
-  const fetchFriends = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/api/friends`, { headers: { Authorization: token } });
-      const data = Array.isArray(response.data) ? response.data : [];
-      setFriends(data);
-      setDiag(d => d + 'Friends:' + data.length + ' | ');
-    } catch (err) { console.error('Failed to fetch friends', err); setFriends([]); setDiag(d => d + 'Friends:FAIL | '); }
-  };
-
-  const fetchFriendRequests = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/api/friend-requests`, {
-        headers: { Authorization: token }
-      });
-      setFriendRequests(Array.isArray(response.data) ? response.data : []);
-    } catch (err) {
-      console.error('Failed to fetch friend requests', err);
-      setFriendRequests([]);
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/api/users`, {
-        headers: { Authorization: token }
-      });
-      setAllUsers(Array.isArray(response.data) ? response.data : []);
-    } catch (err) {
-      console.error('Failed to fetch users', err);
-      setAllUsers([]);
-    }
   };
 
   const sendMessage = () => {
@@ -792,36 +778,6 @@ function App() {
       name: groupName.trim(),
       members: selectedFriends.map(f => f.username)
     });
-  };
-
-  const searchUser = async () => {
-    if (!searchId.trim()) return;
-    try {
-      // 支持 6位数字ID 或 用户名搜索
-      const isNumericId = /^\d{6}$/.test(searchId.trim());
-      let response;
-      if (isNumericId) {
-        response = await axios.get(`${API_URL}/api/users/search/${searchId.trim()}`, { headers: { Authorization: token } });
-      } else {
-        response = await axios.get(`${API_URL}/api/users/searchByName/${encodeURIComponent(searchId.trim())}`, { headers: { Authorization: token } });
-      }
-      setSearchResult(response.data);
-    } catch (err) {
-      setSearchResult(null);
-      showToast('未找到该用户', 'error');
-    }
-  };
-
-  const sendFriendRequest = async (targetUsername) => {
-    try {
-      await axios.post(`${API_URL}/api/friends/request`, { username: targetUsername }, {
-        headers: { Authorization: token }
-      });
-      showToast('好友请求已发送', 'success');
-      setSearchResult(prev => prev ? { ...prev, requestSent: true } : null);
-    } catch (err) {
-      alert(err.response?.data?.error || '发送失败');
-    }
   };
 
   const fetchPopularVideos = async () => {
@@ -1395,29 +1351,6 @@ function App() {
     }
   };
 
-  const acceptFriendRequest = async (targetUsername) => {
-    try {
-      await axios.post(`${API_URL}/api/friends/accept`, { username: targetUsername }, {
-        headers: { Authorization: token }
-      });
-      setFriendRequests(prev => prev.filter(r => r.username !== targetUsername));
-      fetchFriends();
-    } catch (err) {
-      alert(err.response?.data?.error || '操作失败');
-    }
-  };
-
-  const rejectFriendRequest = async (targetUsername) => {
-    try {
-      await axios.post(`${API_URL}/api/friends/reject`, { username: targetUsername }, {
-        headers: { Authorization: token }
-      });
-      setFriendRequests(prev => prev.filter(r => r.username !== targetUsername));
-    } catch (err) {
-      alert(err.response?.data?.error || '操作失败');
-    }
-  };
-
   const showFriendPayCode = async (username) => {
     try {
       const response = await axios.get(`${API_URL}/api/users/${username}/paycode`, {
@@ -1552,24 +1485,6 @@ function App() {
     } catch (err) {
       showToast('上传头像失败', 'error');
     }
-  };
-
-  const startChatWithFriend = (friend) => {
-    const roomName = `chat_${[user.username, friend.username].sort().join('_')}`;
-    const existingRoom = (rooms || []).find(r => r.name === roomName || (r.members && r.members.includes(user.username) && r.members.includes(friend.username)));
-    if (existingRoom) {
-      setCurrentRoom(existingRoom);
-      setCurrentRoomId(existingRoom.id);
-    } else {
-      socketRef.current.emit('createGroup', {
-        name: `${friend.username} & ${user.username}`,
-        members: [friend.username]
-      });
-      setTimeout(() => {
-        setCurrentRoomId(`chat_${[user.username, friend.username].sort().join('_')}`);
-      }, 500);
-    }
-    setView('chats');
   };
 
   // 高亮搜索匹配文本

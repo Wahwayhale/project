@@ -14,8 +14,9 @@ import { API_URL } from '../utils/constants';
  * 仅当 isAuthenticated 且 user 存在时建立连接。
  * 返回 { socketRef, onlineUsers }。
  */
-export function useSocket({ token, user, isAuthenticated, handlers }) {
-  const socketRef = useRef(null);
+export function useSocket({ token, user, isAuthenticated, handlers, socketRef: externalSocketRef }) {
+  const internalRef = useRef(null);
+  const socketRef = externalSocketRef || internalRef;
   const [onlineUsers, setOnlineUsers] = useState([]);
 
   // 用 ref 存储最新的 handlers / user，避免 socket 事件回调闭包过时
