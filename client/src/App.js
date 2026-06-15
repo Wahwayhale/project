@@ -2,12 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 import axios from 'axios';
 import { I } from './components/Icon';
-
-const isCapacitor = typeof window !== 'undefined' && window.Capacitor?.isNativePlatform;
-// App 服务器 ngrok 地址
-const SERVER_URL = 'https://parakeet-nimble-cage.ngrok-free.dev';
-// Capacitor App 始终用绝对 URL（capacitor://localhost 不是 file://）
-const API_URL = isCapacitor ? SERVER_URL : '';
+import { isCapacitor, SERVER_URL, API_URL, APP_VERSION, MAJOR_VERSION, WEB_BUILD, NATIVE_BUILD, CHUNK_SIZE, DEFAULT_AVATAR, EMOJIS } from './utils/constants';
 // axios 全局配置
 axios.defaults.timeout = 15000;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -46,8 +41,6 @@ axios.interceptors.response.use(null, async (err) => {
   return Promise.reject(err);
 });
 console.log('[APP] Capacitor:', isCapacitor, 'API_URL:', API_URL || '(relative)');
-const DEFAULT_AVATAR = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="50" fill="#e0e0e0"/><text x="50" y="58" text-anchor="middle" font-size="40" fill="#999">👤</text></svg>');
-const CHUNK_SIZE = 2 * 1024 * 1024;
 
 // 修复头像 URL：补全地址 + 兜底默认头像
 function getAvatarUrl(avatar) {
@@ -89,6 +82,47 @@ function AvatarImg({ src, alt, className, style }) {
   }
 
   return <img src={imgSrc} alt={alt} className={className} style={style} onError={(e) => { e.target.src = DEFAULT_AVATAR; }} />;
+}
+
+function RoomAvatar({ name, size = 'md' }) {
+  return (
+    <div className={`room-avatar room-avatar-${size}`}>
+      {(name || '群')[0]}
+    </div>
+  );
+}
+
+function EmptyState({ icon = 'chat', title, desc }) {
+  return (
+    <div className="empty-state">
+      <div className="empty-state-icon"><I name={icon} size={44} /></div>
+      <div className="empty-state-title">{title}</div>
+      {desc && <div className="empty-state-desc">{desc}</div>}
+    </div>
+  );
+}
+
+function FeatureItem({ icon, tone, title, desc, onClick, loading }) {
+  return (
+    <button className="feature-item" onClick={onClick}>
+      <span className={`feature-icon feature-${tone}`}><I name={icon} size={20} /></span>
+      <span className="feature-copy">
+        <span className="feature-title">{title}</span>
+        <span className="feature-desc">{loading || desc}</span>
+      </span>
+      <I name="arrowRight" size={17} className="feature-arrow" />
+    </button>
+  );
+}
+
+function MeMenuItem({ icon, tone, label, meta, onClick }) {
+  return (
+    <button className="me-menu-item" onClick={onClick}>
+      <span className={`menu-icon menu-${tone}`}><I name={icon} size={18} /></span>
+      <span>{label}</span>
+      {meta ? <span className="menu-badge">{meta}</span> : <I name="arrowRight" size={17} className="menu-arrow" />}
+    </button>
+  );
 }
 
 function formatFileSize(bytes) {
@@ -231,8 +265,8 @@ function App() {
   
   // OTA 更新
   const [otaInfo, setOtaInfo] = useState(null);
-  const [showOtaModal, setShowOtaModal] = useState(false);
-  const appVersion = '2.0.2';
+  const [showMajorUpdateModal, setShowMajorUpdateModal] = useState(false);
+  const appVersion = APP_VERSION;
   
   // 手机号绑定（验证码流程）
   const [phoneInfo, setPhoneInfo] = useState({ phone: null, phoneBound: false, phoneBoundAt: null });
@@ -278,8 +312,8 @@ function App() {
     toastTimerRef.current = setTimeout(() => setToast(null), 3000);
   };
 
-  // === 微信新功能 ===
-  // 底部Tab (微信/通讯录/发现/我)
+  // === 聊天室功能 ===
+  // 底部Tab (聊天/通讯录/发现/我)
   const [bottomTab, setBottomTab] = useState('chats');
   // 启动闪屏
   const [showSplash, setShowSplash] = useState(true);
@@ -398,6 +432,7 @@ function App() {
       { id: 'moonshot-v1-8k', name: 'Kimi Moonshot-8K', free: false },
       { id: 'moonshot-v1-32k', name: 'Kimi Moonshot-32K', free: false },
       { id: 'moonshot-v1-128k', name: 'Kimi Moonshot-128K', free: false },
+      { id: 'ernie-4.5-turbo-128k', name: '百度千帆 ERNIE 4.5 Turbo', free: false },
       { id: 'glm-4-plus', name: '智谱 GLM-4-Plus', free: false }
     ]);
   const [balance, setBalance] = useState(0);
@@ -407,6 +442,11 @@ function App() {
   const [rechargeHistory, setRechargeHistory] = useState([]);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [pendingRecharges, setPendingRecharges] = useState([]);
+  const [aiStatus, setAiStatus] = useState(null);
+  const [aiStatusLoading, setAiStatusLoading] = useState(false);
+  const [adminDashboard, setAdminDashboard] = useState(null);
+  const [adminDashboardLoading, setAdminDashboardLoading] = useState(false);
+  const [showRoomManage, setShowRoomManage] = useState(false);
 
   // ===== AI 增强功能 =====
   const [smartReplies, setSmartReplies] = useState([]);
@@ -443,7 +483,7 @@ function App() {
   const [searchFilter, setSearchFilter] = useState('all');
   const [searchResults, setSearchResults] = useState([]);
   // Theme
-  const [themePreset, setThemePreset] = useState(localStorage.getItem('themePreset') || 'green');
+  const [themePreset, setThemePreset] = useState(localStorage.getItem('themePreset') || 'mint');
   // Weather
   const [showWeatherPanel, setShowWeatherPanel] = useState(false);
   const [weatherCity, setWeatherCity] = useState('');
@@ -643,6 +683,10 @@ function App() {
     localStorage.setItem('darkMode', darkMode);
   }, [darkMode]);
 
+  useEffect(() => {
+    changeTheme(themePreset);
+  }, []);
+
   // 保存聊天背景
   useEffect(() => {
     localStorage.setItem('chatBackgrounds', JSON.stringify(chatBackgrounds));
@@ -675,15 +719,17 @@ function App() {
     }
   }, [messages, messagesLoading, messageEndRef]);
 
-  // OTA 版本检查 — 服务器版本不同就弹窗（不依赖 localStorage）
+  // OTA 版本检查：手机端登录不弹下载窗；仅大版本变化时展示一次更新说明。
   useEffect(() => {
     const checkUpdate = async () => {
       try {
         const res = await axios.get(`${API_URL}/ota-version.json`, { timeout: 5000 });
-        const serverVer = res.data.version || '0.0.0';
-        if (serverVer !== appVersion) {
-          setOtaInfo(res.data);
-          setShowOtaModal(true);
+        const info = res.data || {};
+        setOtaInfo(info);
+        const major = String(info.majorVersion || (info.appVersion || '').split('.')[0] || MAJOR_VERSION);
+        const seenKey = `seenMajorUpdate:${major}`;
+        if (info.showMajorUpdate && major !== localStorage.getItem(seenKey)) {
+          setShowMajorUpdateModal(true);
         }
       } catch (e) { /* 离线忽略 */ }
     };
@@ -921,6 +967,8 @@ function App() {
     // 群公告
     socketRef.current.on('announcementUpdated', ({ roomId, announcement }) => {
       setRoomAnnouncements(prev => ({ ...prev, [roomId]: announcement }));
+      setCurrentRoom(prev => prev?.id === roomId ? { ...prev, announcement } : prev);
+      setRooms(prev => prev.map(r => r.id === roomId ? { ...r, announcement } : r));
       showToast('群公告已更新', 'info');
     });
 
@@ -932,6 +980,22 @@ function App() {
         setCurrentRoom(null);
         setMessages([]);
       }
+    });
+
+    socketRef.current.on('memberKicked', ({ roomId, username }) => {
+      setCurrentRoom(prev => prev?.id === roomId ? { ...prev, members: (prev.members || []).filter(m => m !== username) } : prev);
+      setRooms(prev => prev.map(r => r.id === roomId ? { ...r, members: (r.members || []).filter(m => m !== username) } : r));
+      showToast(`${username} 已被移出群聊`, 'info');
+    });
+
+    socketRef.current.on('memberMuted', ({ roomId, username }) => {
+      setCurrentRoom(prev => prev?.id === roomId ? { ...prev, mutedMembers: [...new Set([...(prev.mutedMembers || []), username])] } : prev);
+      setRooms(prev => prev.map(r => r.id === roomId ? { ...r, mutedMembers: [...new Set([...(r.mutedMembers || []), username])] } : r));
+    });
+
+    socketRef.current.on('memberUnmuted', ({ roomId, username }) => {
+      setCurrentRoom(prev => prev?.id === roomId ? { ...prev, mutedMembers: (prev.mutedMembers || []).filter(m => m !== username) } : prev);
+      setRooms(prev => prev.map(r => r.id === roomId ? { ...r, mutedMembers: (r.mutedMembers || []).filter(m => m !== username) } : r));
     });
 
     // 朋友圈
@@ -1570,7 +1634,11 @@ function App() {
       }, { headers: { Authorization: token } });
       setAiMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: res.data.reply || '（无回复）' 
+        content: res.data.reply || '（无回复）',
+        provider: res.data.provider,
+        model: res.data.model,
+        requestedModel: res.data.requestedModel,
+        hint: res.data.hint
       }]);
       if (res.data.balance !== undefined) {
         setBalance(res.data.balance);
@@ -1591,6 +1659,43 @@ function App() {
     } finally {
       setAiLoading(false);
     }
+  };
+
+  const fetchAiStatus = async () => {
+    if (user?.username !== 'admin') return;
+    setAiStatusLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/admin/ai-status`, {
+        headers: { Authorization: token }
+      });
+      setAiStatus(response.data);
+    } catch (err) {
+      showToast(err.response?.data?.error || 'AI 状态获取失败', 'error');
+    } finally {
+      setAiStatusLoading(false);
+    }
+  };
+
+  const fetchAdminDashboard = async () => {
+    if (user?.username !== 'admin') return;
+    setAdminDashboardLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/admin/dashboard`, {
+        headers: { Authorization: token }
+      });
+      setAdminDashboard(response.data);
+    } catch (err) {
+      showToast(err.response?.data?.error || '管理概览获取失败', 'error');
+    } finally {
+      setAdminDashboardLoading(false);
+    }
+  };
+
+  const openAdminCenter = () => {
+    setShowAdminModal(true);
+    fetchPendingRecharges();
+    fetchAiStatus();
+    fetchAdminDashboard();
   };
 
   const resetAiChat = async () => {
@@ -1739,12 +1844,14 @@ function App() {
     setThemePreset(preset);
     localStorage.setItem('themePreset', preset);
     const themes = {
+      mint: { primary: '#42d6a4', primaryGrad: 'linear-gradient(135deg, #42d6a4 0%, #55c7f7 100%)' },
       green: { primary: '#07c160', primaryGrad: 'linear-gradient(135deg, #07c160, #10b981)' },
       blue: { primary: '#3b82f6', primaryGrad: 'linear-gradient(135deg, #3b82f6, #6366f1)' },
       purple: { primary: '#8b5cf6', primaryGrad: 'linear-gradient(135deg, #8b5cf6, #a78bfa)' },
+      peach: { primary: '#ff8fb3', primaryGrad: 'linear-gradient(135deg, #ff8fb3, #ffd166)' },
       orange: { primary: '#f59e0b', primaryGrad: 'linear-gradient(135deg, #f59e0b, #f97316)' }
     };
-    const t = themes[preset] || themes.green;
+    const t = themes[preset] || themes.mint;
     document.documentElement.style.setProperty('--primary', t.primary);
     document.documentElement.style.setProperty('--primary-gradient', t.primaryGrad);
   };
@@ -2283,6 +2390,26 @@ function App() {
     if (announcement !== null) {
       socketRef.current.emit('setAnnouncement', { roomId: currentRoomId, announcement });
     }
+  };
+
+  const isRoomOwner = () => currentRoom?.owner === user?.username || user?.username === 'admin';
+
+  const muteRoomMember = (username) => {
+    if (!currentRoomId || !username) return;
+    socketRef.current.emit('muteMember', { roomId: currentRoomId, username });
+    showToast(`已禁言 ${username}`, 'info');
+  };
+
+  const unmuteRoomMember = (username) => {
+    if (!currentRoomId || !username) return;
+    socketRef.current.emit('unmuteMember', { roomId: currentRoomId, username });
+    showToast(`已解除 ${username} 的禁言`, 'success');
+  };
+
+  const kickRoomMember = (username) => {
+    if (!currentRoomId || !username || username === user?.username) return;
+    if (!window.confirm(`确定将 ${username} 移出群聊吗？`)) return;
+    socketRef.current.emit('kickMember', { roomId: currentRoomId, username });
   };
 
   // 发布朋友圈
@@ -2826,8 +2953,8 @@ function App() {
     return (
       <div className="auth-container">
         <div className="auth-box">
-          <h1>你无只因</h1>
-          <p className="auth-subtitle">现代化即时通讯平台</p>
+          <h1>聊天室</h1>
+          <p className="auth-subtitle">清爽、轻快的即时聊天空间</p>
           <form className="auth-form" onSubmit={handleAuth}>
             <div className="input-group">
               <span className="input-icon"><I name="me" size={17} /></span>
@@ -2878,11 +3005,11 @@ function App() {
     <div className={`app-container ${bottomTab !== 'chats' ? 'sidebar-hidden' : ''}`}>
       <div className="sidebar">
         <div className="sidebar-header">
-          <div className="user-info" onClick={() => setShowProfileModal(true)} style={{ cursor: 'pointer' }}>
+          <div className="user-info sidebar-user" onClick={() => setShowProfileModal(true)}>
             <AvatarImg src={getAvatarUrl(user?.avatar)} alt="" />
-            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-              <span style={{ fontSize: 14, fontWeight: 600 }}>{user?.username}</span>
-              <span style={{ fontSize: 10, opacity: 0.7 }}>ID: {user?.sixDigitId || '...'}</span>
+            <div className="sidebar-user-copy">
+              <span className="sidebar-username">{user?.username}</span>
+              <span className="sidebar-userid">ID: {user?.sixDigitId || '...'}</span>
             </div>
           </div>
            <div className="header-actions">
@@ -2891,7 +3018,7 @@ function App() {
         </div>
         
         {isCapacitor && diag && (
-          <div style={{ padding: '4px 12px', fontSize: 9, color: 'var(--text-secondary)', background: 'var(--bg)', borderBottom: '1px solid var(--border)', wordBreak: 'break-all', lineHeight: 1.4 }}>
+          <div className="diagnostic-bar">
             {diag}
           </div>
         )}
@@ -2908,7 +3035,7 @@ function App() {
           </div>
         </div>
         <div className="room-list">
-          <div className="room-list-header" style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.3px' }}>
+          <div className="room-list-header">
             {rooms?.filter(r => r.type !== 'private')?.length || 0} 个聊天
           </div>
           {(() => {
@@ -2922,43 +3049,39 @@ function App() {
                 {pinnedList.length > 0 && <div className="pinned-divider"><I name="pin" size={14} /> 置顶聊天</div>}
                 {pinnedList.map(room => (
                   <div key={room.id} className={`room-item pinned-chat ${currentRoomId === room.id ? 'active' : ''}`} onClick={() => handleRoomClick(room)}>
-                    <div className="avatar" style={{ width: 42, height: 42, borderRadius: 8, background: 'var(--primary-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18, fontWeight: 700 }}>{(room.name || '群')[0]}</div>
+                    <RoomAvatar name={room.name} />
                     <div className="room-info">
                       <div className="room-name">{room.name}</div>
                       <div className="last-message">{formatMessagePreview(room.lastMessage)}</div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                    <div className="room-side">
                       {room.lastMessage?.timestamp && <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>}
                       {unreadCounts[room.id] > 0 && currentRoomId !== room.id && <span className="unread-badge">{unreadCounts[room.id]}</span>}
                     </div>
                     <button className="room-pin-btn" onClick={(e) => togglePinChat(room.id, e)} title="取消置顶"><I name="pin" size={14} /></button>
-                    {room.id !== 'global' && <button className="room-pin-btn" onClick={(e) => deleteChat(room.id, e)} title="删除聊天" style={{ color: 'var(--danger)' }}><I name="delete" size={14} /></button>}
+                    {room.id !== 'global' && <button className="room-pin-btn danger" onClick={(e) => deleteChat(room.id, e)} title="删除聊天"><I name="delete" size={14} /></button>}
                   </div>
                 ))}
                 {unpinnedList.map(room => (
                   <div key={room.id} className={`room-item ${currentRoomId === room.id ? 'active' : ''}`} onClick={() => handleRoomClick(room)}>
-                    <div className="avatar" style={{ width: 42, height: 42, borderRadius: 8, background: 'var(--primary-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18, fontWeight: 700 }}>{(room.name || '群')[0]}</div>
+                    <RoomAvatar name={room.name} />
                     <div className="room-info">
                       <div className="room-name">{room.name}</div>
                       <div className="last-message">{formatMessagePreview(room.lastMessage)}</div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                    <div className="room-side">
                       {room.lastMessage?.timestamp && <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>}
                       {unreadCounts[room.id] > 0 && currentRoomId !== room.id && <span className="unread-badge">{unreadCounts[room.id]}</span>}
                     </div>
                     <button className="room-pin-btn" onClick={(e) => togglePinChat(room.id, e)} title="置顶聊天"><I name="pin" size={14} /></button>
-                    {room.id !== 'global' && <button className="room-pin-btn" onClick={(e) => deleteChat(room.id, e)} title="删除聊天" style={{ color: 'var(--danger)' }}><I name="delete" size={14} /></button>}
+                    {room.id !== 'global' && <button className="room-pin-btn danger" onClick={(e) => deleteChat(room.id, e)} title="删除聊天"><I name="delete" size={14} /></button>}
                   </div>
                 ))}
               </>
             );
           })()}
           {(!rooms || rooms.filter(r => r.type !== 'private').length === 0) && (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>
-              <div style={{ opacity: 0.25, marginBottom: 12 }}><I name="chat" size={48} /></div>
-              <div>暂无聊天</div>
-              <div style={{ fontSize: 12, marginTop: 8 }}>点击右下角"+"开始新的对话</div>
-            </div>
+            <EmptyState icon="chat" title="暂无聊天" desc="点击底部添加入口开始新的对话" />
           )}
         </div>
         <div className="sidebar-footer">
@@ -3036,118 +3159,27 @@ function App() {
           <div className="discover-page">
             <div className="discover-header"><h2>发现</h2></div>
             <div className="discover-list">
-              <div className="discover-item" onClick={() => { setView('video'); setBottomTab('chats'); }}>
-                <div className="discover-icon" style={{ background: '#ff6b35' }}><I name="bilibili" color="#fff" size={20} /></div>
-                <div className="discover-info">
-                  <div className="discover-title">B站视频</div>
-                  <div className="discover-desc">搜索和分享B站视频</div>
-                </div>
-                <span className="discover-arrow">›</span>
-              </div>
-              <div className="discover-item" onClick={() => { setView('ai'); setBottomTab('chats'); }}>
-                <div className="discover-icon" style={{ background: '#6435c9' }}><I name="ai" color="#fff" size={20} /></div>
-                <div className="discover-info">
-                  <div className="discover-title">AI助手</div>
-                  <div className="discover-desc">智能对话助手，支持多模型</div>
-                </div>
-                <span className="discover-arrow">›</span>
-              </div>
-              <div className="discover-item" onClick={() => { setShowMoments(true); }}>
-                <div className="discover-icon" style={{ background: '#f06c00' }}><I name="camera" color="#fff" size={20} /></div>
-                <div className="discover-info">
-                  <div className="discover-title">朋友圈</div>
-                  <div className="discover-desc">和朋友分享生活点滴</div>
-                </div>
-                <span className="discover-arrow">›</span>
-              </div>
-              <div className="discover-item" onClick={() => { setShowGameModal(true); }}>
-                <div className="discover-icon" style={{ background: '#6435c9' }}><I name="game" color="#fff" size={20} /></div>
-                <div className="discover-info">
-                  <div className="discover-title">小游戏</div>
-                  <div className="discover-desc">猜拳游戏</div>
-                </div>
-                <span className="discover-arrow">›</span>
-              </div>
-              <div className="discover-item" onClick={() => setShowImageGen(true)}>
-                <div className="discover-icon" style={{ background: '#ec4899' }}><I name="palette" color="#fff" size={20} /></div>
-                <div className="discover-info">
-                  <div className="discover-title">AI 图片生成</div>
-                  <div className="discover-desc">描述你想要的图片，一键生成并分享</div>
-                </div>
-                <span className="discover-arrow">›</span>
-              </div>
-              <div className="discover-item" onClick={() => { setShowBotModal(true); fetchBots(); }}>
-                <div className="discover-icon" style={{ background: '#8b5cf6' }}><I name="bot" color="#fff" size={20} /></div>
-                <div className="discover-info">
-                  <div className="discover-title">聊天机器人</div>
-                  <div className="discover-desc">创建自定义自动回复机器人</div>
-                </div>
-                <span className="discover-arrow">›</span>
-              </div>
-              <div className="discover-item" onClick={fetchWrapped}>
-                <div className="discover-icon" style={{ background: '#f59e0b' }}><I name="stats" color="#fff" size={20} /></div>
-                <div className="discover-info">
-                  <div className="discover-title">年度聊天报告</div>
-                  <div className="discover-desc">{wrappedLoading ? '加载中...' : '查看你的聊天数据统计'}</div>
-                </div>
-                <span className="discover-arrow">›</span>
-              </div>
-              <div className="discover-item" onClick={() => setShowBackupModal(true)}>
-                <div className="discover-icon" style={{ background: '#00b5ad' }}><I name="backup" color="#fff" size={20} /></div>
-                <div className="discover-info">
-                  <div className="discover-title">聊天记录管理</div>
-                  <div className="discover-desc">备份与恢复聊天记录</div>
-                </div>
-                <span className="discover-arrow">›</span>
-              </div>
-              <div className="discover-item" onClick={fetchDailyDigest}>
-                <div className="discover-icon" style={{ background: '#6366f1' }}><I name="digest" color="#fff" size={20} /></div>
-                <div className="discover-info">
-                  <div className="discover-title">AI 每日摘要</div>
-                  <div className="discover-desc">AI 总结你今天的聊天内容</div>
-                </div>
-                <span className="discover-arrow">›</span>
-              </div>
-              <div className="discover-item" onClick={() => setShowMusicPanel(true)}>
-                <div className="discover-icon" style={{ background: '#ec4141' }}><I name="music" color="#fff" size={20} /></div>
-                <div className="discover-info">
-                  <div className="discover-title">网易云音乐</div>
-                  <div className="discover-desc">搜歌、听歌、分享给好友</div>
-                </div>
-                <span className="discover-arrow">›</span>
-              </div>
-              <div className="discover-item" onClick={fetchNews}>
-                <div className="discover-icon" style={{ background: '#e85d2a' }}><I name="digest" color="#fff" size={20} /></div>
-                <div className="discover-info">
-                  <div className="discover-title">今日热搜</div>
-                  <div className="discover-desc">知乎日报精选内容</div>
-                </div>
-                <span className="discover-arrow">›</span>
-              </div>
-              <div className="discover-item" onClick={() => { setShowGifPanel(true); }}>
-                <div className="discover-icon" style={{ background: '#fb7299' }}><I name="image" color="#fff" size={20} /></div>
-                <div className="discover-info">
-                  <div className="discover-title">GIF 表情包</div>
-                  <div className="discover-desc">搜索 GIF 发送到聊天</div>
-                </div>
-                <span className="discover-arrow">›</span>
-              </div>
-              <div className="discover-item" onClick={() => setShowWeatherPanel(true)}>
-                <div className="discover-icon" style={{ background: '#667eea' }}><I name="search" color="#fff" size={20} /></div>
-                <div className="discover-info">
-                  <div className="discover-title">天气查询</div>
-                  <div className="discover-desc">查询城市天气，分享到聊天</div>
-                </div>
-                <span className="discover-arrow">›</span>
-              </div>
-              <div className="discover-item" onClick={() => setShowMapPanel(true)}>
-                <div className="discover-icon" style={{ background: '#00b894' }}><I name="location" color="#fff" size={20} /></div>
-                <div className="discover-info">
-                  <div className="discover-title">地图</div>
-                  <div className="discover-desc">GPS定位、查看地图、分享位置</div>
-                </div>
-                <span className="discover-arrow">›</span>
-              </div>
+              <div className="discover-section-title">AI 工具</div>
+              <FeatureItem icon="ai" tone="ai" title="AI 助手" desc="智能对话助手，支持多模型" onClick={() => { setView('ai'); setBottomTab('chats'); }} />
+              <FeatureItem icon="palette" tone="image" title="AI 图片生成" desc="描述你想要的图片，一键生成并分享" onClick={() => setShowImageGen(true)} />
+              <FeatureItem icon="digest" tone="digest" title="AI 每日摘要" desc="AI 总结你今天的聊天内容" onClick={fetchDailyDigest} />
+              <FeatureItem icon="bot" tone="bot" title="聊天机器人" desc="创建自定义自动回复机器人" onClick={() => { setShowBotModal(true); fetchBots(); }} />
+
+              <div className="discover-section-title">内容分享</div>
+              <FeatureItem icon="bilibili" tone="bili" title="B站视频" desc="搜索和分享B站视频" onClick={() => { setView('video'); setBottomTab('chats'); }} />
+              <FeatureItem icon="music" tone="music" title="网易云音乐" desc="搜歌、听歌、分享给好友" onClick={() => setShowMusicPanel(true)} />
+              <FeatureItem icon="image" tone="gif" title="GIF 表情包" desc="搜索 GIF 发送到聊天" onClick={() => { setShowGifPanel(true); }} />
+              <FeatureItem icon="digest" tone="news" title="今日热搜" desc="知乎日报精选内容" onClick={fetchNews} />
+
+              <div className="discover-section-title">生活与社交</div>
+              <FeatureItem icon="camera" tone="moments" title="朋友圈" desc="和朋友分享生活点滴" onClick={() => { setShowMoments(true); }} />
+              <FeatureItem icon="game" tone="game" title="小游戏" desc="猜拳游戏" onClick={() => { setShowGameModal(true); }} />
+              <FeatureItem icon="search" tone="weather" title="天气查询" desc="查询城市天气，分享到聊天" onClick={() => setShowWeatherPanel(true)} />
+              <FeatureItem icon="location" tone="map" title="地图" desc="GPS定位、查看地图、分享位置" onClick={() => setShowMapPanel(true)} />
+
+              <div className="discover-section-title">数据管理</div>
+              <FeatureItem icon="stats" tone="stats" title="年度聊天报告" desc="查看你的聊天数据统计" loading={wrappedLoading ? '加载中...' : ''} onClick={fetchWrapped} />
+              <FeatureItem icon="backup" tone="backup" title="聊天记录管理" desc="备份与恢复聊天记录" onClick={() => setShowBackupModal(true)} />
             </div>
           </div>
         ) : bottomTab === 'me' ? (
@@ -3163,46 +3195,22 @@ function App() {
               <span className="me-arrow">›</span>
             </div>
             <div className="me-menu">
-              <div className="me-menu-item" onClick={() => { setShowMoments(true); }}>
-                <div className="menu-icon" style={{ background: '#f06c00' }}><I name="camera" color="#fff" size={18} /></div>
-                <span>朋友圈</span>
-                <span className="menu-arrow">›</span>
-              </div>
-              <div className="me-menu-item" onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }}>
-                <div className="menu-icon" style={{ background: '#fa5151' }}><I name="wallet" color="#fff" size={18} /></div>
-                <span>钱包</span>
-                <span className="menu-badge">¥{(balance || 0).toFixed(2)}</span>
-              </div>
-              <div className="me-menu-item" onClick={() => setShowBackupModal(true)}>
-                <div className="menu-icon" style={{ background: '#00b5ad' }}><I name="backup" color="#fff" size={18} /></div>
-                <span>聊天记录管理</span>
-                <span className="menu-arrow">›</span>
-              </div>
-              <div className="me-menu-item" onClick={() => { fetchPhoneInfo(); setShowPhoneModal(true); }}>
-                <div className="menu-icon" style={{ background: '#1890ff' }}><I name="phone" color="#fff" size={18} /></div>
-                <span>{phoneInfo.phoneBound ? phoneInfo.phone : '绑定手机号'}</span>
-                <span className="menu-arrow">›</span>
-              </div>
-              <div className="me-menu-item" onClick={() => { setShowProfileModal(true); }}>
-                <div className="menu-icon" style={{ background: '#07c160' }}><I name="settings" color="#fff" size={18} /></div>
-                <span>设置</span>
-                <span className="menu-arrow">›</span>
-              </div>
+              <MeMenuItem icon="camera" tone="moments" label="朋友圈" onClick={() => { setShowMoments(true); }} />
+              <MeMenuItem icon="wallet" tone="wallet" label="钱包" meta={`¥${(balance || 0).toFixed(2)}`} onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }} />
+              <MeMenuItem icon="backup" tone="backup" label="聊天记录管理" onClick={() => setShowBackupModal(true)} />
+              <MeMenuItem icon="phone" tone="phone" label={phoneInfo.phoneBound ? phoneInfo.phone : '绑定手机号'} onClick={() => { fetchPhoneInfo(); setShowPhoneModal(true); }} />
+              <MeMenuItem icon="settings" tone="primary" label="设置" onClick={() => { setShowProfileModal(true); }} />
             </div>
             <div className="me-footer">
-              <div className="me-menu-item" onClick={() => setShowBackupModal(true)}>
-                <div className="menu-icon" style={{ background: '#1890ff' }}><I name="security" color="#fff" size={18} /></div>
-                <span>聊天记录备份与恢复</span>
-                <span className="menu-arrow">›</span>
-              </div>
+              <MeMenuItem icon="security" tone="security" label="聊天记录备份与恢复" onClick={() => setShowBackupModal(true)} />
             </div>
-            <div className="me-menu-item" onClick={() => { const u = `${API_URL}/releases/WeChat-v2.0.apk`; isCapacitor ? window.location.href = u : window.open(u, '_blank'); }}>
-              <div className="menu-icon" style={{ background: '#ff6b35' }}><I name="download" color="#fff" size={18} /></div>
-              <span>下载最新安装包 (v2.0)</span>
-              <span className="menu-arrow">›</span>
-            </div>
+            <MeMenuItem icon="download" tone="download" label={`下载最新安装包 (v${otaInfo?.appVersion || appVersion})`} onClick={() => {
+              const apkPath = otaInfo?.apkUrl || `/releases/ChatRoom-v${appVersion}.apk`;
+              const u = apkPath.startsWith('http') ? apkPath : `${API_URL}${apkPath}`;
+              isCapacitor ? window.location.href = u : window.open(u, '_blank');
+            }} />
             <div className="me-version">
-              <span>你无只因 v{otaInfo?.version || appVersion}</span>
+              <span>聊天室 v{otaInfo?.appVersion || appVersion} · Web {otaInfo?.webBuild || WEB_BUILD}</span>
             </div>
           </div>
         ) : view === 'ai' ? (
@@ -3211,40 +3219,42 @@ function App() {
             <div className="ai-fullview-header">
               <button className="back-btn" onClick={() => { setView('chats'); setBottomTab('discover'); }}>← 返回</button>
               <h3><I name="ai" size={20} /> AI 助手</h3>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>余额: ¥{(balance || 0).toFixed(2)}</span>
-                <button onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }} className="header-btn" title="充值" style={{ fontSize: 14, padding: '4px 10px', display: 'flex', alignItems: 'center' }}><I name="wallet" size={15} /></button>
+              <div className="ai-header-actions">
+                <span className="ai-balance">余额: ¥{(balance || 0).toFixed(2)}</span>
+                <button onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }} className="header-btn" title="充值"><I name="wallet" size={15} /></button>
                 {user?.username === 'admin' && (
-                  <button onClick={() => { setShowAdminModal(true); fetchPendingRecharges(); }} className="header-btn" title="管理" style={{ fontSize: 14, padding: '4px 10px', display: 'flex', alignItems: 'center' }}><I name="crown" size={15} /></button>
+                  <button onClick={openAdminCenter} className="header-btn" title="管理"><I name="crown" size={15} /></button>
                 )}
-                <button onClick={resetAiChat} className="header-btn" title="新对话" style={{ fontSize: 14, padding: '4px 10px', display: 'flex', alignItems: 'center' }}><I name="reset" size={15} /></button>
+                <button onClick={resetAiChat} className="header-btn" title="新对话"><I name="reset" size={15} /></button>
               </div>
             </div>
-            <div className="ai-model-selector" style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>模型：</label>
-              <select value={aiModel} onChange={(e) => setAiModel(e.target.value)} style={{ flex: 1, padding: '6px 10px', fontSize: 13, border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', maxWidth: 220, outline: 'none', cursor: 'pointer' }}>
+            <div className="ai-model-selector">
+              <label>模型</label>
+              <select value={aiModel} onChange={(e) => setAiModel(e.target.value)}>
                 {aiModels.map(m => (
-                  <option key={m.id} value={m.id}>{m.name} {m.free ? <I name="checkin" size={13} color="var(--text-secondary)" /> : <I name="star" size={13} color="var(--warning)" />}</option>
+                  <option key={m.id} value={m.id}>{m.name} {m.free ? '免费' : '付费'}</option>
                 ))}
               </select>
             </div>
-            <div className="ai-messages" style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+            <div className="ai-messages">
               {aiMessages.length === 0 && (
-                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
-                  <div style={{ opacity: 0.25, marginBottom: 12 }}><I name="chat" size={48} /></div>
-                  <div style={{ marginBottom: 8 }}>向 AI 助手提问吧</div>
-                  <div style={{ fontSize: 12 }}>支持多轮对话，连续上下文</div>
-                </div>
+                <EmptyState icon="ai" title="向 AI 助手提问吧" desc="支持多轮对话，连续上下文" />
               )}
               {aiMessages.map((msg, idx) => (
                 <div key={idx} className={`ai-message ${msg.role}`}>
-                  <div className="ai-avatar">{msg.role === 'user' ? (user?.avatar ? <AvatarImg src={getAvatarUrl(user.avatar)} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} /> : '🧑') : '🤖'}</div>
+                  <div className="ai-avatar">{msg.role === 'user' ? <AvatarImg src={getAvatarUrl(user.avatar)} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} /> : <I name="ai" size={18} />}</div>
                   <div className="ai-bubble">
                     {msg.role === 'user' ? msg.content : (
                       <>
                         <div className="ai-content">{renderMarkdown(msg.content)}</div>
+                        {(msg.provider || msg.hint) && (
+                          <div className="ai-meta-line">
+                            {msg.provider && <span>{msg.provider} · {msg.model}</span>}
+                            {msg.hint && <span>{msg.hint}</span>}
+                          </div>
+                        )}
                         {msg.rechargeUrl && (
-                          <a href={msg.rechargeUrl} target="_blank" rel="noopener noreferrer" className="send-button" style={{ marginTop: 8, display: 'inline-block', background: '#ff6b35', textDecoration: 'none', color: 'white', padding: '6px 12px', borderRadius: 4, fontSize: 13 }}>💰 前往充值</a>
+                          <a href={msg.rechargeUrl} target="_blank" rel="noopener noreferrer" className="recharge-link">前往充值</a>
                         )}
                       </>
                     )}
@@ -3271,109 +3281,119 @@ function App() {
               <button className="back-btn" onClick={() => { setView('chats'); setBottomTab('discover'); }}>← 返回</button>
               <h3><I name="bilibili" size={20} /> B站视频</h3>
             </div>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
-              <form onSubmit={searchBilibili} style={{ display: 'flex', gap: 8 }}>
-                <input type="text" placeholder="搜索B站视频..." value={bilibiliQuery} onChange={e => setBilibiliQuery(e.target.value)} style={{ flex: 1, padding: '10px 14px', border: '2px solid var(--border)', borderRadius: 10, fontSize: 14, outline: 'none', background: 'var(--bg)', transition: 'border-color 0.2s' }} />
-                <button type="submit" style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #fb7299, #f472b6)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 14, fontWeight: 700 }} disabled={bilibiliLoading}>{bilibiliLoading ? '搜索中' : '搜索'}</button>
+            <div className="panel-searchbar panel-bili-searchbar">
+              <form onSubmit={searchBilibili}>
+                <input type="text" placeholder="搜索B站视频..." value={bilibiliQuery} onChange={e => setBilibiliQuery(e.target.value)} />
+                <button type="submit" disabled={bilibiliLoading}>{bilibiliLoading ? '搜索中' : '搜索'}</button>
               </form>
             </div>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
+            <div className="panel-scroll">
               {selectedBiliVideo ? (
-                <div style={{ padding: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <button onClick={() => setSelectedBiliVideo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>←</button>
-                    <span style={{ fontSize: 14, fontWeight: 500 }}>{selectedBiliVideo.title}</span>
+                <div className="panel-detail">
+                  <div className="panel-detail-head">
+                    <button onClick={() => setSelectedBiliVideo(null)} className="panel-back">←</button>
+                    <span>{selectedBiliVideo.title}</span>
                   </div>
-                  <div className="bilibili-embed" style={{ marginBottom: 12, position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 8 }}>
-                    <iframe src={`https://player.bilibili.com/player.html?bvid=${selectedBiliVideo.bvid}`} title={selectedBiliVideo.title} allowFullScreen style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }} />
+                  <div className="bilibili-embed">
+                    <iframe src={`https://player.bilibili.com/player.html?bvid=${selectedBiliVideo.bvid}`} title={selectedBiliVideo.title} allowFullScreen />
                   </div>
-                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                  <div className="panel-meta">
                     <div>{selectedBiliVideo.author} · ▶ {selectedBiliVideo.play}次 · {selectedBiliVideo.duration}</div>
                   </div>
-                  <button onClick={() => shareBilibiliToChat(selectedBiliVideo)} style={{ padding: '10px 20px', background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', width: '100%', fontSize: 15, fontWeight: 700 }}><I name="forward" size={15} color="#fff" /> 分享到聊天</button>
+                  <button onClick={() => shareBilibiliToChat(selectedBiliVideo)} className="panel-primary-btn"><I name="forward" size={15} color="#fff" /> 分享到聊天</button>
                 </div>
               ) : bilibiliResults.length > 0 ? (
                 bilibiliResults.map((video, idx) => (
-                  <div key={idx} onClick={() => setSelectedBiliVideo(video)} style={{ display: 'flex', padding: '10px 16px', borderBottom: '1px solid var(--border-light)', cursor: 'pointer', gap: 10, transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <img src={video.pic} alt={video.title} style={{ width: 120, height: 68, objectFit: 'cover', borderRadius: 6, flexShrink: 0, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{video.title}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{video.author}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>▶ {video.play} · {video.duration}</div>
+                  <div key={idx} onClick={() => setSelectedBiliVideo(video)} className="panel-list-item">
+                    <img src={video.pic} alt={video.title} className="panel-thumb" />
+                    <div className="panel-list-copy">
+                      <div className="panel-list-title">{video.title}</div>
+                      <div className="panel-list-sub">{video.author}</div>
+                      <div className="panel-list-meta">▶ {video.play} · {video.duration}</div>
                     </div>
                   </div>
                 ))
               ) : (
-                <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>
-                  {bilibiliLoading ? '搜索中...' : <><div style={{ opacity: 0.25, marginBottom: 12 }}><I name="bilibili" size={48} /></div><div>输入关键词搜索B站视频</div></>}
-                </div>
+                <EmptyState icon="bilibili" title={bilibiliLoading ? '搜索中...' : '输入关键词搜索B站视频'} />
               )}
             </div>
           </div>
         ) : currentRoom ? (
-          <>
-            <div className="chat-header">
-              <button className="back-btn" onClick={() => { setCurrentRoom(null); setCurrentRoomId(null); setMessages([]); }} title="返回">
-                <I name="arrowLeft" size={20} />
-              </button>
-              <h3>{currentRoom.name}</h3>
-              <div className="header-tools">
-                <button className="ai-summary-btn-inline" onClick={summarizeChat} disabled={aiSummaryLoading} title="AI摘要">
-                  {aiSummaryLoading ? '…' : <I name="ai" size={16} />}
-                </button>
-                <button onClick={() => setShowImageGen(true)} title="AI图片生成" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '3px 6px', display: 'flex', alignItems: 'center' }}><I name="image" size={15} /></button>
-                <button onClick={isSharingLocation ? stopSharingLocation : startSharingLocation} title={isSharingLocation ? '停止位置共享' : '共享位置'} style={{ background: isSharingLocation ? 'var(--danger)' : 'var(--bg)', color: isSharingLocation ? 'white' : 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '3px 6px', display: 'flex', alignItems: 'center' }}>
-                  <I name="location" size={15} />
-                </button>
-                <button onClick={() => { setShowCheckIn(true); fetchCheckIns(); }} title="打卡签到" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '3px 6px', display: 'flex', alignItems: 'center' }}><I name="checkin" size={15} /></button>
-                <button onClick={() => setShowMusicPanel(true)} title="听歌" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '3px 6px', display: 'flex', alignItems: 'center' }}><I name="music" size={15} /></button>
-                {!currentRoom?.type?.includes('group') && currentRoom?.members?.filter(m => m !== user?.username).length > 0 && (
-                  <button onClick={() => {
-                    const otherUser = allUsers.find(u => currentRoom.members.includes(u.username) && u.username !== user?.username);
-                    if (otherUser) startCall(otherUser.id, 'video');
-                  }} title="视频通话" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '3px 6px', display: 'flex', alignItems: 'center' }}><I name="video" size={15} /></button>
-                )}
-                <button onClick={() => setShowSearch(s => !s)} title="搜索消息">
-                  {showSearch ? <I name="close" size={15} /> : <I name="search" size={15} />}
-                </button>
-                <div className="online-badge">在线</div>
-              </div>
-            </div>
-            {/* AI 摘要结果 */}
-            {aiSummary && (
-              <div className="summary-flash">
-                <div className="sflash-top">
-                  <span className="sflash-title"><I name="ai" size={16} /> AI 聊天摘要</span>
-                  <button className="sflash-close" onClick={() => setAiSummary(null)}><I name="close" size={16} /></button>
+          <div className="chat-shell">
+            <div className="chat-top-stack">
+              <div className="chat-header">
+                <div className="chat-header-main">
+                  <button className="back-btn" onClick={() => { setCurrentRoom(null); setCurrentRoomId(null); setMessages([]); }} title="返回">
+                    <I name="arrowLeft" size={20} />
+                  </button>
+                  <div className="chat-header-copy">
+                    <h3>{currentRoom.name}</h3>
+                    <div className="chat-header-meta">
+                      <div className="online-badge">在线</div>
+                      <span className="chat-header-hint">
+                        {currentRoom?.members?.length > 1 ? `${currentRoom.members.length} 位成员` : '私密对话'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="sflash-body">{aiSummary.text}</div>
+                <div className="header-tools">
+                  <button className="ai-summary-btn-inline" onClick={summarizeChat} disabled={aiSummaryLoading} title="AI摘要">
+                    {aiSummaryLoading ? '…' : <I name="ai" size={16} />}
+                  </button>
+                  <button onClick={() => setShowImageGen(true)} title="AI图片生成"><I name="image" size={15} /></button>
+                  <button onClick={isSharingLocation ? stopSharingLocation : startSharingLocation} title={isSharingLocation ? '停止位置共享' : '共享位置'} className={isSharingLocation ? 'danger-active' : ''}>
+                    <I name="location" size={15} />
+                  </button>
+                  <button onClick={() => { setShowCheckIn(true); fetchCheckIns(); }} title="打卡签到"><I name="checkin" size={15} /></button>
+                  <button onClick={() => setShowMusicPanel(true)} title="听歌"><I name="music" size={15} /></button>
+                  {!currentRoom?.type?.includes('group') && currentRoom?.members?.filter(m => m !== user?.username).length > 0 && (
+                    <button onClick={() => {
+                      const otherUser = allUsers.find(u => currentRoom.members.includes(u.username) && u.username !== user?.username);
+                      if (otherUser) startCall(otherUser.id, 'video');
+                    }} title="视频通话"><I name="video" size={15} /></button>
+                  )}
+                  <button onClick={() => setShowSearch(s => !s)} title="搜索消息">
+                    {showSearch ? <I name="close" size={15} /> : <I name="search" size={15} />}
+                  </button>
+                  {currentRoom?.members?.length > 1 && (
+                    <button onClick={() => setShowRoomManage(true)} title="群管理"><I name="settings" size={15} /></button>
+                  )}
+                </div>
               </div>
-            )}
-            {aiSummaryLoading && (
-              <div className="summary-loading">
-                <div className="ai-typing"><span></span><span></span><span></span></div>
-                <span>AI 正在分析聊天记录...</span>
-              </div>
-            )}
-            {showSearch && (
-              <div className="message-search-bar">
-                <input
-                  type="text"
-                  placeholder="搜索聊天记录..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  autoFocus
-                />
-                {searchQuery && (
-                  <span className="search-count">
-                    {messages.filter(m => !m.recalled && m.content?.toLowerCase().includes(searchQuery.toLowerCase())).length} 条结果
-                  </span>
-                )}
-              </div>
-            )}
-            <div className="messages-container">
+              {aiSummary && (
+                <div className="summary-flash">
+                  <div className="sflash-top">
+                    <span className="sflash-title"><I name="ai" size={16} /> AI 聊天摘要</span>
+                    <button className="sflash-close" onClick={() => setAiSummary(null)}><I name="close" size={16} /></button>
+                  </div>
+                  <div className="sflash-body">{aiSummary.text}</div>
+                </div>
+              )}
+              {aiSummaryLoading && (
+                <div className="summary-loading">
+                  <div className="ai-typing"><span></span><span></span><span></span></div>
+                  <span>AI 正在分析聊天记录...</span>
+                </div>
+              )}
+              {showSearch && (
+                <div className="message-search-bar">
+                  <input
+                    type="text"
+                    placeholder="搜索聊天记录..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    autoFocus
+                  />
+                  {searchQuery && (
+                    <span className="search-count">
+                      {messages.filter(m => !m.recalled && m.content?.toLowerCase().includes(searchQuery.toLowerCase())).length} 条结果
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="chat-thread">
+              <div className="messages-container">
               {messages.map((msg, index) => {
                 const isSearchMatch = searchQuery && !msg.recalled && msg.content?.toLowerCase().includes(searchQuery.toLowerCase());
                 const isPinned = pinnedMessages[currentRoomId]?.includes(msg.id);
@@ -3672,186 +3692,196 @@ function App() {
                   <button onClick={() => setReactionPicker(null)} style={{ fontSize: 14 }}><I name="close" size={14} /></button>
                 </div>
               )}
-              <div ref={setMessageEndRef} />
+                <div ref={setMessageEndRef} />
+              </div>
             </div>
             <div className="chat-input-area">
-              {/* 群公告 */}
-              {roomAnnouncements[currentRoomId] && (
-                <div className="room-announcement">{roomAnnouncements[currentRoomId]}</div>
-              )}
-              {/* 引用回复提示 */}
-              {replyToMessage && (
-                <div className="reply-preview">
-                  <span>回复 {replyToMessage.sender?.username}：</span>
-                  <span className="reply-content">{replyToMessage.content?.slice(0, 50) || '[媒体消息]'}</span>
-                  <button className="cancel-reply" onClick={cancelReply}><I name="close" size={14} /></button>
-                </div>
-              )}
-              {/* 编辑提示 */}
-              {editingMessage && (
-                <div className="edit-preview">
-                  <span><I name="edit" size={13} /> 编辑消息中...</span>
-                  <button className="cancel-edit" onClick={cancelEdit}><I name="close" size={14} /></button>
-                </div>
-              )}
-              <div className="chat-input-wrapper">
-                <div className="chat-input-actions">
-                  <button onClick={() => fileInputRef.current?.click()} title="发送文件"><I name="attach" size={17} /></button>
-                  <button onClick={isRecording ? stopRecording : startRecording} title={isRecording ? '停止录音' : '语音消息'} className={isRecording ? 'recording' : ''}>
-                    {isRecording ? <I name="stop" size={17} color="var(--danger)" /> : <I name="mic" size={17} />}
-                  </button>
-                  <button onClick={() => setShowEmojiPicker(s => !s)} title="表情" className={showEmojiPicker ? 'active' : ''}><I name="emoji" size={17} /></button>
-                  <button onClick={() => setShowMentionPicker(s => !s)} title="@提及" className={showMentionPicker ? 'active' : ''}>@</button>
-                  <button onClick={() => setShowQuickReplies(s => !s)} title="快捷回复"><I name="quick" size={17} /></button>
-                  <button onClick={sendDice} title="骰子"><I name="dice" size={17} /></button>
-                  <button onClick={() => setShowGameModal(true)} title="猜拳"><I name="hand" size={17} /></button>
-                  <button onClick={() => setShowRedPacketModal(true)} title="红包"><I name="gift" size={17} /></button>
-                  <button onClick={() => setShowPollModal(true)} title="投票"><I name="vote" size={17} /></button>
-                  <button onClick={() => setShowSolitaireModal(true)} title="群接龙"><I name="solitaire" size={17} /></button>
-                  <button onClick={() => setShowMusicModal(true)} title="音乐"><I name="music" size={17} /></button>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    style={{ display: 'none' }}
-                    accept="*/*"
-                    onChange={handleFileSelect}
-                  />
-                </div>
-                {isRecording && (
-                  <div className="recording-indicator">
-                    <span className="recording-dot" />
-                    <span>录音中 {formatRecordingTime(recordingTime)}</span>
-                    <button onClick={cancelRecording} className="cancel-recording">取消</button>
+              <div className="chat-input-stack">
+                {roomAnnouncements[currentRoomId] && (
+                  <div className="room-announcement">{roomAnnouncements[currentRoomId]}</div>
+                )}
+                {replyToMessage && (
+                  <div className="reply-preview">
+                    <span>回复 {replyToMessage.sender?.username}：</span>
+                    <span className="reply-content">{replyToMessage.content?.slice(0, 50) || '[媒体消息]'}</span>
+                    <button className="cancel-reply" onClick={cancelReply}><I name="close" size={14} /></button>
                   </div>
                 )}
-                {showEmojiPicker && (
-                  <div className="emoji-picker">
-                    {EMOJIS.map((emoji, i) => (
-                      <button key={i} className="emoji-item" onClick={() => insertEmoji(emoji)}>
-                        {emoji}
+                {editingMessage && (
+                  <div className="edit-preview">
+                    <span><I name="edit" size={13} /> 编辑消息中...</span>
+                    <button className="cancel-edit" onClick={cancelEdit}><I name="close" size={14} /></button>
+                  </div>
+                )}
+                <div className="chat-input-wrapper">
+                  <div className="chat-input-toolbar">
+                    <div className="chat-input-actions">
+                      <button onClick={() => fileInputRef.current?.click()} title="发送文件"><I name="attach" size={17} /></button>
+                      <button onClick={isRecording ? stopRecording : startRecording} title={isRecording ? '停止录音' : '语音消息'} className={isRecording ? 'recording' : ''}>
+                        {isRecording ? <I name="stop" size={17} color="var(--danger)" /> : <I name="mic" size={17} />}
                       </button>
-                    ))}
+                      <button onClick={() => setShowEmojiPicker(s => !s)} title="表情" className={showEmojiPicker ? 'active' : ''}><I name="emoji" size={17} /></button>
+                      <button onClick={() => setShowMentionPicker(s => !s)} title="@提及" className={showMentionPicker ? 'active' : ''}>@</button>
+                      <button onClick={() => setShowQuickReplies(s => !s)} title="快捷回复"><I name="quick" size={17} /></button>
+                      <button onClick={sendDice} title="骰子"><I name="dice" size={17} /></button>
+                      <button onClick={() => setShowGameModal(true)} title="猜拳"><I name="hand" size={17} /></button>
+                      <button onClick={() => setShowRedPacketModal(true)} title="红包"><I name="gift" size={17} /></button>
+                      <button onClick={() => setShowPollModal(true)} title="投票"><I name="vote" size={17} /></button>
+                      <button onClick={() => setShowSolitaireModal(true)} title="群接龙"><I name="solitaire" size={17} /></button>
+                      <button onClick={() => setShowMusicModal(true)} title="音乐"><I name="music" size={17} /></button>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        style={{ display: 'none' }}
+                        accept="*/*"
+                        onChange={handleFileSelect}
+                      />
+                    </div>
+                    <div className="chat-compose-tools">
+                      <button
+                        className="action-btn small"
+                        onClick={fetchSmartReplies}
+                        disabled={smartRepliesLoading || !currentRoomId}
+                        title="AI智能回复建议"
+                      >{smartRepliesLoading ? '…' : <I name="smart" size={16} />}</button>
+                      <button
+                        className="action-btn small"
+                        onClick={() => { setPolishText(newMessage); setPolishResult(''); setShowPolishModal(true); }}
+                        disabled={!newMessage.trim()}
+                        title="AI润色文字"
+                      ><I name="polish" size={16} /></button>
+                    </div>
                   </div>
-                )}
-                {showMentionPicker && (
-                  <div className="mention-picker">
-                    <input
-                      type="text"
-                      className="mention-search-input"
-                      placeholder="搜索用户..."
-                      value={mentionFilter}
-                      onChange={e => setMentionFilter(e.target.value)}
-                      autoFocus
-                    />
-                    <div className="mention-list">
-                      {getFilteredMentionUsers().map(u => (
-                        <button key={u.id} className="mention-item" onClick={() => insertMention(u.username)}>
-                          <AvatarImg src={getAvatarUrl(u.avatar)} alt="" className="mention-avatar" />
-                          <span>{u.username}</span>
+                  {isRecording && (
+                    <div className="recording-indicator">
+                      <span className="recording-dot" />
+                      <span>录音中 {formatRecordingTime(recordingTime)}</span>
+                      <button onClick={cancelRecording} className="cancel-recording">取消</button>
+                    </div>
+                  )}
+                  {showEmojiPicker && (
+                    <div className="emoji-picker">
+                      {EMOJIS.map((emoji, i) => (
+                        <button key={i} className="emoji-item" onClick={() => insertEmoji(emoji)}>
+                          {emoji}
                         </button>
                       ))}
                     </div>
+                  )}
+                  {showMentionPicker && (
+                    <div className="mention-picker">
+                      <input
+                        type="text"
+                        className="mention-search-input"
+                        placeholder="搜索用户..."
+                        value={mentionFilter}
+                        onChange={e => setMentionFilter(e.target.value)}
+                        autoFocus
+                      />
+                      <div className="mention-list">
+                        {getFilteredMentionUsers().map(u => (
+                          <button key={u.id} className="mention-item" onClick={() => insertMention(u.username)}>
+                            <AvatarImg src={getAvatarUrl(u.avatar)} alt="" className="mention-avatar" />
+                            <span>{u.username}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {showQuickReplies && (
+                    <div className="quick-replies-panel">
+                      {quickReplies.map((reply, i) => (
+                        <button key={i} className="quick-reply-item" onClick={() => insertQuickReply(reply)}>
+                          {reply}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {smartReplies.length > 0 && (
+                    <div className="smart-replies-bar">
+                      <span className="smart-replies-label">AI建议：</span>
+                      {smartReplies.map((reply, i) => (
+                        <button key={i} className="smart-reply-btn" onClick={() => { setNewMessage(reply); setSmartReplies([]); }}>
+                          {reply}
+                        </button>
+                      ))}
+                      <button className="smart-reply-close" onClick={() => setSmartReplies([])}><I name="close" size={14} /></button>
+                    </div>
+                  )}
+                  <div className="chat-compose-row">
+                    <textarea
+                      className="chat-input"
+                      placeholder="输入消息... 输入 @ 提及用户"
+                      value={newMessage}
+                      onChange={handleInputChange}
+                      onKeyPress={handleKeyPress}
+                    />
+                    <button className="send-button" onClick={sendMessage} disabled={!newMessage.trim() && !editingMessage}>
+                      {editingMessage ? '保存' : '发送'}
+                    </button>
                   </div>
-                )}
-                {showQuickReplies && (
-                  <div className="quick-replies-panel">
-                    {quickReplies.map((reply, i) => (
-                      <button key={i} className="quick-reply-item" onClick={() => insertQuickReply(reply)}>
-                        {reply}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {/* AI 智能快捷回复 */}
-                {smartReplies.length > 0 && (
-                  <div className="smart-replies-bar">
-                    <span className="smart-replies-label">AI建议：</span>
-                    {smartReplies.map((reply, i) => (
-                      <button key={i} className="smart-reply-btn" onClick={() => { setNewMessage(reply); setSmartReplies([]); }}>
-                        {reply}
-                      </button>
-                    ))}
-                    <button className="smart-reply-close" onClick={() => setSmartReplies([])}><I name="close" size={14} /></button>
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
-                  <button
-                    className="action-btn small"
-                    onClick={fetchSmartReplies}
-                    disabled={smartRepliesLoading || !currentRoomId}
-                    title="AI智能回复建议"
-                    style={{ padding: '6px 10px', fontSize: 14, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                  >{smartRepliesLoading ? '…' : <I name="smart" size={16} />}</button>
-                  <button
-                    className="action-btn small"
-                    onClick={() => { setPolishText(newMessage); setPolishResult(''); setShowPolishModal(true); }}
-                    disabled={!newMessage.trim()}
-                    title="AI润色文字"
-                    style={{ padding: '6px 10px', fontSize: 14, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                  ><I name="polish" size={16} /></button>
-                  <textarea
-                    className="chat-input"
-                    placeholder="输入消息... 输入 @ 提及用户"
-                    value={newMessage}
-                    onChange={handleInputChange}
-                    onKeyPress={handleKeyPress}
-                    style={{ flex: 1 }}
-                  />
-                  <button className="send-button" onClick={sendMessage} disabled={!newMessage.trim() && !editingMessage}>
-                    {editingMessage ? '保存' : '发送'}
-                  </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        ) : bottomTab === 'chats' ? (
+          <>
+            <div className="page-empty-shell chat-empty-desktop">
+              <EmptyState icon="chat" title="选择一个聊天室开始对话" desc="从左侧聊天列表中进入一个聊天室，或新建对话" />
+            </div>
+            <div className="mobile-room-list">
+              <div className="search-box">
+                <div className="search-wrapper">
+                  <span className="search-icon"><I name="search" size={16} /></span>
+                  <input type="text" placeholder="搜索聊天..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                </div>
+              </div>
+              <div className="room-list room-list-mobile">
+                <div className="room-list-header">
+                  {rooms?.filter(r => r.type !== 'private')?.length || 0} 个聊天
+                </div>
+                {(() => {
+                  const filtered = rooms?.filter(r => r.type !== 'private')?.filter(room =>
+                    !searchQuery || room.name?.toLowerCase().includes(searchQuery.toLowerCase())
+                  ) || [];
+                  const pinned = filtered.filter(r => pinnedChats.has(r.id));
+                  const unpinned = filtered.filter(r => !pinnedChats.has(r.id));
+                  return (
+                    <>
+                      {pinned.length > 0 && <div className="pinned-divider"><I name="pin" size={14} /> 置顶聊天</div>}
+                      {[...pinned, ...unpinned].map(room => {
+                        const isPinned = pinnedChats.has(room.id);
+                        return (
+                          <div key={room.id} className={`room-item ${isPinned ? 'pinned-chat' : ''} ${currentRoomId === room.id ? 'active' : ''}`} onClick={() => handleRoomClick(room)}>
+                            <RoomAvatar name={room.name} size="lg" />
+                            <div className="room-info">
+                              <div className="room-name">{room.name}</div>
+                              <div className="last-message">{formatMessagePreview(room.lastMessage)}</div>
+                            </div>
+                            <div className="room-side">
+                              {room.lastMessage?.timestamp && <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>}
+                              {unreadCounts[room.id] > 0 && currentRoomId !== room.id && <span className="unread-badge">{unreadCounts[room.id]}</span>}
+                            </div>
+                            {room.id !== 'global' && <button className="room-pin-btn danger" onClick={(e) => deleteChat(room.id, e)} title="删除聊天"><I name="delete" size={14} /></button>}
+                          </div>
+                        );
+                      })}
+                    </>
+                  );
+                })()}
+                {(!rooms || rooms.filter(r => r.type !== 'private').length === 0) && (
+                  <EmptyState icon="chat" title="暂无聊天" desc="点击添加好友开始新的对话" />
+                )}
               </div>
             </div>
           </>
+        ) : bottomTab !== 'chats' ? (
+          <div className="page-empty-shell">
+            <EmptyState icon="chat" title="请选择一个功能" desc="使用底部导航进入通讯录、发现或我的页面" />
+          </div>
         ) : (
-          <div className="mobile-room-list">
-            <div className="search-box" style={{ padding: '10px 16px' }}>
-              <div className="search-wrapper">
-                <span className="search-icon"><I name="search" size={16} /></span>
-                <input type="text" placeholder="搜索聊天..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-              </div>
-            </div>
-            <div className="room-list" style={{ flex: 1, overflowY: 'auto' }}>
-              <div className="room-list-header" style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
-                {rooms?.filter(r => r.type !== 'private')?.length || 0} 个聊天
-              </div>
-              {(() => {
-                const filtered = rooms?.filter(r => r.type !== 'private')?.filter(room =>
-                  !searchQuery || room.name?.toLowerCase().includes(searchQuery.toLowerCase())
-                ) || [];
-                const pinned = filtered.filter(r => pinnedChats.has(r.id));
-                const unpinned = filtered.filter(r => !pinnedChats.has(r.id));
-                return (
-                  <>
-                    {pinned.length > 0 && <div className="pinned-divider"><I name="pin" size={14} /> 置顶聊天</div>}
-                    {[...pinned, ...unpinned].map(room => {
-                      const isPinned = pinnedChats.has(room.id);
-                      return (
-                        <div key={room.id} className={`room-item ${isPinned ? 'pinned-chat' : ''} ${currentRoomId === room.id ? 'active' : ''}`} onClick={() => handleRoomClick(room)}>
-                          <div className="avatar" style={{ width: 48, height: 48, borderRadius: 10, background: 'var(--primary-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 20, fontWeight: 700 }}>{(room.name || '群')[0]}</div>
-                          <div className="room-info">
-                            <div className="room-name">{room.name}</div>
-                            <div className="last-message">{formatMessagePreview(room.lastMessage)}</div>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                            {room.lastMessage?.timestamp && <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>}
-                            {unreadCounts[room.id] > 0 && currentRoomId !== room.id && <span className="unread-badge">{unreadCounts[room.id]}</span>}
-                          </div>
-                          {room.id !== 'global' && <button className="room-pin-btn" onClick={(e) => deleteChat(room.id, e)} title="删除聊天" style={{ color: 'var(--danger)' }}><I name="delete" size={14} /></button>}
-                        </div>
-                      );
-                    })}
-                  </>
-                );
-              })()}
-              {(!rooms || rooms.filter(r => r.type !== 'private').length === 0) && (
-                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  <div style={{ opacity: 0.25, marginBottom: 12 }}><I name="chat" size={48} /></div>
-                  <div>暂无聊天</div>
-                </div>
-              )}
-            </div>
+          <div className="page-empty-shell">
+            <EmptyState icon="chat" title="选择一个聊天室开始对话" desc="从左侧聊天列表中进入一个聊天室，或新建对话" />
           </div>
         )}
       </div>
@@ -4132,8 +4162,56 @@ function App() {
       {/* 管理员确认充值弹窗 */}
       {showAdminModal && (
         <div className="modal-overlay" onClick={() => setShowAdminModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
-            <h3><I name="crown" size={20} /> 管理员 - 待确认充值</h3>
+          <div className="modal admin-center-modal" onClick={e => e.stopPropagation()}>
+            <h3><I name="crown" size={20} /> 管理中心</h3>
+            <div className="admin-section-head">
+              <span>运营概览</span>
+              <button className="mini-text-btn" onClick={fetchAdminDashboard} disabled={adminDashboardLoading}>
+                {adminDashboardLoading ? '刷新中' : '刷新'}
+              </button>
+            </div>
+            <div className="admin-metric-grid">
+              {[
+                ['用户', adminDashboard?.stats?.users ?? '-'],
+                ['在线', adminDashboard?.stats?.onlineUsers ?? '-'],
+                ['房间', adminDashboard?.stats?.rooms ?? '-'],
+                ['今日消息', adminDashboard?.stats?.todayMessages ?? '-'],
+                ['待充值', adminDashboard?.stats?.pendingRecharges ?? '-'],
+                ['今日充值', `¥${(adminDashboard?.stats?.todayRechargeAmount || 0).toFixed(2)}`]
+              ].map(([label, value]) => (
+                <div key={label} className="admin-metric">
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                </div>
+              ))}
+            </div>
+            <div className="admin-section-head">
+              <span>AI 稳定性中心</span>
+              <button className="mini-text-btn" onClick={fetchAiStatus} disabled={aiStatusLoading}>
+                {aiStatusLoading ? '检测中' : '刷新'}
+              </button>
+            </div>
+            <div className="ai-status-grid">
+              {(aiStatus?.providers || []).map(p => (
+                <div key={p.id} className={`ai-status-card ${p.configured ? 'configured' : 'missing'} ${p.ok === false ? 'failed' : ''}`}>
+                  <div className="ai-status-top">
+                    <span>{p.name}</span>
+                    <span className="ai-status-dot" />
+                  </div>
+                  <div className="ai-status-desc">
+                    {!p.configured ? '未配置 Key' : p.ok === false ? (p.detail || '最近调用失败') : p.ok === true ? '最近调用正常' : '已配置，等待调用检测'}
+                  </div>
+                  {p.checkedAt && <div className="ai-status-time">{new Date(p.checkedAt).toLocaleTimeString()}</div>}
+                </div>
+              ))}
+              {!aiStatus && (
+                <div className="ai-status-empty">点击刷新查看 AI 通道状态</div>
+              )}
+            </div>
+            <div className="admin-section-head">
+              <span>待确认充值</span>
+              <button className="mini-text-btn" onClick={fetchPendingRecharges}>刷新</button>
+            </div>
             {pendingRecharges.length === 0 ? (
               <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-secondary)' }}>
                 暂无待确认的充值请求
@@ -4167,9 +4245,73 @@ function App() {
                 ))}
               </div>
             )}
+            <div className="admin-section-head">
+              <span>最近审计</span>
+            </div>
+            <div className="audit-list">
+              {(adminDashboard?.audit || []).length === 0 ? (
+                <div className="ai-status-empty">暂无审计记录</div>
+              ) : adminDashboard.audit.map(item => (
+                <div key={item.id} className="audit-item">
+                  <span>{item.action}</span>
+                  <strong>{item.actor}</strong>
+                  <small>{new Date(item.createdAt).toLocaleString()}</small>
+                </div>
+              ))}
+            </div>
             <div className="modal-buttons">
               <button className="cancel" onClick={() => setShowAdminModal(false)}>关闭</button>
-              <button className="confirm" onClick={fetchPendingRecharges}>刷新</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRoomManage && currentRoom && (
+        <div className="modal-overlay" onClick={() => setShowRoomManage(false)}>
+          <div className="modal room-manage-modal" onClick={e => e.stopPropagation()}>
+            <h3><I name="settings" size={20} /> 聊天管理</h3>
+            <div className="room-manage-summary">
+              <RoomAvatar name={currentRoom.name} size="lg" />
+              <div>
+                <strong>{currentRoom.name}</strong>
+                <span>{currentRoom.members?.length || 0} 位成员</span>
+              </div>
+            </div>
+            <div className="admin-section-head">
+              <span>群公告</span>
+              {isRoomOwner() && <button className="mini-text-btn" onClick={setAnnouncement}>编辑</button>}
+            </div>
+            <div className="room-announcement-box">
+              {roomAnnouncements[currentRoomId] || '暂无公告'}
+            </div>
+            <div className="admin-section-head">
+              <span>成员</span>
+            </div>
+            <div className="room-member-list">
+              {(currentRoom.members || []).map(username => {
+                const member = allUsers.find(u => u.username === username);
+                const muted = currentRoom.mutedMembers?.includes(username);
+                return (
+                  <div key={username} className="room-member-row">
+                    <AvatarImg src={getAvatarUrl(member?.avatar)} alt="" />
+                    <div className="room-member-copy">
+                      <strong>{username}</strong>
+                      <span>{currentRoom.owner === username ? '群主' : muted ? '已禁言' : '成员'}</span>
+                    </div>
+                    {isRoomOwner() && username !== user?.username && (
+                      <div className="room-member-actions">
+                        <button className="mini-text-btn" onClick={() => muted ? unmuteRoomMember(username) : muteRoomMember(username)}>
+                          {muted ? '解禁' : '禁言'}
+                        </button>
+                        <button className="mini-text-btn danger" onClick={() => kickRoomMember(username)}>移出</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="modal-buttons">
+              <button className="cancel" onClick={() => setShowRoomManage(false)}>关闭</button>
             </div>
           </div>
         </div>
@@ -4439,11 +4581,11 @@ function App() {
         </div>
       )}
 
-      {/* 底部Tab导航 - 微信风格 */}
+      {/* 底部Tab导航 */}
       <div className="bottom-tab-bar">
         <button className={`bottom-tab ${bottomTab === 'chats' ? 'active' : ''}`} onClick={() => { setBottomTab('chats'); }}>
           <span className="tab-icon"><I name="chat" size={22} /></span>
-          <span className="tab-label">微信</span>
+          <span className="tab-label">聊天</span>
         </button>
         <button className={`bottom-tab ${bottomTab === 'contacts' ? 'active' : ''}`} onClick={() => { setBottomTab('contacts'); fetchFriendRequests(); }}>
           <span className="tab-icon"><I name="contacts" size={22} /></span>
@@ -4465,7 +4607,7 @@ function App() {
         <div className="splash-screen">
           <div className="splash-content">
             <div className="splash-icon"><I name="chat" size={48} color="#fff" /></div>
-            <h1 className="splash-title">你无只因</h1>
+            <h1 className="splash-title">聊天室</h1>
             <p className="splash-subtitle">v{appVersion}</p>
             <div className="splash-loader">
               <div className="splash-loader-bar"></div>
@@ -4519,22 +4661,30 @@ function App() {
           </div>
         </div>
       )}
-      {/* OTA 更新弹窗 — 仅版本号不同时出现，不显示更新内容 */}
-      {showOtaModal && otaInfo && (
-        <div className="modal-overlay" onClick={() => setShowOtaModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 340, textAlign: 'center' }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🔄</div>
-            <h3 style={{ marginBottom: 8 }}>发现新版本 v{otaInfo.version}</h3>
-            {otaInfo.apkUrl && (
-              <button onClick={() => {
-                const url = otaInfo.apkUrl.startsWith('http') ? otaInfo.apkUrl : `${API_URL}${otaInfo.apkUrl}`;
-                isCapacitor ? window.location.href = url : window.open(url, '_blank');
-              }}
-                style={{ width: '100%', padding: '10px', background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, marginBottom: 8, fontSize: 14 }}>
-                点击更新下载 ({otaInfo.apkSize || 'APK'})
-              </button>
-            )}
-            <button className="cancel" onClick={() => setShowOtaModal(false)} style={{ width: '100%' }}>
+      {/* 大版本更新说明：同一大版本仅展示一次，不触发 APK 下载 */}
+      {showMajorUpdateModal && otaInfo && (
+        <div className="modal-overlay" onClick={() => {
+          const major = String(otaInfo.majorVersion || (otaInfo.appVersion || '').split('.')[0] || MAJOR_VERSION);
+          localStorage.setItem(`seenMajorUpdate:${major}`, major);
+          setShowMajorUpdateModal(false);
+        }}>
+          <div className="modal major-update-modal" onClick={e => e.stopPropagation()}>
+            <div className="major-update-icon"><I name="sparkles" size={34} /></div>
+            <h3>{otaInfo.updateTitle || '聊天室更新啦'}</h3>
+            <p className="major-update-version">v{otaInfo.appVersion || appVersion}</p>
+            <div className="major-update-list">
+              {(Array.isArray(otaInfo.updateNotes) ? otaInfo.updateNotes : [otaInfo.notes || '体验细节已更新。']).map((note, i) => (
+                <div key={i} className="major-update-item">
+                  <I name="checkin" size={15} />
+                  <span>{note}</span>
+                </div>
+              ))}
+            </div>
+            <button className="confirm" onClick={() => {
+              const major = String(otaInfo.majorVersion || (otaInfo.appVersion || '').split('.')[0] || MAJOR_VERSION);
+              localStorage.setItem(`seenMajorUpdate:${major}`, major);
+              setShowMajorUpdateModal(false);
+            }}>
               知道了
             </button>
           </div>
