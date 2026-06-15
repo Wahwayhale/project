@@ -203,6 +203,7 @@ function App() {
   // ===== Socket 连接与在线用户 =====
   const socketRef = useRef(null);
   const friendsRef = useRef([]);
+  const peerRef = useRef(null);
 
   // ===== 聊天室管理 =====
   const roomsHook = useRooms({
