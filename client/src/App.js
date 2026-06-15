@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 import axios from 'axios';
 import { I } from './components/Icon';
+import { useToast } from './hooks/useToast';
+import Toast from './components/ui/Toast';
 import { isCapacitor, SERVER_URL, API_URL, APP_VERSION, MAJOR_VERSION, WEB_BUILD, NATIVE_BUILD, CHUNK_SIZE, DEFAULT_AVATAR, EMOJIS } from './utils/constants';
 import { formatFileSize, getFileIcon, parseBilibiliUrl, formatTime, formatRecordingTime, formatMessagePreview } from './utils/format';
 import { getAvatarUrl } from './utils/avatar';
@@ -183,13 +185,7 @@ function App() {
   const recordingTimerRef = useRef(null);
   
   // Toast 通知系统
-  const [toast, setToast] = useState(null);
-  const toastTimerRef = useRef(null);
-  const showToast = (message, type = 'info') => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setToast({ message, type });
-    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
-  };
+  const { toast, showToast } = useToast();
 
   // === 聊天室功能 ===
   // 底部Tab (聊天/通讯录/发现/我)
@@ -5088,14 +5084,7 @@ function App() {
       )}
 
       {/* ===== Toast ===== */}
-      {toast && (
-        <div className={`toast toast-${toast.type}`}>
-          {toast.type === 'success' && '✓ '}
-          {toast.type === 'error' && '× '}
-          {toast.type === 'info' && '· '}
-          {toast.message}
-        </div>
-      )}
+      <Toast toast={toast} />
     </div>
   );
 }
