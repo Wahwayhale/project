@@ -3,6 +3,7 @@ import io from 'socket.io-client';
 import axios from 'axios';
 import { I } from './components/Icon';
 import { isCapacitor, SERVER_URL, API_URL, APP_VERSION, MAJOR_VERSION, WEB_BUILD, NATIVE_BUILD, CHUNK_SIZE, DEFAULT_AVATAR, EMOJIS } from './utils/constants';
+import { formatFileSize, getFileIcon, parseBilibiliUrl, formatTime, formatRecordingTime, formatMessagePreview } from './utils/format';
 // axios 全局配置
 axios.defaults.timeout = 15000;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -123,51 +124,6 @@ function MeMenuItem({ icon, tone, label, meta, onClick }) {
       {meta ? <span className="menu-badge">{meta}</span> : <I name="arrowRight" size={17} className="menu-arrow" />}
     </button>
   );
-}
-
-function formatFileSize(bytes) {
-  if (!bytes || bytes === 0) return '';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let i = 0;
-  let size = bytes;
-  while (size >= 1024 && i < units.length - 1) {
-    size /= 1024;
-    i++;
-  }
-  return `${size.toFixed(1)} ${units[i]}`;
-}
-
-function getFileIcon(mimeType, filename) {
-  if (!mimeType && !filename) return '📄';
-  const ext = (filename?.split('.').pop() || mimeType?.split('/').pop() || '').toLowerCase();
-  const iconMap = {
-    'pdf': '📕', 'doc': '📘', 'docx': '📘',
-    'xls': '📗', 'xlsx': '📗', 'csv': '📗',
-    'ppt': '📙', 'pptx': '📙',
-    'zip': '🗜️', 'rar': '🗜️', '7z': '🗜️', 'tar': '🗜️', 'gz': '🗜️',
-    'txt': '📄', 'json': '📋', 'xml': '📋', 'html': '🌐', 'css': '🎨', 'js': '📜', 'ts': '📜',
-    'mp3': '🎵', 'wav': '🎵', 'flac': '🎵', 'aac': '🎵', 'ogg': '🎵',
-    'mp4': '🎬', 'avi': '🎬', 'mkv': '🎬', 'mov': '🎬', 'wmv': '🎬',
-    'exe': '⚙️', 'msi': '⚙️', 'dmg': '⚙️', 'apk': '📱', 'ipa': '📱'
-  };
-  if (iconMap[ext]) return iconMap[ext];
-  if (mimeType?.startsWith('image/')) return '🖼️';
-  if (mimeType?.startsWith('video/')) return '🎬';
-  if (mimeType?.startsWith('audio/')) return '🎵';
-  if (mimeType?.includes('pdf')) return '📕';
-  if (mimeType?.includes('zip') || mimeType?.includes('compressed')) return '🗜️';
-  return '📄';
-}
-
-function parseBilibiliUrl(text) {
-  if (!text) return null;
-  const match = text.match(/https?:\/\/(?:www\.)?bilibili\.com\/video\/(BV\w+)/i);
-  if (match) return match[1];
-  const shortMatch = text.match(/https?:\/\/b23\.tv\/(\w+)/i);
-  if (shortMatch) return shortMatch[1];
-  const bareMatch = text.match(/^BV\w{10}$/);
-  if (bareMatch) return bareMatch[0];
-  return null;
 }
 
 function App() {
@@ -2242,25 +2198,6 @@ function App() {
     setView('chats');
   };
 
-  const formatTime = (timestamp) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    const now = new Date();
-    if (date.toDateString() === now.toDateString()) {
-      return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-    }
-    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatMessagePreview = (message) => {
-    if (!message) return '';
-    if (message.type === 'image') return '[图片]';
-    if (message.type === 'video') return '[视频]';
-    if (message.type === 'audio') return '[音频]';
-    if (message.type === 'file') return `[文件] ${message.filename || ''}`;
-    return message.content?.slice(0, 30) || '';
-  };
-
   // 高亮搜索匹配文本
   const highlightText = (text, query) => {
     if (!query || !text) return text;
@@ -2925,13 +2862,6 @@ function App() {
       clearInterval(recordingTimerRef.current);
     }
     showToast('录音已取消', 'info');
-  };
-
-  // 格式化录音时间
-  const formatRecordingTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   // 打开文件传输助手
