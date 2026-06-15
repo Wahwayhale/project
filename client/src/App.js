@@ -28,6 +28,7 @@ import GameModal from './components/modals/GameModal';
 import MusicShareModal from './components/modals/MusicShareModal';
 import ForwardModal from './components/modals/ForwardModal';
 import BackupModal from './components/modals/BackupModal';
+import MajorUpdateModal from './components/modals/MajorUpdateModal';
 // axios 全局配置
 axios.defaults.timeout = 15000;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -2512,34 +2513,7 @@ function App() {
       {/* 聊天记录备份弹窗 */}
       <BackupModal showBackupModal={showBackupModal} setShowBackupModal={setShowBackupModal} exportChat={exportChat} messageStats={messageStats} />
       {/* 大版本更新说明：同一大版本仅展示一次，不触发 APK 下载 */}
-      {showMajorUpdateModal && otaInfo && (
-        <div className="modal-overlay" onClick={() => {
-          const major = String(otaInfo.majorVersion || (otaInfo.appVersion || '').split('.')[0] || MAJOR_VERSION);
-          localStorage.setItem(`seenMajorUpdate:${major}`, major);
-          setShowMajorUpdateModal(false);
-        }}>
-          <div className="modal major-update-modal" onClick={e => e.stopPropagation()}>
-            <div className="major-update-icon"><I name="sparkles" size={34} /></div>
-            <h3>{otaInfo.updateTitle || '聊天室更新啦'}</h3>
-            <p className="major-update-version">v{otaInfo.appVersion || appVersion}</p>
-            <div className="major-update-list">
-              {(Array.isArray(otaInfo.updateNotes) ? otaInfo.updateNotes : [otaInfo.notes || '体验细节已更新。']).map((note, i) => (
-                <div key={i} className="major-update-item">
-                  <I name="checkin" size={15} />
-                  <span>{note}</span>
-                </div>
-              ))}
-            </div>
-            <button className="confirm" onClick={() => {
-              const major = String(otaInfo.majorVersion || (otaInfo.appVersion || '').split('.')[0] || MAJOR_VERSION);
-              localStorage.setItem(`seenMajorUpdate:${major}`, major);
-              setShowMajorUpdateModal(false);
-            }}>
-              知道了
-            </button>
-          </div>
-        </div>
-      )}
+      <MajorUpdateModal showMajorUpdateModal={showMajorUpdateModal} otaInfo={otaInfo} setShowMajorUpdateModal={setShowMajorUpdateModal} appVersion={appVersion} />
 
       {/* ===== 图片查看器 ===== */}
       {imageViewer && (
