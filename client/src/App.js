@@ -20,6 +20,7 @@ import { getAvatarUrl } from './utils/avatar';
 import AvatarImg from './components/ui/AvatarImg';
 import RoomAvatar from './components/ui/RoomAvatar';
 import EmptyState from './components/ui/EmptyState';
+import ImageViewer from './components/ui/ImageViewer';
 import SplashScreen from './components/ui/SplashScreen';
 import FeatureItem from './components/ui/FeatureItem';
 import MeMenuItem from './components/ui/MeMenuItem';
@@ -2052,26 +2053,7 @@ function App() {
       <MajorUpdateModal showMajorUpdateModal={showMajorUpdateModal} otaInfo={otaInfo} setShowMajorUpdateModal={setShowMajorUpdateModal} appVersion={appVersion} />
 
       {/* ===== 图片查看器 ===== */}
-      {imageViewer && (
-        <div className="image-viewer-overlay" onClick={() => setImageViewer(null)}>
-          <button className="image-viewer-close" onClick={() => setImageViewer(null)}><I name="close" size={20} color="#fff" /></button>
-          {imageViewer.urls?.length > 1 && (
-            <>
-              <button className="image-viewer-nav prev" onClick={(e) => { e.stopPropagation(); imageViewerNav(-1); }}>‹</button>
-              <button className="image-viewer-nav next" onClick={(e) => { e.stopPropagation(); imageViewerNav(1); }}>›</button>
-            </>
-          )}
-          <div className="image-viewer-content" onClick={e => e.stopPropagation()}>
-            <img src={imageViewer.url} alt="" />
-          </div>
-          <div className="image-viewer-tools">
-            <button onClick={() => downloadImage(imageViewer.url)}>下载</button>
-            {imageViewer.urls?.length > 1 && (
-              <button disabled>{(imageViewer.index || 0) + 1} / {imageViewer.urls.length}</button>
-            )}
-          </div>
-        </div>
-      )}
+      <ImageViewer imageViewer={imageViewer} setImageViewer={setImageViewer} imageViewerNav={imageViewerNav} downloadImage={downloadImage} />
 
       {/* ===== 群接龙弹窗 ===== */}
       <SolitaireModal showSolitaireModal={showSolitaireModal} setShowSolitaireModal={setShowSolitaireModal} solitaireTitle={solitaireTitle} setSolitaireTitle={setSolitaireTitle} solitaireFormat={solitaireFormat} setSolitaireFormat={setSolitaireFormat} createSolitaire={createSolitaire} />
