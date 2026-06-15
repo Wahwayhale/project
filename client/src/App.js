@@ -4,6 +4,7 @@ import axios from 'axios';
 import { I } from './components/Icon';
 import { useToast } from './hooks/useToast';
 import { useSettings } from './hooks/useSettings';
+import { useAuth } from './hooks/useAuth';
 import Toast from './components/ui/Toast';
 import { isCapacitor, SERVER_URL, API_URL, APP_VERSION, MAJOR_VERSION, WEB_BUILD, NATIVE_BUILD, CHUNK_SIZE, DEFAULT_AVATAR, EMOJIS } from './utils/constants';
 import { formatFileSize, getFileIcon, parseBilibiliUrl, formatTime, formatRecordingTime, formatMessagePreview } from './utils/format';
@@ -53,13 +54,14 @@ axios.interceptors.response.use(null, async (err) => {
 console.log('[APP] Capacitor:', isCapacitor, 'API_URL:', API_URL || '(relative)');
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
-  const [authMode, setAuthMode] = useState('login');
-  const [username, setUsername] = useState(localStorage.getItem('savedUsername') || '');
-  const [password, setPassword] = useState(localStorage.getItem('savedPassword') || '');
-  const [error, setError] = useState('');
+  const {
+    isAuthenticated, user, token, setUser, setToken,
+    authMode, setAuthMode, username, setUsername,
+    password, setPassword, error, setError,
+    handleAuth, handleLogout, diag,
+    balance, setBalance,
+    profileEdit, setProfileEdit,
+  } = useAuth();
   const [rooms, setRooms] = useState([]);
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
@@ -77,7 +79,6 @@ function App() {
   const [selectedFriendPayCode, setSelectedFriendPayCode] = useState(null);
   const [searchId, setSearchId] = useState('');
   const [searchResult, setSearchResult] = useState(null);
-  const [profileEdit, setProfileEdit] = useState({ bio: '', payCode: '' });
   const [uploadProgress, setUploadProgress] = useState(null);
   const [messageEndRef, setMessageEndRef] = useState(null);
   const messagesContainerRef = useRef(null);
@@ -285,7 +286,6 @@ function App() {
       { id: 'ernie-4.5-turbo-128k', name: '百度千帆 ERNIE 4.5 Turbo', free: false },
       { id: 'glm-4-plus', name: '智谱 GLM-4-Plus', free: false }
     ]);
-  const [balance, setBalance] = useState(0);
   const [showRechargeModal, setShowRechargeModal] = useState(false);
   const [rechargeAmount, setRechargeAmount] = useState('');
   const [rechargePayCode, setRechargePayCode] = useState(null);
@@ -396,79 +396,6 @@ function App() {
   const fileInputRef = useRef(null);
   const avatarInputRef = useRef(null);
 
-  // 诊断信息
-  const [diag, setDiag] = useState('');
-  useEffect(() => {
-    // APK 启动流程：1.重新登录 2.检测连接 3.加载数据
-    const startup = async () => {
-      if (isCapacitor) {
-        const u = localStorage.getItem('savedUsername');
-        const p = localStorage.getItem('savedPassword');
-        if (u && p) {
-          try {
-            const res = await axios.post(`${API_URL}/api/login`, { username: u, password: p }, { timeout: 10000 });
-            localStorage.setItem('token', res.data.token);
-            setToken(res.data.token);
-            setUser(res.data.user);
-            setIsAuthenticated(true);
-            setDiag(d => d + '🔐 OK | ');
-          } catch {
-            localStorage.removeItem('token'); localStorage.removeItem('user');
-            setToken(null); setUser(null);
-            setDiag(d => d + '🔐 FAIL | ');
-          }
-        }
-      }
-      // 连接检测（不弹 toast，静默）
-      if (isCapacitor) {
-        try {
-          await axios.get(`${API_URL}/api/ai/models`, { timeout: 5000 });
-          setDiag(d => d + '✅ | ');
-        } catch {
-          setDiag(d => d + '❌ | ');
-        }
-      }
-    };
-    startup();
-
-    // Token 验证 + 自动重新登录（Web 端）
-    const checkAuth = async () => {
-      if (!token) return;
-      try {
-        await axios.get(`${API_URL}/api/profile`, { headers: { Authorization: token } });
-      } catch (err) {
-        // Token 无效，尝试用保存的密码重新登录
-        const savedUser = localStorage.getItem('savedUsername');
-        const savedPass = localStorage.getItem('savedPassword');
-        if (savedUser && savedPass) {
-          try {
-            const res = await axios.post(`${API_URL}/api/login`, { username: savedUser, password: savedPass });
-            const newToken = res.data.token;
-            localStorage.setItem('token', newToken);
-            setToken(newToken);
-            setUser(res.data.user);
-            setIsAuthenticated(true);
-            setDiag(d => d + 'Auto-relogin OK | ');
-            return; // 登录成功，不需要清除
-          } catch (e2) {
-            setDiag(d => d + 'Auto-relogin FAILED | ');
-          }
-        }
-        // 无法恢复，清除
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setToken(null);
-      }
-    };
-    checkAuth();
-  }, []);
-
-  useEffect(() => {
-    if (token) {
-      validateToken();
-    }
-  }, [token]);
-
   useEffect(() => {
     if (isAuthenticated && user) {
       connectSocket();
@@ -552,25 +479,6 @@ function App() {
     };
     if (isAuthenticated) checkUpdate();
   }, [isAuthenticated]);
-
-  const validateToken = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/api/profile`, {
-        headers: { Authorization: token }
-      });
-      setUser(response.data);
-      setProfileEdit({ bio: response.data.bio || '', payCode: response.data.payCode || '' });
-      setIsAuthenticated(true);
-      // 获取余额
-      axios.get(`${API_URL}/api/user/balance`, { headers: { Authorization: token } })
-        .then(res => setBalance(res.data.balance))
-        .catch(() => {});
-    } catch (err) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      setToken(null);
-    }
-  };
 
   const connectSocket = () => {
     if (socketRef.current?.connected) {
@@ -974,40 +882,6 @@ function App() {
     } catch (err) {
       console.error('Failed to fetch users', err);
       setAllUsers([]);
-    }
-  };
-
-  const handleAuth = async (e) => {
-    e.preventDefault();
-    setError('');
-    try {
-      const endpoint = authMode === 'login' ? '/api/login' : '/api/register';
-      const response = await axios.post(`${API_URL}${endpoint}`, { username, password });
-      const { token: newToken, user: userData } = response.data;
-      localStorage.setItem('token', newToken);
-      localStorage.setItem('user', JSON.stringify(userData));
-      localStorage.setItem('savedUsername', username);
-      localStorage.setItem('savedPassword', password);
-      setToken(newToken);
-      setUser(userData);
-      setProfileEdit({ bio: userData.bio || '', payCode: userData.payCode || '' });
-      setIsAuthenticated(true);
-      setUsername('');
-      setPassword('');
-    } catch (err) {
-      setError(err.response?.data?.error || 'Authentication failed');
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
-    setIsAuthenticated(false);
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
     }
   };
 
