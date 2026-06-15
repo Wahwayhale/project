@@ -20,6 +20,7 @@ import { getAvatarUrl } from './utils/avatar';
 import AvatarImg from './components/ui/AvatarImg';
 import RoomAvatar from './components/ui/RoomAvatar';
 import EmptyState from './components/ui/EmptyState';
+import SplashScreen from './components/ui/SplashScreen';
 import FeatureItem from './components/ui/FeatureItem';
 import MeMenuItem from './components/ui/MeMenuItem';
 import BottomTabBar from './components/BottomTabBar';
