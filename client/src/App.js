@@ -27,6 +27,7 @@ import BottomTabBar from './components/BottomTabBar';
 import GameModal from './components/modals/GameModal';
 import MusicShareModal from './components/modals/MusicShareModal';
 import ForwardModal from './components/modals/ForwardModal';
+import BackupModal from './components/modals/BackupModal';
 // axios 全局配置
 axios.defaults.timeout = 15000;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -2509,27 +2510,7 @@ function App() {
       <ForwardModal showForwardModal={showForwardModal} setShowForwardModal={setShowForwardModal} setForwardMsg={setForwardMsg} rooms={rooms} forwardMessage={forwardMessage} />
 
       {/* 聊天记录备份弹窗 */}
-      {showBackupModal && (
-        <div className="modal-overlay" onClick={() => setShowBackupModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
-            <h3><I name="backup" size={20} /> 聊天记录管理</h3>
-            <div style={{ padding: 20, textAlign: 'center' }}>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-                聊天记录存储在服务器上，登录后自动同步
-              </div>
-              <button className="confirm" onClick={() => { exportChat(); setShowBackupModal(false); }} style={{ marginBottom: 8 }}>
-                导出聊天记录
-              </button>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 12 }}>
-                {messageStats.totalMessages > 0 && `当前聊天记录: ${messageStats.totalMessages} 条消息`}
-              </div>
-            </div>
-            <div className="modal-buttons">
-              <button className="cancel" onClick={() => setShowBackupModal(false)}>关闭</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <BackupModal showBackupModal={showBackupModal} setShowBackupModal={setShowBackupModal} exportChat={exportChat} messageStats={messageStats} />
       {/* 大版本更新说明：同一大版本仅展示一次，不触发 APK 下载 */}
       {showMajorUpdateModal && otaInfo && (
         <div className="modal-overlay" onClick={() => {
