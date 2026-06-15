@@ -249,43 +249,6 @@ function App() {
     startChatWithFriend,
   } = friendsHook;
   friendsRef.current = friends;
-  const { onlineUsers } = useSocket({
-    socketRef,
-    token,
-    user,
-    isAuthenticated,
-    handlers: {
-      // State setters
-      setFriends,
-      setMessages,
-      setRooms,
-      setTypingUser,
-      setRecalledMessages,
-      setBalance,
-      setRoomAnnouncements,
-      setCurrentRoom,
-      setCurrentRoomId,
-      setMoments,
-      setMessageStats,
-      setUnreadCounts,
-      setCallState,
-      setSharedLocations,
-      setCheckInData,
-      setExportingChat,
-      setShowCreateModal,
-      setFriendRequests,
-      setMessagesLoading,
-      // Current state values
-      currentRoomId,
-      // Refs
-      peerRef,
-      // Notification flags
-      notifyEnabled,
-      notifyMuted,
-      // Toast callback
-      showToast,
-    }
-  });
 
   // ===== 聊天核心逻辑 =====
   const chatHook = useChat({
@@ -547,6 +510,40 @@ function App() {
     user,
     allUsers,
     peerRef,
+  });
+
+  // ===== Socket 连接（最后调用，所有 setter 已就绪）=====
+  const { onlineUsers } = useSocket({
+    socketRef,
+    token,
+    user,
+    isAuthenticated,
+    handlers: {
+      setFriends,
+      setMessages,
+      setRooms,
+      setTypingUser,
+      setRecalledMessages,
+      setBalance,
+      setRoomAnnouncements,
+      setCurrentRoom,
+      setCurrentRoomId,
+      setMoments,
+      setMessageStats,
+      setUnreadCounts,
+      setCallState,
+      setSharedLocations,
+      setCheckInData,
+      setExportingChat,
+      setShowCreateModal,
+      setFriendRequests,
+      setMessagesLoading,
+      currentRoomId,
+      peerRef,
+      notifyEnabled,
+      notifyMuted,
+      showToast,
+    }
   });
 
   const avatarInputRef = useRef(null);
