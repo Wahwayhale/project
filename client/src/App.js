@@ -790,7 +790,7 @@ function App() {
         if (token.startsWith('**')) {
           parts.push(<strong key={key++}>{token.slice(2, -2)}</strong>);
         } else if (token.startsWith('`')) {
-          parts.push(<code key={key++} style={{ background: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: 3, fontSize: 12 }}>{token.slice(1, -1)}</code>);
+          parts.push(<code key={key++} className="md-code">{token.slice(1, -1)}</code>);
         }
         last = m.index + token.length;
       }
@@ -975,7 +975,7 @@ function App() {
               )}
             </div>
             {isCapacitor && (
-              <div style={{ marginTop: 12, fontSize: 10, color: 'var(--text-tertiary)', textAlign: 'center' }}>
+              <div className="auth-server-info">
                 服务器：{SERVER_URL}
               </div>
             )}
@@ -1341,12 +1341,12 @@ function App() {
         <div className="modal-overlay" onClick={() => { setShowPayCodeModal(false); setSelectedFriendPayCode(null); }}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3><I name="wallet" size={20} /> {selectedFriendPayCode.username} 的收款码</h3>
-            <div style={{ padding: 16, background: 'var(--bg-color)', borderRadius: 8, marginBottom: 12 }}>
-              <div style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+            <div className="paycode-box">
+              <div className="paycode-content">
                 {selectedFriendPayCode.payCode}
               </div>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+            <div className="paycode-hint">
               复制以上内容，在微信中打开即可转账给该好友
             </div>
             <div className="modal-buttons">
@@ -1382,7 +1382,7 @@ function App() {
           <div className="progress-bar">
             <div className="fill" style={{ width: `${uploadProgress.progress}%` }} />
           </div>
-          <div style={{ marginTop: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
+          <div className="upload-progress-text">
             {uploadProgress.progress}%
           </div>
         </div>

@@ -1,0 +1,169 @@
+/* ==========================================
+   通讯录页面
+   ========================================== */
+.contacts-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  background: var(--bg);
+}
+
+.contacts-header {
+  padding: 20px 24px 12px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+}
+
+.contacts-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.contacts-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  display: block;
+}
+
+.contacts-search {
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+}
+
+.contacts-search input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 13px;
+  outline: none;
+  background: var(--bg);
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.contacts-search input:focus {
+  border-color: var(--primary);
+}
+
+.contacts-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 20px;
+}
+
+.contacts-section {
+  background: var(--bg-card);
+  margin-bottom: 0;
+}
+
+.contacts-section-title {
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.contact-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.contact-item:hover {
+  background: var(--bg-hover);
+}
+
+.contact-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.contact-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.contact-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.contact-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.contact-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.accept-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.reject-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* 通讯录A-Z索引 */
+.contacts-index {
+  position: fixed;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.contacts-index .index-letter {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--primary);
+  width: 18px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+
+.contacts-index .index-letter:hover {
+  background: var(--primary-bg);
+}
+
