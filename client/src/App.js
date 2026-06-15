@@ -1454,40 +1454,10 @@ function App() {
       <BotModal showBotModal={showBotModal} setShowBotModal={setShowBotModal} bots={bots} deleteBot={deleteBot} botForm={botForm} setBotForm={setBotForm} createBot={createBot} />
 
       {/* ===== WebRTC 通话界面 ===== */}
-      {callState && callState.status && callState.status !== 'incoming' && (
-        <div className="call-overlay">
-          <div className="call-remote-video">
-            {callState.remoteStream ? (
-              <video ref={el => { if (el && callState?.remoteStream) { try { el.srcObject = callState.remoteStream; el.play().catch(() => {}); } catch(e) {} } }} autoPlay playsInline />
-            ) : (
-              <div className="call-waiting">
-                {(callState.status === 'calling' || callState.status === 'connecting') ? (callState.status === 'calling' ? '正在呼叫...' : '连接中...') : '📞'}
-              </div>
-            )}
-          </div>
-          {callState.localStream && (
-            <div className="call-local-video">
-              <video ref={el => { if (el && callState?.localStream) { try { el.srcObject = callState.localStream; el.play().catch(() => {}); } catch(e) {} } }} autoPlay playsInline muted />
-            </div>
-          )}
-          <div className="call-controls">
-            <button className="call-btn mute" onClick={toggleMute}>{callState?.muted ? <I name="micOff" size={20} color="#fff" /> : <I name="mic" size={20} color="#fff" />}</button>
-            <button className="call-btn hangup" onClick={hangUp}><I name="micOff" size={20} color="currentColor" /></button>
-          </div>
-        </div>
-      )}
+      <CallOverlay callState={callState} toggleMute={toggleMute} hangUp={hangUp} />
 
       {/* ===== 来电提醒 ===== */}
-      {callState && callState.status === 'incoming' && (
-        <div className="call-incoming-overlay">
-          <div style={{ fontSize: 36, marginBottom: 8 }}><I name="video" size={36} /></div>
-          <div style={{ fontWeight: 700 }}>{callState.caller?.username} 邀请你{callState.type === 'video' ? '视频' : '语音'}通话</div>
-          <div className="call-incoming-actions">
-            <button className="call-btn hangup" onClick={hangUp} style={{ width: 48, height: 48 }}><I name="micOff" size={20} color="currentColor" /></button>
-            <button className="call-btn" onClick={acceptCall} style={{ background: '#10b981', color: 'white', width: 48, height: 48, boxShadow: '0 4px 16px rgba(16,185,129,0.4)' }}>📞</button>
-          </div>
-        </div>
-      )}
+      <CallIncoming callState={callState} hangUp={hangUp} acceptCall={acceptCall} />
 
       {/* ===== AI 润色弹窗 ===== */}
       <PolishModal showPolishModal={showPolishModal} setShowPolishModal={setShowPolishModal} setPolishResult={setPolishResult} polishText={polishText} setPolishText={setPolishText} polishTone={polishTone} setPolishTone={setPolishTone} polishResult={polishResult} polishLoading={polishLoading} polishMessage={polishMessage} applyPolish={applyPolish} />
@@ -1496,220 +1466,19 @@ function App() {
       <DailyDigestModal showDailyDigest={showDailyDigest} setShowDailyDigest={setShowDailyDigest} setDailyDigest={setDailyDigest} dailyDigestLoading={dailyDigestLoading} dailyDigest={dailyDigest} />
 
       {/* ===== 音乐播放器面板 ===== */}
-      {showMusicPanel && (
-        <div className="modal-overlay" onClick={() => setShowMusicPanel(false)}>
-          <div className="modal music-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: 480, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
-            <div className="music-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <h3 style={{ margin: 0 }}><I name="music" size={20} /> 网易云音乐</h3>
-              <button onClick={() => setShowMusicPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><I name="close" size={20} /></button>
-            </div>
-            {/* 搜索框 */}
-            <form onSubmit={searchMusic} style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input
-                type="text"
-                value={musicSearch}
-                onChange={e => setMusicSearch(e.target.value)}
-                placeholder="搜索歌曲、歌手..."
-                style={{ flex: 1, padding: '10px 14px', border: '2px solid var(--border)', borderRadius: 10, fontSize: 14, outline: 'none', background: 'var(--bg)' }}
-              />
-              <button type="submit" disabled={musicLoading} style={{ padding: '10px 18px', background: 'linear-gradient(135deg, #ec4141, #e03a3a)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                {musicLoading ? '搜索中...' : '搜索'}
-              </button>
-            </form>
-            {/* 迷你播放器 */}
-            {currentSong && (
-              <div className="mini-player" style={{ background: 'linear-gradient(135deg, #1a1a2e, #16213e)', borderRadius: 12, padding: 12, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <img src={currentSong.pic || ''} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: '#fff', fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentSong.name}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{currentSong.artist}</div>
-                </div>
-                <button onClick={togglePlay} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 20, width: 36, height: 36, cursor: 'pointer', fontSize: 16, color: '#fff' }}>
-                  {isPlaying ? <I name="stop" size={18} color="#fff" /> : <I name="send" size={18} color="#fff" />}
-                </button>
-                <button onClick={() => shareSongToChat(currentSong)} title="分享到聊天" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, padding: '4px 8px', color: '#fff', display: 'flex', alignItems: 'center' }}><I name="forward" size={15} color="#fff" /></button>
-              </div>
-            )}
-            {/* 歌词 */}
-            {musicLyric && isPlaying && (
-              <div className="lyric-box" style={{ background: 'var(--bg)', borderRadius: 10, padding: 12, marginBottom: 12, maxHeight: 120, overflowY: 'auto', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
-                {musicLyric.split('\n').slice(0, 10).join('\n')}
-              </div>
-            )}
-            {/* 搜索结果 */}
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              {musicResults.length === 0 && !musicLoading && (
-                <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>
-                  <div style={{ opacity: 0.25, marginBottom: 12 }}><I name="music" size={48} /></div>
-                  <div>输入关键词搜索歌曲</div>
-                </div>
-              )}
-              {musicResults.map((song, i) => (
-                <div key={song.id || i} className="music-item" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 8px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: currentSong?.id === song.id ? 'var(--hover)' : 'transparent', borderRadius: 8 }}
-                  onClick={() => playSong(song)}
-                >
-                  <img src={song.pic || ''} alt="" style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', background: 'var(--bg)' }} onError={e => { e.target.style.display = 'none'; }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{song.artist}{song.album ? ` · ${song.album}` : ''}</div>
-                  </div>
-                  <button onClick={(e) => { e.stopPropagation(); playSong(song); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }} title="播放">▶️</button>
-                  <button onClick={(e) => { e.stopPropagation(); shareSongToChat(song); }} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="分享"><I name="forward" size={14} /></button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 隐藏的音频元素 */}
-      <audio ref={audioRef} onEnded={() => setIsPlaying(false)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} style={{ display: 'none' }} />
+      <MusicPanel showMusicPanel={showMusicPanel} setShowMusicPanel={setShowMusicPanel} musicSearch={musicSearch} setMusicSearch={setMusicSearch} musicLoading={musicLoading} searchMusic={searchMusic} musicResults={musicResults} currentSong={currentSong} isPlaying={isPlaying} togglePlay={togglePlay} shareSongToChat={shareSongToChat} playSong={playSong} musicLyric={musicLyric} audioRef={audioRef} setIsPlaying={setIsPlaying} />
 
       {/* ===== GIF 面板 ===== */}
-      {showGifPanel && (
-        <div className="modal-overlay" onClick={() => { setShowGifPanel(false); setGifSearch(''); setGifResults([]); }}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <h3 style={{ margin: 0 }}><I name="image" size={20} /> GIF 表情包</h3>
-              <button onClick={() => { setShowGifPanel(false); setGifSearch(''); setGifResults([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={20} /></button>
-            </div>
-            <form onSubmit={searchGif} style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input type="text" value={gifSearch} onChange={e => setGifSearch(e.target.value)} placeholder="搜索 GIF..." style={{ flex: 1, padding: '10px 14px', border: '2px solid var(--border)', borderRadius: 10, fontSize: 14, outline: 'none', background: 'var(--bg)' }} />
-              <button type="submit" disabled={gifLoading} style={{ padding: '10px 18px', background: 'linear-gradient(135deg, #fb7299, #cc66cc)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700 }}>{gifLoading ? '搜索中' : '搜索'}</button>
-            </form>
-            <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
-              {gifResults.length === 0 && !gifLoading && (
-                <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>输入关键词搜索 GIF</div>
-              )}
-              {gifResults.map((gif, i) => (
-                <div key={gif.id || i} onClick={() => sendGif(gif)} style={{ cursor: 'pointer', borderRadius: 8, overflow: 'hidden', background: 'var(--bg)' }}>
-                  <img src={gif.preview || gif.url} alt={gif.title} style={{ width: '100%', height: 120, objectFit: 'cover' }} loading="lazy" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      <GifPanel showGifPanel={showGifPanel} setShowGifPanel={setShowGifPanel} setGifSearch={setGifSearch} setGifResults={setGifResults} gifSearch={gifSearch} gifLoading={gifLoading} searchGif={searchGif} gifResults={gifResults} sendGif={sendGif} />
 
       {/* ===== 新闻热搜面板 ===== */}
-      {showNewsPanel && (
-        <div className="modal-overlay" onClick={() => { setShowNewsPanel(false); setNewsStories([]); }}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <h3 style={{ margin: 0 }}><I name="digest" size={20} /> 今日热搜</h3>
-              <button onClick={() => { setShowNewsPanel(false); setNewsStories([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={20} /></button>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              {newsLoading ? (
-                <div style={{ textAlign: 'center', padding: 30 }}>加载中...</div>
-              ) : newsStories.map((s, i) => (
-                <div key={s.id || i} style={{ display: 'flex', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }} onClick={() => shareNews(s)}>
-                  {s.image && <img src={s.image} alt="" style={{ width: 60, height: 60, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>{s.title}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>点击分享到聊天</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      <NewsPanel showNewsPanel={showNewsPanel} setShowNewsPanel={setShowNewsPanel} setNewsStories={setNewsStories} newsStories={newsStories} newsLoading={newsLoading} shareNews={shareNews} />
 
       {/* ===== 天气面板 ===== */}
-      {showWeatherPanel && (
-        <div className="modal-overlay" onClick={() => { setShowWeatherPanel(false); setWeatherData(null); setWeatherCity(''); }}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <h3 style={{ margin: 0 }}>🌤 天气查询</h3>
-              <button onClick={() => { setShowWeatherPanel(false); setWeatherData(null); setWeatherCity(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={20} /></button>
-            </div>
-            <form onSubmit={searchWeather} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <input type="text" value={weatherCity} onChange={e => setWeatherCity(e.target.value)} placeholder="输入城市名，如：北京" style={{ flex: 1, padding: '10px 14px', border: '2px solid var(--border)', borderRadius: 10, fontSize: 14, outline: 'none', background: 'var(--bg)' }} />
-              <button type="submit" disabled={weatherLoading} style={{ padding: '10px 18px', background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700 }}>{weatherLoading ? '查询中' : '查询'}</button>
-            </form>
-            {weatherLoading && <div style={{ textAlign: 'center', padding: 30 }}>查询中...</div>}
-            {weatherData && !weatherLoading && (
-              <div style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', borderRadius: 14, padding: 24, color: 'white' }}>
-                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{weatherData.city}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
-                  <div style={{ fontSize: 56, fontWeight: 200 }}>{weatherData.temp}°</div>
-                  <div>
-                    <div style={{ fontSize: 15 }}>{weatherData.desc}</div>
-                    <div style={{ fontSize: 13, opacity: 0.8 }}>体感 {weatherData.feelsLike}°C</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 16, fontSize: 13, opacity: 0.9, marginBottom: 12 }}>
-                  <span>💧 {weatherData.humidity}%</span>
-                  <span>🌬 {weatherData.wind}</span>
-                  <span>📊 {weatherData.high}° / {weatherData.low}°</span>
-                </div>
-                <button onClick={shareWeather} style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.2)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>📤 分享天气到聊天</button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <WeatherPanel showWeatherPanel={showWeatherPanel} setShowWeatherPanel={setShowWeatherPanel} setWeatherData={setWeatherData} setWeatherCity={setWeatherCity} weatherCity={weatherCity} weatherLoading={weatherLoading} searchWeather={searchWeather} weatherData={weatherData} shareWeather={shareWeather} />
 
       {/* ===== 地图面板 ===== */}
-      {showMapPanel && (
-        <div className="modal-overlay" onClick={() => { setShowMapPanel(false); setShowMapViewer(null); setMapResults([]); }}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <h3 style={{ margin: 0 }}><I name="location" size={20} /> 地图</h3>
-              <button onClick={() => { setShowMapPanel(false); setShowMapViewer(null); setMapResults([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={20} /></button>
-            </div>
-            {/* 搜索栏 */}
-            <form onSubmit={searchMap} style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input type="text" value={mapSearch} onChange={e => setMapSearch(e.target.value)} placeholder="搜索地点..." style={{ flex: 1, padding: '10px 14px', border: '2px solid var(--border)', borderRadius: 10, fontSize: 14, outline: 'none', background: 'var(--bg)' }} />
-              <button type="submit" disabled={mapLoading} style={{ padding: '10px 16px', background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}>{mapLoading ? '搜索中' : '搜索'}</button>
-              <button type="button" onClick={getMyLocation} disabled={mapLoading} title="GPS定位" style={{ padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer' }}><I name="location" size={18} /></button>
-            </form>
-            {/* 搜索结果 */}
-            {mapResults.length > 0 && !showMapViewer && (
-              <div style={{ flex: 1, overflowY: 'auto', marginBottom: 12 }}>
-                {mapResults.map((poi, i) => (
-                  <div key={i} onClick={() => setShowMapViewer({ lat: poi.lat, lng: poi.lng, name: poi.name })} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
-                    <I name="location" size={16} color="var(--primary)" />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500 }}>{poi.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{poi.fullName}</div>
-                    </div>
-                    <button onClick={(e) => { e.stopPropagation(); setShowMapViewer({ lat: poi.lat, lng: poi.lng, name: poi.name }); shareMap({ lat: poi.lat, lng: poi.lng, name: poi.name, fullName: poi.fullName }); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="forward" size={16} /></button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {/* 地图视图 */}
-            {showMapViewer ? (
-              <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                <div style={{ padding: '8px 12px', background: 'var(--bg)', fontWeight: 600, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span><I name="location" size={14} /> {showMapViewer.name}</span>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={() => shareMap(showMapViewer)} style={{ background: 'var(--primary-gradient)', color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>分享</button>
-                    <button onClick={() => setShowMapViewer(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={14} /></button>
-                  </div>
-                </div>
-                {isCapacitor ? (
-                  <div onClick={() => window.open(`${API_URL}/api/map/static?lat=${showMapViewer.lat}&lng=${showMapViewer.lng}&zoom=17`, '_system')}
-                    style={{ width: '100%', height: 200, background: '#e8e8e8', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexDirection: 'column', gap: 8 }}>
-                    <I name="location" size={36} color="var(--primary)" />
-                    <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>点击查看地图</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showMapViewer.lat.toFixed(4)}, {showMapViewer.lng.toFixed(4)}</span>
-                  </div>
-                ) : (
-                  <iframe src={`${API_URL}/api/map/static?lat=${showMapViewer.lat}&lng=${showMapViewer.lng}&zoom=17`} title="高德地图" style={{ width: '100%', height: 350, border: 'none' }} />
-                )}
-              </div>
-            ) : mapResults.length === 0 && !mapLoading && (
-              <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>
-                <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.3 }}><I name="location" size={64} /></div>
-                <div>搜索地点或点击 GPS 获取当前位置</div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <MapPanel showMapPanel={showMapPanel} setShowMapPanel={setShowMapPanel} setShowMapViewer={setShowMapViewer} setMapResults={setMapResults} mapSearch={mapSearch} setMapSearch={setMapSearch} mapLoading={mapLoading} searchMap={searchMap} getMyLocation={getMyLocation} mapResults={mapResults} showMapViewer={showMapViewer} shareMap={shareMap} isCapacitor={isCapacitor} API_URL={API_URL} />
 
       {/* ===== Toast ===== */}
       <Toast toast={toast} />
