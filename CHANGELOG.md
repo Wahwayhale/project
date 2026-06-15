@@ -18,7 +18,7 @@
 ### Added
 - Amap (高德) POI search + interactive map via Amap JS API
 - API key hot-reload (`POST /api/admin/reload-config`)
-- Message delete (WeChat-style per-chat deletion)
+- Message delete (per-chat deletion)
 - Desktop notifications (Browser Notification API)
 - Group events with 5-min reminders
 - Enhanced message search with type filter

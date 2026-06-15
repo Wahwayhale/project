@@ -1,14 +1,34 @@
 const express = require('express');
-// 支持通过 ENV_FILE 指定配置文件（如 ENV_FILE=.env.app 或 ENV_FILE=.env.web）
-const envFile = process.env.ENV_FILE || '.env';
-require('dotenv').config({ path: require('path').join(__dirname, envFile) });
-console.log(`[SERVER] Using config: ${envFile}, Port: ${process.env.PORT || 3001}`);
+const path = require('path');
+const fs = require('fs');
+const dotenv = require('dotenv');
+
+function resolveEnvConfig() {
+  const preferred = process.env.ENV_FILE || '.env';
+  const candidates = preferred === '.env'
+    ? ['.env', '.env.web', '.env.app']
+    : [preferred, '.env'];
+
+  for (const name of candidates) {
+    const fullPath = path.join(__dirname, name);
+    if (fs.existsSync(fullPath)) {
+      return { name, fullPath };
+    }
+  }
+
+  return {
+    name: preferred,
+    fullPath: path.join(__dirname, preferred)
+  };
+}
+
+const envConfigFile = resolveEnvConfig();
+dotenv.config({ path: envConfigFile.fullPath });
+console.log(`[SERVER] Using config: ${envConfigFile.name}, Port: ${process.env.PORT || 3001}`);
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
@@ -67,6 +87,37 @@ const friendRequests = collections.friendRequests;
 const friends = collections.friends;
 const rooms = collections.rooms;
 const recharges = collections.recharges;
+const AUDIT_FILE = path.join(__dirname, 'data', 'adminAudit.json');
+let auditLog = [];
+
+try {
+  if (fs.existsSync(AUDIT_FILE)) {
+    auditLog = JSON.parse(fs.readFileSync(AUDIT_FILE, 'utf-8'));
+  }
+} catch (e) {
+  console.error('[AUDIT] load failed:', e.message);
+  auditLog = [];
+}
+
+function saveAuditLog() {
+  try {
+    fs.writeFileSync(AUDIT_FILE, JSON.stringify(auditLog.slice(-500), null, 2), 'utf-8');
+  } catch (e) {
+    console.error('[AUDIT] save failed:', e.message);
+  }
+}
+
+function addAudit(action, actor, detail = {}) {
+  auditLog.push({
+    id: uuidv4(),
+    action,
+    actor: actor?.username || actor || 'system',
+    detail,
+    createdAt: new Date().toISOString()
+  });
+  if (auditLog.length > 500) auditLog = auditLog.slice(-500);
+  saveAuditLog();
+}
 
 // Start auto-flush to prevent data loss on crash
 db.startAutoFlush(collections);
@@ -95,15 +146,16 @@ process.on('SIGUSR2', () => handleShutdown('SIGUSR2')); // PM2 reload
 
 // ========== 自动备份（每小时） ==========
 const BACKUP_DIR = path.join(__dirname, 'data', 'backups');
+const BACKUP_FILES = ['users.json', 'friendRequests.json', 'friends.json', 'rooms.json', 'recharges.json'];
 setInterval(() => {
   try {
     const now = new Date().toISOString().replace(/[:.]/g, '-');
     const backupDir = path.join(BACKUP_DIR, now);
     fs.mkdirSync(backupDir, { recursive: true });
-    for (const name of Object.keys(FILES)) {
-      const src = path.join(DATA_DIR, FILES[name]);
+    for (const filename of BACKUP_FILES) {
+      const src = path.join(__dirname, 'data', filename);
       if (fs.existsSync(src)) {
-        fs.copyFileSync(src, path.join(backupDir, FILES[name]));
+        fs.copyFileSync(src, path.join(backupDir, filename));
       }
     }
     // 保留最近 24 个备份
@@ -500,6 +552,7 @@ app.post('/api/admin/recharge/confirm', verifyToken, (req, res) => {
   }
 
   console.log(`[RECHARGE] admin 确认充值: ${recharge.username} +¥${recharge.amount}, 新余额: ¥${targetUser.balance}`);
+  addAudit('recharge.confirm', user, { username: recharge.username, amount: recharge.amount, rechargeId });
   res.json({ success: true, recharge, newBalance: targetUser.balance });
 });
 
@@ -538,6 +591,7 @@ app.post('/api/admin/recharge/reject', verifyToken, (req, res) => {
     }
   }
 
+  addAudit('recharge.reject', user, { username: recharge.username, amount: recharge.amount, rechargeId, reason: recharge.rejectReason });
   res.json({ success: true, recharge });
 });
 
@@ -682,9 +736,11 @@ const https = require('https');
 let ZHIPU_API_KEY = process.env.ZHIPU_API_KEY || '';
 let KIMI_API_KEY = process.env.KIMI_API_KEY || '';
 let DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
+let QIANFAN_API_KEY = process.env.QIANFAN_API_KEY || '';
 const ZHIPU_BASE = 'open.bigmodel.cn';
-const KIMI_BASE = 'api.moonshot.cn';
+const KIMI_BASE = 'api.moonshot.ai';
 const DEEPSEEK_BASE = 'api.deepseek.com';
+const QIANFAN_BASE = 'qianfan.baidubce.com';
 
 // 调用智谱AI OpenAI兼容接口
 function callAI(messages, model, callback) {
@@ -725,28 +781,6 @@ function callAI(messages, model, callback) {
   req.end();
 }
 
-// 备用通道：Pollinations.ai（完全免费、无需 key）
-function callPollinations(messages, callback) {
-  const lastUser = [...messages].reverse().find(m => m.role === 'user');
-  const prompt = lastUser?.content || '你好';
-  const systemMsg = messages.find(m => m.role === 'system');
-  const url = `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai-fast&system=${encodeURIComponent(systemMsg?.content || '你是友好的AI助手')}`;
-  
-  https.get(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0' }
-  }, (response) => {
-    let data = '';
-    response.on('data', chunk => data += chunk);
-    response.on('end', () => {
-      if (response.statusCode === 200 && data && !data.includes('Queue full')) {
-        callback(null, { reply: data.trim(), model: 'pollinations' });
-      } else {
-        callback(new Error(`Pollinations 限速: ${response.statusCode}`), null);
-      }
-    });
-  }).on('error', err => callback(err, null));
-}
-
 // 调用Kimi AI
 function callKimiAI(messages, model, callback) {
   if (!KIMI_API_KEY) {
@@ -782,19 +816,21 @@ function callKimiAI(messages, model, callback) {
       }
     });
   }).on('error', err => callback(err, null));
+  req.write(body);
+  req.end();
 }
 
 let DEEPSEEK_R1_API_KEY = process.env.DEEPSEEK_R1_API_KEY || '';
 const DEEPSEEK_MODEL_MAP = {
   'deepseek-v4-flash': 'deepseek-chat',
   'deepseek-v4-pro': 'deepseek-reasoner',
-  'deepseek-r1': 'deepseek-v3-0324'
+  'deepseek-r1': 'deepseek-reasoner'
 };
 
 // 调用 DeepSeek AI
 function callDeepSeekAI(messages, model, callback) {
   const isR1 = model === 'deepseek-r1';
-  // R1 使用腾讯 MAS 代理 + 独立 Key，其他模型使用 DeepSeek 直连
+  // R1 可使用独立 Key，其余模型使用 DeepSeek 直连 Key。
   const apiKey = isR1 && DEEPSEEK_R1_API_KEY ? DEEPSEEK_R1_API_KEY : DEEPSEEK_API_KEY;
   if (!apiKey) {
     return callback(new Error('DEEPSEEK_API_KEY 未配置'));
@@ -808,7 +844,7 @@ function callDeepSeekAI(messages, model, callback) {
     temperature: 0.7
   });
   const options = {
-    hostname: isR1 ? 'tokenhub.tencentmaas.com' : 'api.deepseek.com',
+    hostname: DEEPSEEK_BASE,
     port: 443,
     path: '/v1/chat/completions',
     method: 'POST',
@@ -840,10 +876,203 @@ function callDeepSeekAI(messages, model, callback) {
   req.end();
 }
 
+// 调用百度千帆 OpenAI 兼容接口
+function callQianfanAI(messages, model, callback) {
+  if (!QIANFAN_API_KEY) {
+    return callback(new Error('QIANFAN_API_KEY 未配置'));
+  }
+  const body = JSON.stringify({
+    model,
+    messages,
+    stream: false,
+    max_tokens: 2048,
+    temperature: 0.7
+  });
+  const options = {
+    hostname: QIANFAN_BASE,
+    port: 443,
+    path: '/v2/chat/completions',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${QIANFAN_API_KEY}`,
+      'Content-Length': Buffer.byteLength(body)
+    },
+    timeout: 60000
+  };
+  const req = https.request(options, (response) => {
+    let data = '';
+    response.on('data', chunk => { data += chunk; });
+    response.on('end', () => {
+      try {
+        const json = JSON.parse(data);
+        callback(null, json);
+      } catch (e) {
+        callback(new Error('千帆响应解析失败: ' + data.substring(0, 100)), null);
+      }
+    });
+  });
+  req.on('timeout', () => {
+    req.destroy();
+    callback(new Error('千帆请求超时'), null);
+  });
+  req.on('error', err => callback(err, null));
+  req.write(body);
+  req.end();
+}
+
+function extractAIError(json) {
+  const raw = json?.error || json?.error_msg || json?.message;
+  if (!raw) return null;
+  if (typeof raw === 'string') return { message: raw, code: json?.code || json?.error_code || '' };
+  return {
+    message: raw.message || raw.msg || 'AI 返回错误',
+    code: raw.code || json?.code || json?.error_code || ''
+  };
+}
+
+function getProviderHint(provider, message, code) {
+  const text = `${message || ''} ${code || ''}`.toLowerCase();
+  if (text.includes('insufficient balance') || text.includes('suspended') || text.includes('quota') || text.includes('balance') || text.includes('额度') || text.includes('余额')) {
+    return `${provider} 账号余额不足或服务被暂停，请到对应平台充值/恢复后再试`;
+  }
+  if (text.includes('invalid') || text.includes('authentication') || text.includes('unauthorized') || String(code) === '401') {
+    return `${provider} API Key 无效，请更换有效 Key 后重启服务器或使用后台热重载`;
+  }
+  return '';
+}
+
+function getAssistantReply(json) {
+  return json?.choices?.[0]?.message?.content || json?.result || json?.reply || '';
+}
+
+const AI_MODELS = [
+  { id: 'glm-4-flash', name: '智谱 GLM-4-Flash（免费）', free: true, desc: '快速免费', provider: 'zhipu' },
+  { id: 'deepseek-v4-flash', name: 'DeepSeek V4-Flash', free: false, desc: 'DeepSeek 快速模型', provider: 'deepseek' },
+  { id: 'deepseek-v4-pro', name: 'DeepSeek V4-Pro', free: false, desc: 'DeepSeek 推理增强模型', provider: 'deepseek' },
+  { id: 'deepseek-r1', name: 'DeepSeek R1（独立Key）', free: false, desc: 'DeepSeek 最新推理模型', provider: 'deepseek' },
+  { id: 'moonshot-v1-8k', name: 'Kimi Moonshot-8K', free: false, desc: 'Kimi 长文本模型', provider: 'kimi' },
+  { id: 'moonshot-v1-32k', name: 'Kimi Moonshot-32K', free: false, desc: 'Kimi 长上下文模型', provider: 'kimi' },
+  { id: 'moonshot-v1-128k', name: 'Kimi Moonshot-128K', free: false, desc: 'Kimi 超长上下文模型', provider: 'kimi' },
+  { id: 'ernie-4.5-turbo-128k', name: '百度千帆 ERNIE 4.5 Turbo', free: false, desc: '百度千帆 OpenAI 兼容模型', provider: 'qianfan' },
+  { id: 'glm-4-plus', name: '智谱 GLM-4-Plus', free: false, desc: '更强推理', provider: 'zhipu' }
+];
+
+const aiProviderStatus = new Map();
+
+function getAIModelMeta(model) {
+  return AI_MODELS.find(m => m.id === model) || AI_MODELS[0];
+}
+
+function isProviderConfigured(provider, model) {
+  if (provider === 'zhipu') return Boolean(ZHIPU_API_KEY);
+  if (provider === 'kimi') return Boolean(KIMI_API_KEY);
+  if (provider === 'qianfan') return Boolean(QIANFAN_API_KEY);
+  if (provider === 'deepseek') {
+    return model === 'deepseek-r1'
+      ? Boolean(DEEPSEEK_R1_API_KEY || DEEPSEEK_API_KEY)
+      : Boolean(DEEPSEEK_API_KEY);
+  }
+  return false;
+}
+
+function updateAIProviderStatus(provider, ok, detail = '') {
+  aiProviderStatus.set(provider, {
+    ok,
+    detail,
+    checkedAt: new Date().toISOString()
+  });
+}
+
+function callProviderModel(messages, model, callback) {
+  const meta = getAIModelMeta(model);
+  if (meta.provider === 'zhipu') return callAI(messages, model, callback);
+  if (meta.provider === 'kimi') return callKimiAI(messages, model, callback);
+  if (meta.provider === 'deepseek') return callDeepSeekAI(messages, model, callback);
+  if (meta.provider === 'qianfan') return callQianfanAI(messages, model, callback);
+  return callback(new Error('不支持的 AI 模型'));
+}
+
+function invokeModel(messages, model) {
+  return new Promise((resolve) => {
+    const meta = getAIModelMeta(model);
+    if (!isProviderConfigured(meta.provider, model)) {
+      return resolve({
+        ok: false,
+        model,
+        provider: meta.provider,
+        error: `${meta.name} 未配置 API Key`,
+        code: 'missing_key',
+        hint: `${meta.name} 未配置 API Key`
+      });
+    }
+
+    callProviderModel(messages, model, (err, json) => {
+      if (err) {
+        updateAIProviderStatus(meta.provider, false, err.message);
+        return resolve({
+          ok: false,
+          model,
+          provider: meta.provider,
+          error: err.message,
+          hint: getProviderHint(meta.name, err.message, '')
+        });
+      }
+
+      const aiError = extractAIError(json);
+      if (aiError) {
+        const hint = getProviderHint(meta.name, aiError.message, aiError.code);
+        updateAIProviderStatus(meta.provider, false, aiError.message);
+        return resolve({
+          ok: false,
+          model,
+          provider: meta.provider,
+          error: aiError.message,
+          code: aiError.code,
+          hint
+        });
+      }
+
+      const reply = getAssistantReply(json);
+      if (!reply) {
+        updateAIProviderStatus(meta.provider, false, '无回复');
+        return resolve({
+          ok: false,
+          model,
+          provider: meta.provider,
+          error: 'AI 无回复'
+        });
+      }
+
+      updateAIProviderStatus(meta.provider, true, '');
+      resolve({
+        ok: true,
+        model,
+        provider: meta.provider,
+        reply,
+        usage: json?.usage || null,
+        free: meta.free
+      });
+    });
+  });
+}
+
+async function callSelectedAIModel(messages, model) {
+  const selected = getAIModelMeta(model).id;
+  return invokeModel(messages, selected);
+}
+
+function chargeAICall(user, isAdmin) {
+  if (!user || isAdmin) return user?.balance || 0;
+  const nextBalance = parseFloat(((user.balance || 0) - AI_CALL_PRICE).toFixed(2));
+  updateUserBalance(user.username, nextBalance);
+  return nextBalance;
+}
+
 // AI 聊天代理（每个用户独立会话上下文）
 const aiConversations = new Map(); // userId -> [{role, content}, ...]
 
-app.post('/api/ai/chat', verifyToken, (req, res) => {
+app.post('/api/ai/chat', verifyToken, async (req, res) => {
   const { message, model, reset } = req.body || {};
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: '消息不能为空' });
@@ -866,230 +1095,105 @@ app.post('/api/ai/chat', verifyToken, (req, res) => {
     aiConversations.set(userId, [history[0], ...history.slice(-20)]);
   }
   
-  // === 免费模型（glm-4-flash）：跳过余额检查 ===
   const user = Array.from(users.values()).find(u => u.id === userId);
   const isAdmin = user?.username === 'admin';
-  
-  // admin 管理员跳过余额检查，免费使用付费AI
-  if (useModel !== 'glm-4-flash' && !isAdmin) {
-    const balance = user?.balance || 0;
-    if (balance < AI_CALL_PRICE) {
-      return res.status(402).json({ 
-        error: '余额不足', 
-        hint: `当前余额 ¥${balance.toFixed(2)}，需要 ¥${AI_CALL_PRICE.toFixed(2)}/次`,
-        balance,
-        required: AI_CALL_PRICE,
-        rechargeUrl: '/api/recharge/request'
-      });
-    }
-  }
-  
-  // 检查是否是Kimi模型
-  const isKimiModel = useModel.startsWith('moonshot-') || useModel.startsWith('kimi-');
-  // 检查是否是DeepSeek模型
-  const isDeepSeekModel = useModel.startsWith('deepseek-');
-  
-  // 无 key 时走 Pollinations（免费，不扣费）
-  if (!ZHIPU_API_KEY && !KIMI_API_KEY && !DEEPSEEK_API_KEY) {
-    return callPollinations(history, (err, result) => {
-      if (err) {
-        return res.status(500).json({ error: 'AI 调用失败: ' + err.message, hint: '请配置 API_KEY' });
-      }
-      history.push({ role: 'assistant', content: result.reply });
-      res.json({ reply: result.reply, model: result.model, provider: 'pollinations', balance });
+  const balance = user?.balance || 0;
+  const selectedMeta = getAIModelMeta(useModel);
+
+  if (!selectedMeta.free && !isAdmin && balance < AI_CALL_PRICE) {
+    return res.status(402).json({
+      error: '余额不足',
+      hint: `当前余额 ¥${balance.toFixed(2)}，${selectedMeta.name} 需要 ¥${AI_CALL_PRICE.toFixed(2)}/次`,
+      balance,
+      required: AI_CALL_PRICE,
+      rechargeUrl: '/api/recharge/request'
     });
   }
-  
-  // 使用Kimi模型
-  if (isKimiModel) {
-    if (!KIMI_API_KEY) {
-      return callPollinations(history, (err, result) => {
-        if (err) {
-          return res.status(500).json({ error: '请配置 KIMI_API_KEY' });
-        }
-        history.push({ role: 'assistant', content: result.reply });
-        res.json({ reply: result.reply, model: result.model, provider: 'pollinations', warning: 'Kimi Key未配置，已切换免key通道' });
-      });
-    }
-    
-    return callKimiAI(aiConversations.get(userId), useModel, (err, json) => {
-      if (err) {
-        console.error('Kimi调用失败:', err.message);
-        return callPollinations(history, (err2, result) => {
-          if (err2) {
-            return res.status(500).json({ error: 'Kimi 调用失败: ' + err.message });
-          }
-          history.push({ role: 'assistant', content: result.reply });
-          res.json({ reply: result.reply, model: result.model, provider: 'pollinations', warning: 'Kimi调用失败，已切换免key通道' });
-        });
-      }
-      
-      if (json.error) {
-        const msg = (typeof json.error === 'string' ? json.error : json.error?.message) || 'AI 返回错误';
-        const code = (typeof json.error === 'object' ? json.error?.code : json.code) || '';
-        return callPollinations(history, (err2, result) => {
-          if (err2) {
-            return res.status(500).json({ error: msg, code });
-          }
-          history.push({ role: 'assistant', content: result.reply });
-          res.json({ reply: result.reply, model: result.model, provider: 'pollinations', warning: `Kimi ${msg}，已切换免key通道` });
-        });
-      }
-      
-      const reply = json.choices?.[0]?.message?.content || '（无回复）';
-      if (!reply || reply === '（无回复）') {
-        return callPollinations(history, (err2, result) => {
-          if (err2) {
-            history.push({ role: 'assistant', content: reply });
-            return res.json({ reply, model: useModel, provider: 'kimi' });
-          }
-          history.push({ role: 'assistant', content: result.reply });
-          res.json({ reply: result.reply, model: result.model, provider: 'pollinations', warning: 'Kimi无回复，已切换免key通道' });
-        });
-      }
-      
-      history.push({ role: 'assistant', content: reply });
-      
-      // 扣费（admin 管理员不扣费）
-      if (user && !isAdmin) {
-        updateUserBalance(user.username, (user.balance || 0) - AI_CALL_PRICE);
-      }
 
-      res.json({ reply, model: useModel, provider: 'kimi', usage: json.usage || null, balance: user?.balance || 0 });
+  const result = await callSelectedAIModel(history, useModel);
+
+  if (!result.ok) {
+    return res.status(500).json({
+      error: 'AI 调用失败',
+      hint: result.hint || result.error || `${selectedMeta.name} 暂不可用，请检查该模型配置或稍后再试`,
+      model: selectedMeta.id,
+      provider: selectedMeta.provider
     });
   }
-  
-  // 使用DeepSeek模型
-  if (isDeepSeekModel) {
-    if (!DEEPSEEK_API_KEY) {
-      return callPollinations(history, (err, result) => {
-        if (err) {
-          return res.status(500).json({ error: '请配置 DEEPSEEK_API_KEY' });
-        }
-        history.push({ role: 'assistant', content: result.reply });
-        res.json({ reply: result.reply, model: result.model, provider: 'pollinations', warning: 'DeepSeek Key未配置，已切换免key通道' });
-      });
-    }
-    
-    return callDeepSeekAI(aiConversations.get(userId), useModel, (err, json) => {
-      if (err) {
-        console.error('DeepSeek调用失败:', err.message);
-        return callPollinations(history, (err2, result) => {
-          if (err2) {
-            return res.status(500).json({ error: 'DeepSeek 调用失败: ' + err.message });
-          }
-          history.push({ role: 'assistant', content: result.reply });
-          res.json({ reply: result.reply, model: result.model, provider: 'pollinations', warning: 'DeepSeek调用失败，已切换免key通道' });
-        });
-      }
-      
-      if (json.error) {
-        // DeepSeek error 可能是字符串或 { message, code } 对象
-        const msg = (typeof json.error === 'string' ? json.error : json.error?.message) || 'AI 返回错误';
-        const code = (typeof json.error === 'object' ? json.error?.code : json.code) || '';
-        return callPollinations(history, (err2, result) => {
-          if (err2) {
-            return res.status(500).json({ error: msg, code, hint: 'DeepSeek API 和备用免费通道均调用失败，请检查 API Key 或稍后重试' });
-          }
-          history.push({ role: 'assistant', content: result.reply });
-          res.json({ reply: result.reply, model: result.model, provider: 'pollinations', warning: `DeepSeek ${msg}，已切换免key通道` });
-        });
-      }
-      
-      const reply = json.choices?.[0]?.message?.content || '（无回复）';
-      if (!reply || reply === '（无回复）') {
-        return callPollinations(history, (err2, result) => {
-          if (err2) {
-            history.push({ role: 'assistant', content: reply });
-            return res.json({ reply, model: useModel, provider: 'deepseek' });
-          }
-          history.push({ role: 'assistant', content: result.reply });
-          res.json({ reply: result.reply, model: result.model, provider: 'pollinations', warning: 'DeepSeek无回复，已切换免key通道' });
-        });
-      }
-      
-      history.push({ role: 'assistant', content: reply });
-      
-      // 扣费（admin 管理员不扣费）
-      if (user && !isAdmin) {
-        updateUserBalance(user.username, (user.balance || 0) - AI_CALL_PRICE);
-      }
 
-      res.json({ reply, model: useModel, provider: 'deepseek', usage: json.usage || null, balance: user?.balance || 0 });
-    });
-  }
-  
-  // 使用智谱模型
-  callAI(aiConversations.get(userId), useModel, (err, json) => {
-    if (err) {
-      console.error('智谱AI调用失败:', err.message);
-      return callPollinations(history, (err2, result) => {
-        if (err2) {
-          return res.status(500).json({ error: 'AI 调用失败: ' + err.message });
-        }
-        history.push({ role: 'assistant', content: result.reply });
-        res.json({ reply: result.reply, model: result.model, provider: 'pollinations', warning: '智谱AI调用失败，已切换免key通道' });
-      });
-    }
-    
-    // 智谱AI错误格式
-    if (json.error) {
-      const msg = (typeof json.error === 'string' ? json.error : json.error?.message) || 'AI 返回错误';
-      const code = (typeof json.error === 'object' ? json.error?.code : json.code) || '';
-      let hint = '';
-      if (code === 'invalid_api_key' || code === 401) {
-        hint = 'API Key无效，请检查 server/.env 中的 ZHIPU_API_KEY';
-      } else if (msg.includes('quota') || msg.includes('balance') || msg.includes('额度')) {
-        hint = 'API额度不足，请及时充值';
-        return res.status(403).json({ error: msg, code, hint, rechargeUrl: 'https://bigmodel.cn/usercenter/mymodelpay' });
-      } else if (code === 'rate_limit') {
-        hint = '请求过于频繁，请稍后再试';
-      }
-      return callPollinations(history, (err2, result) => {
-        if (err2) {
-          return res.status(500).json({ error: msg, code, hint });
-        }
-        history.push({ role: 'assistant', content: result.reply });
-        res.json({ reply: result.reply, model: result.model, provider: 'pollinations', warning: `智谱AI ${msg}，已切换免key通道` });
-      });
-    }
-    
-    const reply = json.choices?.[0]?.message?.content || '（无回复）';
-    if (!reply || reply === '（无回复）') {
-      return callPollinations(history, (err2, result) => {
-        if (err2) {
-          history.push({ role: 'assistant', content: reply });
-          return res.json({ reply, model: useModel, provider: 'zhipu' });
-        }
-        history.push({ role: 'assistant', content: result.reply });
-        res.json({ reply: result.reply, model: result.model, provider: 'pollinations', warning: '智谱AI无回复，已切换免key通道' });
-      });
-    }
-    history.push({ role: 'assistant', content: reply });
-    
-    // 扣费（免费模型不扣，admin 管理员不扣）
-    if (user && useModel !== 'glm-4-flash' && !isAdmin) {
-      updateUserBalance(user.username, (user.balance || 0) - AI_CALL_PRICE);
-    }
+  history.push({ role: 'assistant', content: result.reply });
+  const usedMeta = getAIModelMeta(result.model);
+  const nextBalance = usedMeta.free ? balance : chargeAICall(user, isAdmin);
 
-    res.json({ reply, model: useModel, provider: 'zhipu', usage: json.usage || null, balance: user?.balance || 0 });
+  res.json({
+    reply: result.reply,
+    model: result.model,
+    requestedModel: useModel,
+    provider: result.provider,
+    usage: result.usage || null,
+    balance: nextBalance
   });
 });
 
 app.post('/api/ai/reset', verifyToken, (req, res) => {
-  aiConversations.delete(req.userId);
+  aiConversations.delete(req.user.id);
   res.json({ ok: true });
 });
 
 app.get('/api/ai/models', verifyToken, (req, res) => {
+  res.json({ models: AI_MODELS });
+});
+
+app.get('/api/admin/ai-status', verifyToken, (req, res) => {
+  const user = Array.from(users.values()).find(u => u.id === req.user.id);
+  if (!user || user.username !== 'admin') {
+    return res.status(403).json({ error: '需要管理员权限' });
+  }
   res.json({
-    models: [
-      { id: 'glm-4-flash', name: '智谱 GLM-4-Flash（免费）', free: true, desc: '快速免费' },
-      { id: 'deepseek-v4-flash', name: 'DeepSeek V4-Flash', free: false, desc: 'DeepSeek 快速模型' },
-      { id: 'deepseek-v4-pro', name: 'DeepSeek V4-Pro', free: false, desc: 'DeepSeek 推理增强模型' },
-      { id: 'deepseek-r1', name: 'DeepSeek R1（独立Key）', free: false, desc: 'DeepSeek 最新推理模型' },
-      { id: 'glm-4-plus', name: '智谱 GLM-4-Plus', free: false, desc: '更强推理' }
-    ]
+    success: true,
+    providers: [
+      { id: 'zhipu', name: '智谱', configured: Boolean(ZHIPU_API_KEY), ...(aiProviderStatus.get('zhipu') || {}) },
+      { id: 'qianfan', name: '百度千帆', configured: Boolean(QIANFAN_API_KEY), ...(aiProviderStatus.get('qianfan') || {}) },
+      { id: 'kimi', name: 'Kimi', configured: Boolean(KIMI_API_KEY), ...(aiProviderStatus.get('kimi') || {}) },
+      { id: 'deepseek', name: 'DeepSeek', configured: Boolean(DEEPSEEK_API_KEY || DEEPSEEK_R1_API_KEY), ...(aiProviderStatus.get('deepseek') || {}) }
+    ],
+    models: AI_MODELS
+  });
+});
+
+app.get('/api/admin/dashboard', verifyToken, (req, res) => {
+  const user = Array.from(users.values()).find(u => u.id === req.user.id);
+  if (!user || user.username !== 'admin') {
+    return res.status(403).json({ error: '需要管理员权限' });
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  let totalMessages = 0;
+  let todayMessages = 0;
+  rooms.forEach(room => {
+    const msgs = room.messages || [];
+    totalMessages += msgs.length;
+    todayMessages += msgs.filter(m => String(m.timestamp || '').slice(0, 10) === today).length;
+  });
+
+  const rechargeList = recharges.toArray();
+  const todayRechargeAmount = rechargeList
+    .filter(r => r.status === 'confirmed' && String(r.confirmedAt || r.createdAt || '').slice(0, 10) === today)
+    .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+
+  res.json({
+    success: true,
+    stats: {
+      users: users.size,
+      onlineUsers: onlineUsers.size,
+      rooms: rooms.size,
+      connections: io.engine.clientsCount,
+      totalMessages,
+      todayMessages,
+      pendingRecharges: rechargeList.filter(r => r.status === 'pending').length,
+      todayRechargeAmount: Number(todayRechargeAmount.toFixed(2))
+    },
+    audit: auditLog.slice(-10).reverse()
   });
 });
 
@@ -1100,21 +1204,24 @@ app.post('/api/admin/reload-config', verifyToken, (req, res) => {
     return res.status(403).json({ error: '需要管理员权限' });
   }
   try {
-    const envPath = path.join(__dirname, '.env');
-    const envContent = fs.readFileSync(envPath, 'utf-8');
-    const envConfig = require('dotenv').parse(envContent);
+    const resolved = resolveEnvConfig();
+    const envContent = fs.readFileSync(resolved.fullPath, 'utf-8');
+    const envConfig = dotenv.parse(envContent);
     // 更新全局 API Key 变量
     if (envConfig.ZHIPU_API_KEY !== undefined) process.env.ZHIPU_API_KEY = envConfig.ZHIPU_API_KEY;
     if (envConfig.KIMI_API_KEY !== undefined) process.env.KIMI_API_KEY = envConfig.KIMI_API_KEY;
     if (envConfig.DEEPSEEK_API_KEY !== undefined) process.env.DEEPSEEK_API_KEY = envConfig.DEEPSEEK_API_KEY;
     if (envConfig.DEEPSEEK_R1_API_KEY !== undefined) process.env.DEEPSEEK_R1_API_KEY = envConfig.DEEPSEEK_R1_API_KEY;
+    if (envConfig.QIANFAN_API_KEY !== undefined) process.env.QIANFAN_API_KEY = envConfig.QIANFAN_API_KEY;
     // 同时更新模块级变量
     ZHIPU_API_KEY = envConfig.ZHIPU_API_KEY || '';
     KIMI_API_KEY = envConfig.KIMI_API_KEY || '';
     DEEPSEEK_API_KEY = envConfig.DEEPSEEK_API_KEY || '';
     DEEPSEEK_R1_API_KEY = envConfig.DEEPSEEK_R1_API_KEY || '';
-    console.log('[CONFIG] .env 热重载成功');
-    res.json({ success: true, message: '配置已重新加载，新增/修改的 Key 已生效' });
+    QIANFAN_API_KEY = envConfig.QIANFAN_API_KEY || '';
+    console.log(`[CONFIG] Reloaded ${resolved.name}`);
+    addAudit('config.reload', user, { keys: ['ZHIPU_API_KEY', 'KIMI_API_KEY', 'DEEPSEEK_API_KEY', 'DEEPSEEK_R1_API_KEY', 'QIANFAN_API_KEY'] });
+    res.json({ success: true, message: `配置已重新加载（${resolved.name}），新增/修改的 Key 已生效` });
   } catch (e) {
     res.status(500).json({ error: '重载失败: ' + e.message });
   }
@@ -1526,21 +1633,9 @@ app.post('/api/ai/summarize', verifyToken, (req, res) => {
     { role: 'system', content: '你是一个聊天记录总结助手。请用简洁的中文总结以下聊天记录，包含：1)主要话题 2)关键决定/结论 3)参与人员。用要点形式列出，不超过300字。' },
     { role: 'user', content: `总结以下聊天记录：\n${chatText}` }
   ];
-  // Try ZHIPU first, fallback to Pollinations
-  if (ZHIPU_API_KEY) {
-    return callAI(messages, 'glm-4-flash', (err, json) => {
-      if (!err && json?.choices?.[0]?.message?.content) {
-        return res.json({ summary: json.choices[0].message.content, model: 'glm-4-flash' });
-      }
-      callPollinations(messages, (err2, result) => {
-        if (err2) return res.status(500).json({ error: 'AI摘要失败' });
-        res.json({ summary: result.reply, model: 'pollinations' });
-      });
-    });
-  }
-  callPollinations(messages, (err, result) => {
-    if (err) return res.status(500).json({ error: 'AI摘要失败' });
-    res.json({ summary: result.reply, model: 'pollinations' });
+  callSelectedAIModel(messages, 'glm-4-flash').then(result => {
+    if (!result.ok) return res.status(500).json({ error: 'AI摘要失败', hint: result.error });
+    res.json({ summary: result.reply, model: result.model, provider: result.provider });
   });
 });
 
@@ -1587,24 +1682,10 @@ app.post('/api/ai/translate', verifyToken, (req, res) => {
     { role: 'system', content: `你是一个翻译助手。将用户输入的文字翻译成${langName}。只输出翻译结果，不要加任何解释。` },
     { role: 'user', content: text }
   ];
-  const doTranslate = () => {
-    if (ZHIPU_API_KEY) {
-      return callAI(messages, 'glm-4-flash', (err, json) => {
-        if (!err && json?.choices?.[0]?.message?.content) {
-          return res.json({ translation: json.choices[0].message.content, source: text, targetLang: lang });
-        }
-        callPollinations(messages, (err2, result) => {
-          if (err2) return res.status(500).json({ error: '翻译失败' });
-          res.json({ translation: result.reply, source: text, targetLang: lang });
-        });
-      });
-    }
-    callPollinations(messages, (err, result) => {
-      if (err) return res.status(500).json({ error: '翻译失败' });
-      res.json({ translation: result.reply, source: text, targetLang: lang });
-    });
-  };
-  doTranslate();
+  callSelectedAIModel(messages, 'glm-4-flash').then(result => {
+    if (!result.ok) return res.status(500).json({ error: '翻译失败', hint: result.error });
+    res.json({ translation: result.reply, source: text, targetLang: lang, model: result.model, provider: result.provider });
+  });
 });
 
 // ========== 网易云音乐 API ==========
@@ -1662,24 +1743,10 @@ app.get('/api/music/lyric/:songId', verifyToken, async (req, res) => {
   }
 });
 
-// ========== AI 统一调用辅助（优先 Pollinations 免费通道） ==========
+// ========== AI 统一调用辅助（仅使用已配置供应商） ==========
 function callAIFree(messages, callback) {
-  // 优先使用智谱免费模型
-  if (ZHIPU_API_KEY) {
-    return callAI(messages, 'glm-4-flash', (err, json) => {
-      if (!err && json?.choices?.[0]?.message?.content) {
-        return callback(null, json.choices[0].message.content);
-      }
-      // 降级到 Pollinations
-      callPollinations(messages, (err2, result) => {
-        if (err2) return callback(new Error('所有 AI 通道均失败'));
-        callback(null, result.reply);
-      });
-    });
-  }
-  // 无 API key，直接用 Pollinations
-  callPollinations(messages, (err, result) => {
-    if (err) return callback(new Error('AI 调用失败: ' + err.message));
+  callSelectedAIModel(messages, 'glm-4-flash').then(result => {
+    if (!result.ok) return callback(new Error(result.error || '所有已配置 AI 通道均失败'));
     callback(null, result.reply);
   });
 }
@@ -2202,20 +2269,10 @@ function triggerBotReply(bot, roomId, triggerMessage) {
     rooms.set(roomId, room);
     io.to(roomId).emit('newMessage', msg);
   };
-  if (ZHIPU_API_KEY) {
-    callAI(messages, 'glm-4-flash', (err, json) => {
-      if (!err && json?.choices?.[0]?.message?.content) {
-        reply(`🤖 ${json.choices[0].message.content}`);
-      } else {
-        reply(`🤖 你好！我是 ${bot.name}，主人暂时不在，我来陪你聊天~`);
-      }
-    });
-  } else {
-    callPollinations(messages, (err, result) => {
-      if (!err) reply(`🤖 ${result.reply}`);
-      else reply(`🤖 你好！我是 ${bot.name}~`);
-    });
-  }
+  callSelectedAIModel(messages, 'glm-4-flash').then(result => {
+    if (result.ok) reply(`🤖 ${result.reply}`);
+    else reply(`🤖 你好！我是 ${bot.name}，主人暂时不在，我来陪你聊天~`);
+  });
 }
 
 function startBotSchedule(bot) {
@@ -3054,11 +3111,13 @@ setInterval(() => {
 
 // 静态文件 + SPA 路由（在所有 API 路由之后，确保 API 优先匹配）
 // APK 下载（放在 static 之前，确保正确的 MIME）
-app.get('/WeChat-v2.0.apk', (req, res) => {
-  const apkPath = path.join(__dirname, '..', 'client', 'releases', 'WeChat-v2.0.apk');
+app.get('/releases/:filename', (req, res, next) => {
+  const filename = req.params.filename;
+  if (!/^(WeChat|ChatRoom)-v[\w.-]+\.apk$/.test(filename)) return next();
+  const apkPath = path.join(__dirname, '..', 'client', 'releases', filename);
   if (fs.existsSync(apkPath)) {
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-    res.setHeader('Content-Disposition', 'attachment; filename="WeChat-v2.0.apk"');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Cache-Control', 'public, max-age=3600');
     fs.createReadStream(apkPath).pipe(res);
   } else {
@@ -3066,11 +3125,28 @@ app.get('/WeChat-v2.0.apk', (req, res) => {
   }
 });
 
+app.get('/WeChat-v2.0.apk', (req, res) => {
+  res.redirect(302, '/releases/ChatRoom-v3.0.0.apk');
+});
+
 const clientBuildPath = path.join(__dirname, '..', 'client', 'build');
 if (fs.existsSync(clientBuildPath)) {
-  app.use(express.static(clientBuildPath));
+  app.use(express.static(clientBuildPath, {
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+    }
+  }));
   app.get('*', (req, res) => {
     if (!req.path.startsWith('/api') && !req.path.startsWith('/socket.io') && !req.path.startsWith('/uploads')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.sendFile(path.join(clientBuildPath, 'index.html'));
     }
   });

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">WeChatApp</string>
-    <string name="title_activity_main">WeChatApp</string>
+    <string name="app_name">聊天室</string>
+    <string name="title_activity_main">聊天室</string>
     <string name="package_name">com.wechatapp.project</string>
     <string name="custom_url_scheme">com.wechatapp.project</string>
 </resources>

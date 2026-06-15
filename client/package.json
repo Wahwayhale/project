@@ -1,5 +1,5 @@
 {
-  "name": "wechat-client",
+  "name": "chatroom-client",
   "version": "1.0.0",
   "private": true,
   "proxy": "http://localhost:3001",
@@ -18,8 +18,8 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build && npm run postbuild",
-    "postbuild": "node -e \"const f=require('fs');const o='public/ota-version.json';if(f.existsSync(o)){f.copyFileSync(o,'build/ota-version.json');console.log('[postbuild] ota-version copied')};const a='android/app/build/outputs/apk/debug/app-debug.apk';if(f.existsSync(a)){const d='releases';f.mkdirSync(d,{recursive:true});f.copyFileSync(a,d+'/WeChat-v2.0.apk');console.log('[postbuild] APK copied to releases/')}else{console.log('[postbuild] No APK found, skipping')}\"",
+    "build": "react-scripts build",
+    "postbuild": "node -e \"const f=require('fs');const o='public/ota-version.json';let v='3.0.0';if(f.existsSync(o)){const info=JSON.parse(f.readFileSync(o,'utf8'));v=info.appVersion||info.version||v;f.copyFileSync(o,'build/ota-version.json');console.log('[postbuild] ota-version copied')};const a='android/app/build/outputs/apk/debug/app-debug.apk';if(f.existsSync(a)){const d='releases';f.mkdirSync(d,{recursive:true});f.copyFileSync(a,d+'/ChatRoom-v'+v+'.apk');console.log('[postbuild] APK copied to releases/ChatRoom-v'+v+'.apk')}else{console.log('[postbuild] No APK found, skipping')}\"",
     "deploy": "gh-pages -d build"
   },
   "browserslist": {

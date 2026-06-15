@@ -1,7 +1,18 @@
 {
-  "version": "2.0.2",
-  "buildNumber": 222,
-  "apkUrl": "/releases/WeChat-v2.0.2.apk",
-  "apkSize": "5.4MB",
-  "forceUpdate": false
+  "appVersion": "3.0.0",
+  "majorVersion": "3",
+  "webBuild": 225,
+  "nativeBuild": 4,
+  "minNativeBuild": 1,
+  "apkUrl": "/releases/ChatRoom-v3.0.0.apk",
+  "apkSize": "5.8MB",
+  "forceUpdate": false,
+  "showMajorUpdate": true,
+  "updateTitle": "聊天室焕新上线",
+  "updateNotes": [
+    "应用正式更名为「聊天室」。",
+    "整体视觉升级为青春活力、小清新的风格。",
+    "手机端登录不再弹 APK 更新下载窗。",
+    "以后只有大版本升级时展示一次更新说明。"
+  ]
 }

@@ -1,10 +1,10 @@
 @echo off
-title WeChat App v2.0 - Production Mode
+title ChatRoom v3.0 - Production Mode
 set PROJECT_DIR=%~dp0
 cd /d "%PROJECT_DIR%"
 
 echo ========================================
-echo   WeChat App v2.0 - Production Launch
+echo   ChatRoom v3.0 - Production Launch
 echo ========================================
 echo.
 
@@ -24,7 +24,7 @@ pm2 save
 
 :: Ngrok
 echo [3/3] Starting ngrok...
-start "Ngrok" cmd /k "ngrok http 3001"
+start "Ngrok" cmd /k "ngrok http 3001 --domain=parakeet-nimble-cage.ngrok-free.dev"
 
 echo.
 echo ========================================
@@ -32,7 +32,7 @@ echo   Production server running via PM2
 echo.
 echo   Status : pm2 status
 echo   Logs   : pm2 logs
-echo   Restart: pm2 restart wechat-server
+echo   Restart: pm2 restart chatroom-server
 echo   Health : http://localhost:3001/health
 echo   Public : check Ngrok window
 echo ========================================

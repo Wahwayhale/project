@@ -96,5 +96,77 @@
     "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=🐴",
     "bio": "",
     "createdAt": "2026-06-08T12:03:54.437Z"
+  },
+  "codex_ai_probe_1781427678": {
+    "id": "8a1e3bf8-dedc-4e71-88c4-b31620b5fe9e",
+    "username": "codex_ai_probe_1781427678",
+    "password": "$2a$10$odRxKfg1JWPJEQWkGUb98.e36rs.NpKG0PpwgcOfJZaU8H3DiS6IO",
+    "sixDigitId": "568776",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=codex_ai_probe_1781427678",
+    "bio": "",
+    "createdAt": "2026-06-14T09:01:19.071Z"
+  },
+  "codex_probe_1781427696": {
+    "id": "ae0703ca-bdf9-4f97-95e3-7d2483e90d92",
+    "username": "codex_probe_1781427696",
+    "password": "$2a$10$vdZWLlYpRD9vPW.WdPyBhO8.tSOHhl9dgU4/sVNs.lBDnbPyBqjtC",
+    "sixDigitId": "180126",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=codex_probe_1781427696",
+    "bio": "",
+    "createdAt": "2026-06-14T09:01:36.432Z"
+  },
+  "codex_ai_diag_1781428023372": {
+    "id": "212b8ec0-3e55-4b99-ac36-5ab1855bce1f",
+    "username": "codex_ai_diag_1781428023372",
+    "password": "$2a$10$BrdnNAvMyDC0vOSDdlVMo.WHYf1btqVOW79Hj/4XY8kzdKRnD9t8O",
+    "sixDigitId": "237133",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=codex_ai_diag_1781428023372",
+    "bio": "",
+    "createdAt": "2026-06-14T09:07:03.439Z"
+  },
+  "codex_ngrok_diag_1781428023387": {
+    "id": "388330e4-fed5-43d2-8da6-f6aba18cc587",
+    "username": "codex_ngrok_diag_1781428023387",
+    "password": "$2a$10$0/qIg7MwXuxFE/YWj2DLD.bd8dA1QrlBqpdNJz7rMdim8PuPHZ2hu",
+    "sixDigitId": "296464",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=codex_ngrok_diag_1781428023387",
+    "bio": "",
+    "createdAt": "2026-06-14T09:07:03.800Z"
+  },
+  "codex_ai_retest_1781428823860": {
+    "id": "709ee494-5787-476b-b31e-0b3cd5837d5c",
+    "username": "codex_ai_retest_1781428823860",
+    "password": "$2a$10$Nof11IXaf9oWI3eewFbIw.Pta6FeysQB2t2mstma8SF1z2OGg3w1u",
+    "sixDigitId": "960523",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=codex_ai_retest_1781428823860",
+    "bio": "",
+    "createdAt": "2026-06-14T09:20:23.970Z"
+  },
+  "codex_final_ai_1781429140576": {
+    "id": "1d858be9-626c-4211-9ef0-8c4970dbbf2f",
+    "username": "codex_final_ai_1781429140576",
+    "password": "$2a$10$OD.ODm6JaY2xP4sTZqTaIejyz2zuZEv23nuEs4dww4Z85..fbCkMe",
+    "sixDigitId": "841531",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=codex_final_ai_1781429140576",
+    "bio": "",
+    "createdAt": "2026-06-14T09:25:40.690Z"
+  },
+  "codex_ngrok_final_1781429142350": {
+    "id": "9fa8e68d-ba36-43d6-beb8-f902e94e8244",
+    "username": "codex_ngrok_final_1781429142350",
+    "password": "$2a$10$t5uk5jCalEuFdRmetC8au.vGsAMw15WcwatOF3/16Jr5ARUVG2qQy",
+    "sixDigitId": "594466",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=codex_ngrok_final_1781429142350",
+    "bio": "",
+    "createdAt": "2026-06-14T09:25:42.610Z"
+  },
+  "glass_ui_1781429704705": {
+    "id": "221f70a2-026c-4ab5-94ce-f27d6cb0f6ea",
+    "username": "glass_ui_1781429704705",
+    "password": "$2a$10$bVcuJWoBtp4YxXRE/TzaoO6mFDfVSxJPCvpdY6tbQVqbNTqvEJIbW",
+    "sixDigitId": "574758",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=glass_ui_1781429704705",
+    "bio": "",
+    "createdAt": "2026-06-14T09:35:07.933Z"
   }
 }

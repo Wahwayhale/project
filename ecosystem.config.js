@@ -1,6 +1,6 @@
 module.exports = {
   apps: [{
-    name: 'wechat-server',
+    name: 'chatroom-server',
     script: './server/server.js',
     cwd: __dirname,
     env: { ENV_FILE: '.env.web', NODE_ENV: 'production' },

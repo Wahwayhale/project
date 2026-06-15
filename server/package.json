@@ -1,7 +1,7 @@
 {
-  "name": "wechat-server",
+  "name": "chatroom-server",
   "version": "1.0.0",
-  "description": "WeChat-like chat application server",
+  "description": "Chatroom application server",
   "main": "server.js",
   "scripts": {
     "start": "node --env-file=.env server.js",

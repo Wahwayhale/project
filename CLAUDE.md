@@ -10,7 +10,7 @@
 |----|------|
 | 前端 | React 18 + Socket.io Client + Axios + Lucide React |
 | 后端 | Express + Socket.io + JWT + bcryptjs + multer |
-| AI | Zhipu GLM / Kimi Moonshot / DeepSeek / Pollinations |
+| AI | Zhipu GLM / Kimi Moonshot / DeepSeek / 百度千帆 |
 | 存储 | JSON 文件持久化（`db.js` Collection 类），原子写入 |
 | 构建 | react-scripts (CRA)，Capacitor Android |
 | 隧道 | ngrok → `parakeet-nimble-cage.ngrok-free.dev` |
@@ -69,32 +69,31 @@ client/
 
 ### 1.6 OTA 更新与版本管理（强制）
 
-本项目采用 **OTA（Over-The-Air）双服务器架构**：
+本项目采用 **ngrok 单域名 OTA 架构**：
 
-| 服务器 | 端口 | 用途 | 启动 |
-|--------|------|------|------|
-| Web | 3001 | 浏览器访问 | `start-web.bat` |
-| App | 3002 | Capacitor App OTA | `start-app.bat` + ngrok |
+| 入口 | 指向 | 用途 |
+|------|------|------|
+| `https://parakeet-nimble-cage.ngrok-free.dev` | `localhost:3001` | Web、API、Socket.io、OTA 元信息、APK 下载 |
 
 **核心规则**：
 
-- **Web 功能更新**（UI、样式、API 端点、AI 功能、业务逻辑）→ 只需更新 Web 服务器代码，**所有已安装 App 自动获取**，无需重新安装 APK
+- **Web 功能更新**（UI、样式、API 端点、AI 功能、业务逻辑）→ 更新 Web 构建并重启 3001 服务，已安装 App 下次打开自动加载 ngrok 上的新网页，无需重新安装 APK
 - **原生功能更新**（Android 权限、Capacitor 插件、`capacitor.config.ts` 变更）→ 必须构建新 APK 并推送安装
 - **旧 APK 兼容**：新 Web 功能必须兼容旧版 APK（不能引入旧版不支持的插件调用）。检测 `isCapacitor` 标志，对旧版做降级处理
-- **版本号规则**：新增原生功能 → 升级 `APP_BUILD`（App.js）+ `ota-version.json` 的 `buildNumber`。纯 Web 更新 → 只升级 `buildNumber`
-- **APK 更新推送**：`ota-version.json` 设置 `apkUrl` + `apkSize`，App 端自动弹窗提示下载新安装包
+- **版本号规则**：纯 Web 更新 → `webBuild +1`。原生更新 → `webBuild +1`、`nativeBuild +1`，并同步 `appVersion`、`capacitor.config.ts`、Android `versionCode/versionName`
+- **APK 更新推送**：`ota-version.json` 设置 `apkUrl` + `apkSize`。App 只在 `nativeBuild` 或 `minNativeBuild` 高于本机原生构建时弹窗
 
 **判定表**：
 
-| 改动类型 | 升级 buildNumber？ | 需新 APK？ |
-|----------|-------------------|-----------|
-| CSS / 样式 | 是 | 否 |
-| 新增 API 端点 | 是 | 否 |
-| AI 功能 / 逻辑 | 是 | 否 |
-| 安装新 Capacitor 插件 | 是 | **是** |
-| 修改 AndroidManifest.xml | 是 | **是** |
-| 修改 capacitor.config.ts | 是 | **是** |
-| 调用新插件 API（如 Geolocation） | 是 | **是** |
+| 改动类型 | webBuild | nativeBuild | 需新 APK？ |
+|----------|----------|-------------|-----------|
+| CSS / 样式 | +1 | 不变 | 否 |
+| 新增 API 端点 | +1 | 不变 | 否 |
+| AI 功能 / 逻辑 | +1 | 不变 | 否 |
+| 安装新 Capacitor 插件 | +1 | +1 | **是** |
+| 修改 AndroidManifest.xml | +1 | +1 | **是** |
+| 修改 capacitor.config.ts | +1 | +1 | **是** |
+| 调用新插件 API（如 Geolocation） | +1 | +1 | **是** |
 
 ---
 
@@ -165,13 +164,13 @@ users.save();
 | `glm-4-flash` | Zhipu | 免费 |
 | `deepseek-v4-flash` | DeepSeek 直连 | 付费 ¥0.02/次 |
 | `deepseek-v4-pro` | DeepSeek 直连 | 付费 ¥0.02/次 |
-| `deepseek-r1` | 腾讯 MAS 代理 | 付费 ¥0.02/次 |
-| Pollinations | 免费 fallback | 免费 |
+| `deepseek-r1` | DeepSeek 直连 | 付费 ¥0.02/次 |
+| `ernie-4.5-turbo-128k` | 百度千帆 | 付费 ¥0.02/次 |
 
 ### 3.2 新增 AI 功能规则
 
-- 优先用 **Pollinations**（免费）或 `glm-4-flash`（免费）
-- 失败时静默降级，**不要阻塞用户操作**
+- 优先用 `glm-4-flash`（免费）或百度千帆可用模型
+- 禁止使用外部免 key 文本通道；用户选择哪个模型就只调用哪个模型，失败时直接返回该模型错误
 - 用 `callAIFree(messages, callback)` 包装函数
 - admin 用户调用付费模型不扣费
 
@@ -228,7 +227,7 @@ users.save();
 完整规范见 `huashu-design.md`。
 
 核心速查：
-- **主色**：`#07c160`（微信绿）
+- **主色**：`#42d6a4`（清新薄荷绿）
 - **字体**：系统字体栈，14px 正文
 - **图标**：Lucide 1.2px 线性，24×24 基准
 - **圆角**：6/8/10/12/16 px

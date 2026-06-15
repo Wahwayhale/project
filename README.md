@@ -1,6 +1,6 @@
-# 你无只因 (WeChat App) v2.0.2
+# 聊天室 v3.0.0
 
-微信风格的现代化即时通讯平台，支持 AI、音乐、地图等 30+ 功能。
+青春小清新的现代化即时通讯平台，支持 AI、音乐、地图等 30+ 功能。
 
 ## 快速启动
 
@@ -29,7 +29,7 @@ start.bat
 |----|------|
 | 前端 | React 18 + Socket.io + Lucide Icons |
 | 后端 | Express + Socket.io + JWT + bcrypt |
-| AI | 智谱 GLM-4V / Kimi / DeepSeek R1 / Pollinations |
+| AI | 智谱 GLM-4V / Kimi / DeepSeek R1 / 百度千帆 |
 | 移动 | Capacitor 8 + Android WebView |
 | 部署 | PM2 + ngrok |
 
@@ -47,8 +47,8 @@ start.bat
 
 ## APK 下载
 
-```
-https://parakeet-nimble-cage.ngrok-free.dev/releases/WeChat-v2.0.2.apk
+```text
+https://parakeet-nimble-cage.ngrok-free.dev/releases/ChatRoom-v3.0.0.apk
 ```
 
 ## 许可证

@@ -18,7 +18,15 @@
       "privateA",
       "privateB",
       "privateC",
-      "🐴"
+      "🐴",
+      "codex_ai_probe_1781427678",
+      "codex_probe_1781427696",
+      "codex_ai_diag_1781428023372",
+      "codex_ngrok_diag_1781428023387",
+      "codex_ai_retest_1781428823860",
+      "codex_final_ai_1781429140576",
+      "codex_ngrok_final_1781429142350",
+      "glass_ui_1781429704705"
     ],
     "messages": [
       {
@@ -2351,7 +2359,27 @@
       "ycx",
       "admin"
     ],
-    "messages": [],
+    "messages": [
+      {
+        "id": "9f504bdd-1495-4907-bb96-2eb6991a0fff",
+        "content": "hello",
+        "type": "text",
+        "replyTo": null,
+        "mentions": [],
+        "sender": {
+          "id": "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d",
+          "username": "admin",
+          "avatar": "/uploads/1781062402249-95efde10-8b03-4353-8a15-95b7b9d2184b.jpg"
+        },
+        "roomId": "497ced73-8f2a-4dc6-b47e-480ab7a6edd0",
+        "timestamp": "2026-06-10T04:09:28.376Z",
+        "readBy": [
+          "ddd1dd30-431a-48c5-aff3-b0a477ee9a4d"
+        ],
+        "edited": false,
+        "pinned": false
+      }
+    ],
     "createdBy": "admin",
     "createdAt": "2026-06-09T01:26:21.952Z"
   },

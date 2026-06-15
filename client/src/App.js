@@ -6,6 +6,7 @@ import { useSettings } from './hooks/useSettings';
 import { useAuth } from './hooks/useAuth';
 import { useSocket } from './hooks/useSocket';
 import { useFriends } from './hooks/useFriends';
+import { useRooms } from './hooks/useRooms';
 import Toast from './components/ui/Toast';
 import { isCapacitor, SERVER_URL, API_URL, APP_VERSION, MAJOR_VERSION, WEB_BUILD, NATIVE_BUILD, CHUNK_SIZE, DEFAULT_AVATAR, EMOJIS } from './utils/constants';
 import { formatFileSize, getFileIcon, parseBilibiliUrl, formatTime, formatRecordingTime, formatMessagePreview } from './utils/format';
@@ -63,12 +64,8 @@ function App() {
     balance, setBalance,
     profileEdit, setProfileEdit,
   } = useAuth();
-  const [rooms, setRooms] = useState([]);
-  const [currentRoom, setCurrentRoom] = useState(null);
-  const [currentRoomId, setCurrentRoomId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  const [typingUser, setTypingUser] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPayCodeModal, setShowPayCodeModal] = useState(false);
@@ -113,10 +110,7 @@ function App() {
   
   // 聊天记录导出
   const [exportingChat, setExportingChat] = useState(false);
-  
-  // 文件传输助手
-  const [fileTransferRoom, setFileTransferRoom] = useState(null);
-  
+
   // OTA 更新
   const [otaInfo, setOtaInfo] = useState(null);
   const [showMajorUpdateModal, setShowMajorUpdateModal] = useState(false);
@@ -131,21 +125,7 @@ function App() {
   const [codeCountdown, setCodeCountdown] = useState(0);
   const [phoneBinding, setPhoneBinding] = useState(false);
   const [phoneSendingCode, setPhoneSendingCode] = useState(false);
-  
-  // 消息编辑
-  const [editingMessage, setEditingMessage] = useState(null);
-  const [editText, setEditText] = useState('');
-  
-  // 消息引用回复
-  const [replyToMessage, setReplyToMessage] = useState(null);
-  
-  // @提及
-  const [showMentionPicker, setShowMentionPicker] = useState(false);
-  const [mentionFilter, setMentionFilter] = useState('');
-  
-  // 快捷回复面板
-  const [showQuickReplies, setShowQuickReplies] = useState(false);
-  
+
   // 语音录制
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -172,9 +152,6 @@ function App() {
   const [bottomTab, setBottomTab] = useState('chats');
   // 启动闪屏
   const [showSplash, setShowSplash] = useState(true);
-  // 消息转发
-  const [forwardMsg, setForwardMsg] = useState(null);
-  const [showForwardModal, setShowForwardModal] = useState(false);
   // 通讯录字母索引
   const [contactsLetter, setContactsLetter] = useState('');
   // 聊天记录备份
@@ -200,9 +177,6 @@ function App() {
   const [resetPwNewPw, setResetPwNewPw] = useState('');
   const [resetPwStep, setResetPwStep] = useState(0); // 0=phone, 1=code, 2=newPw
   const [resetPwCountdown, setResetPwCountdown] = useState(0);
-  // 未读消息数
-  const [unreadCounts, setUnreadCounts] = useState({});
-
   // ===== 第2代新功能 =====
   // AI 图片生成
   const [showImageGen, setShowImageGen] = useState(false);
@@ -246,14 +220,6 @@ function App() {
 
   // 消息搜索
   const [searchQuery, setSearchQuery] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
-
-  // 表情面板
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const EMOJIS = ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','🤐','🤨','😐','😑','😶','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🥴','😵','🤯','🥳','🥺','😢','😭','😤','😠','😡','🤬','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖','🎃','😺','😸','😹','😻','😼','😽','🙀','😿','😾','❤️','🧡','💛','💚','💙','💜','🖤','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','👍','👎','👊','✊','🤛','🤜','👏','🙌','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦵','🦶','👂','👃','🧠','🦷','🦴','👀','👁️','👅','👄','💋','👶','🧒','👦','👧','🧑','👱','👨','👩','🧔','👴','👵','🙋','🙌','🙏','👍','👎','💪','🤘','🖖','✌️','🤞','🤟','🤙','👌','✋','🤚','🖐️','🖖','👆','👇','👈','👉','🖕','👋','🤟','✍️','💅'];
-
-  // 消息撤回
-  const [recalledMessages, setRecalledMessages] = useState(new Set());
 
   const [bilibiliQuery, setBilibiliQuery] = useState('');
   const [bilibiliResults, setBilibiliResults] = useState([]);
@@ -316,9 +282,6 @@ function App() {
   const [showEventModal, setShowEventModal] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
   const [eventTime, setEventTime] = useState('');
-  // Search
-  const [searchFilter, setSearchFilter] = useState('all');
-  const [searchResults, setSearchResults] = useState([]);
   // Weather
   const [showWeatherPanel, setShowWeatherPanel] = useState(false);
   const [weatherCity, setWeatherCity] = useState('');
@@ -336,6 +299,30 @@ function App() {
 
   // ===== Socket 连接与在线用户 =====
   const socketRef = useRef(null);
+  const friendsRef = useRef([]);
+
+  // ===== 聊天室管理 =====
+  const roomsHook = useRooms({
+    socketRef,
+    user,
+    friendsRef,
+    setMessages,
+    setMessagesLoading,
+    showToast,
+  });
+  const {
+    rooms, setRooms,
+    currentRoom, setCurrentRoom,
+    currentRoomId, setCurrentRoomId,
+    fileTransferRoom, setFileTransferRoom,
+    typingUser, setTypingUser,
+    unreadCounts, setUnreadCounts,
+    handleRoomClick,
+    createGroup,
+    deleteChat,
+    openFileTransfer,
+  } = roomsHook;
+
   const friendsHook = useFriends({
     socketRef,
     user,
@@ -358,6 +345,7 @@ function App() {
     acceptFriendRequest, rejectFriendRequest,
     startChatWithFriend,
   } = friendsHook;
+  friendsRef.current = friends;
   const { onlineUsers } = useSocket({
     socketRef,
     token,
@@ -540,13 +528,6 @@ function App() {
 
   // 删除消息
 
-  // 删除/退出聊天
-  const deleteChat = (roomId, e) => {
-    e?.stopPropagation();
-    if (!window.confirm('确定要删除该聊天吗？\n\n删除后你将不再看到此聊天记录。')) return;
-    socketRef.current.emit('deleteChat', { roomId });
-  };
-
   // 插入表情
 
 
@@ -557,21 +538,6 @@ function App() {
 
 
 
-
-  const handleRoomClick = (room) => {
-    setCurrentRoom(room);
-    setCurrentRoomId(room.id);
-  };
-
-  const createGroup = () => {
-    const groupName = prompt('请输入群聊名称：');
-    if (!groupName || !groupName.trim()) return;
-    const selectedFriends = friends.filter(f => window.confirm(`是否添加 ${f.username} 到群聊？`));
-    socketRef.current.emit('createGroup', {
-      name: groupName.trim(),
-      members: selectedFriends.map(f => f.username)
-    });
-  };
 
   const fetchPopularVideos = async () => {
     try {
@@ -1828,21 +1794,6 @@ function App() {
       clearInterval(recordingTimerRef.current);
     }
     showToast('录音已取消', 'info');
-  };
-
-  // 打开文件传输助手
-  const openFileTransfer = () => {
-    // 创建一个特殊的"文件传输助手"房间
-    const fileTransferRoom = {
-      id: 'file_transfer',
-      name: '文件传输助手',
-      type: 'direct',
-      isFileTransfer: true
-    };
-    setCurrentRoom(fileTransferRoom);
-    setCurrentRoomId('file_transfer');
-    setMessages([]);
-    showToast('已打开文件传输助手', 'info');
   };
 
   if (!isAuthenticated) {
