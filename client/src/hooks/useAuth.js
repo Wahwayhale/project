@@ -144,7 +144,7 @@ export function useAuth() {
     isAuthenticated, user, token, setUser, setToken,
     authMode, setAuthMode, username, setUsername,
     password, setPassword, error, setError,
-    handleAuth, handleLogout, diag,
+    handleAuth, handleLogout, diag, setDiag,
     balance, setBalance,
     profileEdit, setProfileEdit,
   };
