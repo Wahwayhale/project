@@ -29,6 +29,7 @@ import MusicShareModal from './components/modals/MusicShareModal';
 import ForwardModal from './components/modals/ForwardModal';
 import BackupModal from './components/modals/BackupModal';
 import MajorUpdateModal from './components/modals/MajorUpdateModal';
+import SolitaireModal from './components/modals/SolitaireModal';
 // axios 全局配置
 axios.defaults.timeout = 15000;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -2538,25 +2539,7 @@ function App() {
       )}
 
       {/* ===== 群接龙弹窗 ===== */}
-      {showSolitaireModal && (
-        <div className="modal-overlay" onClick={() => setShowSolitaireModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3><I name="solitaire" size={20} /> 发起群接龙</h3>
-            <div className="form-group">
-              <label>接龙主题</label>
-              <input type="text" value={solitaireTitle} onChange={e => setSolitaireTitle(e.target.value)} placeholder="例如：今天吃什么？" />
-            </div>
-            <div className="form-group">
-              <label>接龙格式（可选）</label>
-              <input type="text" value={solitaireFormat} onChange={e => setSolitaireFormat(e.target.value)} placeholder="{序号}. {内容}" />
-            </div>
-            <div className="modal-buttons">
-              <button className="cancel" onClick={() => setShowSolitaireModal(false)}>取消</button>
-              <button className="confirm" onClick={createSolitaire}>发起接龙</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SolitaireModal showSolitaireModal={showSolitaireModal} setShowSolitaireModal={setShowSolitaireModal} solitaireTitle={solitaireTitle} setSolitaireTitle={setSolitaireTitle} solitaireFormat={solitaireFormat} setSolitaireFormat={setSolitaireFormat} createSolitaire={createSolitaire} />
 
       {/* ===== 密码找回弹窗 ===== */}
       {showResetPw && (
