@@ -164,3 +164,43 @@
   color: var(--text-tertiary);
   text-align: center;
 }
+
+/* --- Design Refresh MVP --- */
+.auth-container {
+  background: var(--bg);
+}
+
+.auth-container::before,
+.auth-container::after {
+  display: none;
+}
+
+.auth-box {
+  width: min(400px, calc(100vw - 32px));
+  padding: 36px 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  background: var(--bg-card);
+  backdrop-filter: none;
+}
+
+.auth-box h1 {
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: var(--text);
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.auth-form .auth-btn {
+  min-height: 44px;
+  background: var(--primary);
+  border-radius: var(--radius-md);
+  letter-spacing: 0;
+}
+
+.auth-form .auth-btn:hover {
+  background: var(--primary-light);
+  box-shadow: none;
+}

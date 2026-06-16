@@ -2303,6 +2303,514 @@ function stopBotSchedule(botId) {
   if (timer) { clearInterval(timer); botTimers.delete(botId); }
 }
 
+// ========== AI 数字分身 ==========
+const twinProfiles = new Map(); // username -> { enabled, personality, styleAnalysis, createdAt, updatedAt }
+
+app.get('/api/ai/twin/config', verifyToken, (req, res) => {
+  const config = twinProfiles.get(req.user.username) || { enabled: false, personality: 'default', styleAnalysis: null };
+  res.json(config);
+});
+
+app.post('/api/ai/twin/config', verifyToken, (req, res) => {
+  const { enabled, personality } = req.body || {};
+  const existing = twinProfiles.get(req.user.username) || { enabled: false, personality: 'default', styleAnalysis: null };
+  const config = {
+    ...existing,
+    enabled: typeof enabled === 'boolean' ? enabled : existing.enabled,
+    personality: personality || existing.personality,
+    updatedAt: new Date()
+  };
+  twinProfiles.set(req.user.username, config);
+  res.json(config);
+});
+
+app.post('/api/ai/twin/analyze', verifyToken, async (req, res) => {
+  const username = req.user.username;
+  const userMessages = [];
+  rooms.forEach(room => {
+    if (!room.messages) return;
+    room.messages.forEach(msg => {
+      if (msg.sender?.username === username && msg.type === 'text' && msg.content && !msg.recalled) {
+        userMessages.push(msg.content);
+      }
+    });
+  });
+  if (userMessages.length < 5) {
+    return res.json({ analysis: null, message: '消息数量不足（至少需要5条），无法分析说话风格' });
+  }
+  const recentMessages = userMessages.slice(-100);
+  const messages = [
+    { role: 'system', content: '你是一个语言风格分析师。分析以下用户的消息，提取其说话风格特征。输出JSON格式：{"style":"风格描述(一句话)","traits":["特征1","特征2","特征3"],"tone":"语气(如：轻松/正式/幽默)","catchphrases":["常用口头禅"],"emojiUsage":"表情使用习惯(如：喜欢/偶尔/不用)","avgLength":"平均句子长度(如：短句/中等/长句)"}。只输出JSON，不要其他内容。' },
+    { role: 'user', content: `以下是用户 ${username} 的近期消息：\n${recentMessages.join('\n')}` }
+  ];
+  try {
+    const result = await callSelectedAIModel(messages, 'glm-4-flash');
+    if (!result.ok) return res.status(500).json({ error: result.error });
+    let analysis;
+    try {
+      const match = result.reply.match(/\{[\s\S]*\}/);
+      analysis = JSON.parse(match ? match[0] : result.reply);
+    } catch { analysis = { style: result.reply.slice(0, 200), traits: [], tone: '自然', catchphrases: [], emojiUsage: '未知', avgLength: '未知' }; }
+    const config = twinProfiles.get(username) || { enabled: false, personality: 'default' };
+    config.styleAnalysis = analysis;
+    config.analyzedAt = new Date();
+    config.sampleCount = recentMessages.length;
+    twinProfiles.set(username, config);
+    res.json({ analysis, sampleCount: recentMessages.length });
+  } catch (err) {
+    res.status(500).json({ error: '分析失败: ' + err.message });
+  }
+});
+
+app.post('/api/ai/twin/reply', verifyToken, async (req, res) => {
+  const { roomId, triggerMessage } = req.body || {};
+  if (!triggerMessage) return res.status(400).json({ error: '缺少触发消息' });
+  const username = req.user.username;
+  let config = twinProfiles.get(username);
+  if (!config || !config.enabled) {
+    // 自动启用分身
+    config = config || { personality: 'default', styleAnalysis: null };
+    config.enabled = true;
+    config.updatedAt = new Date();
+    twinProfiles.set(username, config);
+  }
+  const recentMessages = [];
+  if (roomId) {
+    const room = rooms.get(roomId);
+    if (room) {
+      room.messages.slice(-30).forEach(msg => {
+        if (msg.type === 'text' && msg.content && !msg.recalled) {
+          recentMessages.push(`${msg.sender?.username || '匿名'}: ${msg.content}`);
+        }
+      });
+    }
+  }
+  const personalityMap = {
+    default: '你是一个普通人，用自然随意的方式聊天',
+    formal: '你说话正式得体，像职场精英',
+    humorous: '你风趣幽默，喜欢开玩笑和用梗',
+    warm: '你温暖友善，关心他人，回复体贴',
+    cool: '你话少但精准，高冷风格',
+    enthusiastic: '你热情洋溢，充满正能量'
+  };
+  const styleHint = config.styleAnalysis
+    ? `\n用户的说话风格：${config.styleAnalysis.style || ''}，语气：${config.styleAnalysis.tone || '自然'}，常用口头禅：${(config.styleAnalysis.catchphrases || []).join('、')}，表情习惯：${config.styleAnalysis.emojiUsage || '偶尔'}`
+    : '';
+  const messages = [
+    { role: 'system', content: `你是 ${username} 的数字分身。${personalityMap[config.personality] || personalityMap.default}。你要模仿主人的说话方式来回复消息。${styleHint}\n规则：1. 不要暴露自己是AI 2. 回复要简短自然 3. 不要用markdown 4. 像真人聊天一样` },
+    { role: 'user', content: recentMessages.length > 0 ? `最近的聊天记录：\n${recentMessages.join('\n')}\n\n有人对你说：${triggerMessage}\n请以主人的身份回复：` : `有人对你说：${triggerMessage}\n请以主人的身份回复：` }
+  ];
+  try {
+    const result = await callSelectedAIModel(messages, 'glm-4-flash');
+    if (!result.ok) return res.status(500).json({ error: result.error });
+    res.json({ reply: result.reply.trim(), isTwin: true });
+  } catch (err) {
+    res.status(500).json({ error: '分身回复失败: ' + err.message });
+  }
+});
+
+// ========== 实时翻译频道 ==========
+const autoTranslateSettings = new Map(); // roomId -> { enabled, targetLang }
+
+app.post('/api/ai/auto-translate/toggle', verifyToken, (req, res) => {
+  const { roomId, enabled, targetLang } = req.body || {};
+  if (!roomId) return res.status(400).json({ error: '缺少房间ID' });
+  const room = rooms.get(roomId);
+  if (!room || !isRoomMember(room, req.user.username)) {
+    return res.status(403).json({ error: '无权操作此房间' });
+  }
+  const setting = autoTranslateSettings.get(roomId) || { enabled: false, targetLang: 'en' };
+  setting.enabled = typeof enabled === 'boolean' ? enabled : !setting.enabled;
+  if (targetLang) setting.targetLang = targetLang;
+  autoTranslateSettings.set(roomId, setting);
+  res.json(setting);
+});
+
+app.get('/api/ai/auto-translate/:roomId', verifyToken, (req, res) => {
+  const setting = autoTranslateSettings.get(req.params.roomId) || { enabled: false, targetLang: 'en' };
+  res.json(setting);
+});
+
+app.post('/api/ai/auto-translate/translate', verifyToken, async (req, res) => {
+  const { text, targetLang } = req.body || {};
+  if (!text) return res.status(400).json({ error: '缺少翻译文本' });
+  const langNames = { en: 'English', ja: '日本語', ko: '한국어', zh: '中文', fr: 'Français', de: 'Deutsch', es: 'Español', ru: 'Русский' };
+  const messages = [
+    { role: 'system', content: `你是专业翻译。将用户消息翻译成${langNames[targetLang] || targetLang}。只输出翻译结果，不加解释。保持原文的语气和情感。如果已经是目标语言则输出原文。` },
+    { role: 'user', content: text }
+  ];
+  try {
+    const result = await callSelectedAIModel(messages, 'glm-4-flash');
+    if (!result.ok) return res.status(500).json({ error: result.error });
+    res.json({ translated: result.reply.trim(), from: 'auto', to: targetLang });
+  } catch (err) {
+    res.status(500).json({ error: '翻译失败: ' + err.message });
+  }
+});
+
+// ========== AI 情报站 ==========
+const intelligenceProfiles = new Map(); // username -> { interests[], keywords[], lastFetchAt }
+
+const INTELLIGENCE_SOURCES = {
+  tech: { name: '科技', api: 'https://tenapi.cn/v2/toutiaohot', api2: 'https://api.vvhan.com/api/hotlist/wbHot' },
+  finance: { name: '财经', api: 'https://api.vvhan.com/api/hotlist/wbHot' },
+  hot: { name: '热搜', api: 'https://api.vvhan.com/api/hotlist/wbHot' },
+  world: { name: '国际', api: 'https://api.vvhan.com/api/hotlist/wbHot' },
+  science: { name: '科学', api: 'https://api.vvhan.com/api/hotlist/wbHot' },
+  sports: { name: '体育', api: 'https://api.vvhan.com/api/hotlist/wbHot' },
+  entertainment: { name: '娱乐', api: 'https://api.vvhan.com/api/hotlist/wbHot' }
+};
+
+// 多源实时新闻抓取
+const fetchRealtimeNews = async () => {
+  const fetchUrl = (url, headers = {}) => new Promise((resolve) => {
+    https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', ...headers } }, (response) => {
+      let data = '';
+      response.on('data', chunk => data += chunk);
+      response.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve(null); } });
+    }).on('error', () => resolve(null));
+  });
+
+  const allStories = [];
+
+  // 1. 微博热搜 (codelife.cc - 稳定可用)
+  try {
+    const weiboData = await fetchUrl('https://api.codelife.cc/api/top/list?lang=cn&id=KqndgxeLl9');
+    if (weiboData?.code === 200 && weiboData.data) {
+      weiboData.data.forEach((item, i) => {
+        allStories.push({
+          id: `weibo_${i}_${Date.now()}`,
+          title: item.title || '',
+          url: item.link || '',
+          source: '微博热搜',
+          category: 'hot',
+          heat: item.hotValue || ''
+        });
+      });
+    }
+  } catch {}
+
+  // 2. 头条热榜 (toutiao.com - 直接可用)
+  try {
+    const ttData = await fetchUrl('https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc');
+    if (ttData?.data) {
+      ttData.data.slice(0, 30).forEach((item, i) => {
+        allStories.push({
+          id: `toutiao_${i}_${Date.now()}`,
+          title: item.Title || '',
+          url: item.Url || '',
+          source: '头条热榜',
+          category: 'hot',
+          heat: item.HotValue || ''
+        });
+      });
+    }
+  } catch {}
+
+  // 3. 知乎热榜 (知乎 API 直接获取)
+  try {
+    const zhihuData = await fetchUrl('https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total?limit=30', { 'Referer': 'https://www.zhihu.com/' });
+    if (zhihuData?.data) {
+      zhihuData.data.slice(0, 30).forEach((item, i) => {
+        const target = item.target || {};
+        allStories.push({
+          id: `zhihu_${i}_${Date.now()}`,
+          title: target.title || '',
+          url: `https://www.zhihu.com/question/${target.id || ''}`,
+          source: '知乎热榜',
+          category: 'hot',
+          heat: item.detail_text || ''
+        });
+      });
+    }
+  } catch {}
+
+  return allStories.filter(s => s.title);
+};
+
+app.get('/api/ai/intelligence/interests', verifyToken, (req, res) => {
+  const profile = intelligenceProfiles.get(req.user.username) || { interests: ['hot'], keywords: [], lastFetchAt: null };
+  res.json(profile);
+});
+
+app.post('/api/ai/intelligence/interests', verifyToken, (req, res) => {
+  const { interests, keywords } = req.body || {};
+  const existing = intelligenceProfiles.get(req.user.username) || { interests: ['hot'], keywords: [], lastFetchAt: null };
+  if (Array.isArray(interests)) existing.interests = interests;
+  if (Array.isArray(keywords)) existing.keywords = keywords;
+  intelligenceProfiles.set(req.user.username, existing);
+  res.json(existing);
+});
+
+app.post('/api/ai/intelligence/fetch', verifyToken, async (req, res) => {
+  const username = req.user.username;
+  const profile = intelligenceProfiles.get(username) || { interests: ['hot'], keywords: [], lastFetchAt: null };
+  const categories = profile.interests.length > 0 ? profile.interests : ['hot'];
+
+  const allStories = await fetchRealtimeNews();
+  if (allStories.length === 0) return res.status(500).json({ error: '获取实时新闻失败' });
+
+  const categoryMap = { hot: 'hot', tech: 'tech', finance: 'finance', world: 'world', science: 'science', sports: 'sports', entertainment: 'entertainment' };
+  const keywordFilters = {
+    tech: /科技|AI|人工智能|手机|苹果|谷歌|微软|芯片|算法|编程|开发|互联网|数码|5G|机器人/i,
+    finance: /股票|基金|投资|经济|金融|市场|央行|GDP|贸易|房价|银行|A股|比特币/i,
+    world: /美国|欧洲|日本|韩国|俄罗斯|联合国|外交|贸易|国际|中东|战争|峰会/i,
+    science: /科学|研究|太空|量子|基因|物理|天文|生物|实验|NASA|论文/i,
+    sports: /体育|足球|篮球|奥运|世界杯|NBA|欧冠|比赛|赛事|运动员|冠军/i,
+    entertainment: /电影|音乐|明星|综艺|剧|演唱会|娱乐|热搜|微博|抖音|网红/i
+  };
+
+  const filtered = allStories.filter(s => {
+    return categories.some(cat => {
+      if (cat === 'hot') return true;
+      const filter = keywordFilters[cat];
+      return filter && filter.test(s.title);
+    });
+  });
+
+  const stories = (filtered.length > 0 ? filtered : allStories).slice(0, 20);
+  const newsText = stories.map((s, i) => `${i + 1}. [${s.source}] ${s.title}${s.heat ? ' (热度:' + s.heat + ')' : ''}`).join('\n');
+  const keywordHint = profile.keywords.length > 0 ? `\n用户特别关注的关键词：${profile.keywords.join('、')}` : '';
+
+  const messages = [
+    { role: 'system', content: `你是AI情报分析师。根据今日实时热搜为用户生成个性化情报简报。要求：1. 分为"必看""关注""了解"三个优先级 2. 每条用一句话概括 3. 末尾给出今日洞察 4. 语气简洁专业${keywordHint}` },
+    { role: 'user', content: `今日实时热搜（来源：微博/知乎/抖音/百度）：\n${newsText}\n\n请生成个性化情报简报：` }
+  ];
+
+  try {
+    const result = await callSelectedAIModel(messages, 'glm-4-flash');
+    if (!result.ok) return res.status(500).json({ error: result.error });
+    profile.lastFetchAt = new Date();
+    intelligenceProfiles.set(username, profile);
+    res.json({
+      digest: result.reply.trim(),
+      stories: stories.map(s => ({ id: s.id, title: s.title, image: s.image, url: s.url, source: s.source, category: s.category, heat: s.heat })),
+      fetchedAt: new Date()
+    });
+  } catch (err) {
+    res.status(500).json({ error: '情报生成失败: ' + err.message });
+  }
+});
+
+// ========== Phase 2: 端到端加密 + 关系图谱 ==========
+
+// --- E2E 加密：密钥交换 ---
+const e2eKeys = new Map(); // username -> { publicKey, encryptedPrivateKey, updatedAt }
+
+app.post('/api/e2e/keys', verifyToken, (req, res) => {
+  const { publicKey } = req.body || {};
+  if (!publicKey) return res.status(400).json({ error: '缺少公钥' });
+  e2eKeys.set(req.user.username, { publicKey, updatedAt: new Date() });
+  res.json({ success: true });
+});
+
+app.get('/api/e2e/keys/:username', verifyToken, (req, res) => {
+  const key = e2eKeys.get(req.params.username);
+  if (!key) return res.status(404).json({ error: '用户未注册加密密钥' });
+  res.json({ publicKey: key.publicKey, username: req.params.username });
+});
+
+app.get('/api/e2e/keys-batch', verifyToken, (req, res) => {
+  const { usernames } = req.query;
+  if (!usernames) return res.json({});
+  const names = usernames.split(',');
+  const result = {};
+  names.forEach(n => {
+    const k = e2eKeys.get(n);
+    if (k) result[n] = k.publicKey;
+  });
+  res.json(result);
+});
+
+// E2E 加密消息存储
+const e2eMessages = new Map(); // chatId -> [{ sender, content, timestamp }]
+
+app.get('/api/e2e/messages/:chatId', verifyToken, (req, res) => {
+  const msgs = e2eMessages.get(req.params.chatId) || [];
+  res.json({ messages: msgs.slice(-100) });
+});
+
+app.post('/api/e2e/messages', verifyToken, (req, res) => {
+  const { chatId, content, recipient } = req.body || {};
+  if (!chatId || !content) return res.status(400).json({ error: '参数缺失' });
+  if (!e2eMessages.has(chatId)) e2eMessages.set(chatId, []);
+  const msg = { sender: req.user.username, content, timestamp: new Date() };
+  e2eMessages.get(chatId).push(msg);
+  if (e2eMessages.get(chatId).length > 500) {
+    e2eMessages.set(chatId, e2eMessages.get(chatId).slice(-500));
+  }
+  // 通过 socket 推送给接收者
+  const recipientUser = Array.from(onlineUsers.values()).find(u => u.username === recipient);
+  if (recipientUser) {
+    const recipientSocket = userSockets.get(recipientUser.id);
+    if (recipientSocket) {
+      recipientSocket.emit('e2eMessage', { ...msg, chatId });
+    }
+  }
+  res.json({ success: true });
+});
+
+// --- 关系图谱 ---
+app.post('/api/ai/social-graph', verifyToken, async (req, res) => {
+  const username = req.user.username;
+  const interactions = {}; // user -> { count, rooms, topics }
+
+  rooms.forEach(room => {
+    if (!room.messages) return;
+    const myMsgs = room.messages.filter(m => m.sender?.username === username && m.type === 'text' && !m.recalled);
+    const otherMsgs = room.messages.filter(m => m.sender?.username !== username && m.type === 'text' && !m.recalled);
+
+    otherMsgs.forEach(msg => {
+      const other = msg.sender?.username;
+      if (!other) return;
+      if (!interactions[other]) interactions[other] = { count: 0, rooms: new Set(), msgs: [] };
+      interactions[other].count++;
+      interactions[other].rooms.add(room.name);
+      interactions[other].msgs.push(msg.content);
+    });
+
+    myMsgs.forEach(msg => {
+      const replyTo = msg.replyTo;
+      if (replyTo) {
+        const orig = room.messages.find(m => m.id === replyTo);
+        if (orig && orig.sender?.username !== username) {
+          const other = orig.sender?.username;
+          if (!interactions[other]) interactions[other] = { count: 0, rooms: new Set(), msgs: [] };
+          interactions[other].count += 2;
+        }
+      }
+    });
+  });
+
+  const nodes = [{ id: username, label: username, self: true, size: 30 }];
+  const edges = [];
+  const maxCount = Math.max(...Object.values(interactions).map(i => i.count), 1);
+
+  Object.entries(interactions)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 30)
+    .forEach(([user, data]) => {
+      const strength = data.count / maxCount;
+      nodes.push({
+        id: user, label: user,
+        size: 12 + strength * 18,
+        rooms: Array.from(data.rooms),
+        messageCount: data.count
+      });
+      edges.push({
+        source: username, target: user,
+        weight: strength,
+        label: `${data.count} 条消息`
+      });
+    });
+
+  // AI 生成关系洞察
+  const topUsers = Object.entries(interactions)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 5)
+    .map(([u, d]) => `${u}(${d.count}条, ${Array.from(d.rooms).join('/')}群)`)
+    .join('、');
+
+  let insight = '';
+  if (topUsers) {
+    const messages = [
+      { role: 'system', content: '你是社交分析专家。根据用户的聊天互动数据，用2-3句话给出社交关系洞察。语气轻松。' },
+      { role: 'user', content: `用户 ${username} 的社交数据：互动最多的人：${topUsers}。总互动人数：${Object.keys(interactions).length}。` }
+    ];
+    try {
+      const result = await callSelectedAIModel(messages, 'glm-4-flash');
+      if (result.ok) insight = result.reply.trim();
+    } catch {}
+  }
+
+  res.json({ nodes, edges, insight, totalUsers: Object.keys(interactions).length });
+});
+
+// ========== Phase 3: 协作画板 + 语音房 ==========
+
+// --- 协作画板 ---
+const whiteboardStates = new Map(); // roomId -> { strokes: [], users: Set }
+
+app.post('/api/whiteboard/clear', verifyToken, (req, res) => {
+  const { roomId } = req.body || {};
+  if (roomId) whiteboardStates.set(roomId, { strokes: [], users: new Set() });
+  res.json({ success: true });
+});
+
+app.post('/api/whiteboard/ai-beautify', verifyToken, async (req, res) => {
+  const { description } = req.body || {};
+  if (!description) return res.status(400).json({ error: '缺少描述' });
+  const messages = [
+    { role: 'system', content: '你是一个创意绘画助手。用户会给你一段描述，你来生成一个SVG矢量图的代码。要求：1. 只输出SVG代码，不要解释 2. 使用简洁的path和基础图形 3. 使用明亮的颜色 4. 宽高400x400 viewBox 5. 风格可爱卡通' },
+    { role: 'user', content: description }
+  ];
+  try {
+    const result = await callSelectedAIModel(messages, 'glm-4-flash');
+    if (!result.ok) return res.status(500).json({ error: result.error });
+    const svgMatch = result.reply.match(/<svg[\s\S]*?<\/svg>/i);
+    res.json({ svg: svgMatch ? svgMatch[0] : result.reply.trim() });
+  } catch (err) { res.status(500).json({ error: 'AI 美化失败' }); }
+});
+
+// --- 语音房 ---
+const voiceRooms = new Map(); // roomId -> { host, participants: Map<username, { muted, joinedAt }>, createdAt }
+
+app.post('/api/voice/create', verifyToken, (req, res) => {
+  const { roomId } = req.body || {};
+  const rid = roomId || `voice_${uuidv4().slice(0, 8)}`;
+  if (!voiceRooms.has(rid)) {
+    voiceRooms.set(rid, {
+      host: req.user.username,
+      participants: new Map([[req.user.username, { muted: false, joinedAt: new Date() }]]),
+      createdAt: new Date()
+    });
+  }
+  const room = voiceRooms.get(rid);
+  res.json({ roomId: rid, host: room.host, participants: Object.fromEntries(room.participants) });
+});
+
+app.get('/api/voice/list', verifyToken, (req, res) => {
+  const list = [];
+  voiceRooms.forEach((room, id) => {
+    list.push({ id, host: room.host, participantCount: room.participants.size, createdAt: room.createdAt });
+  });
+  res.json(list);
+});
+
+app.post('/api/voice/join', verifyToken, (req, res) => {
+  const { roomId } = req.body || {};
+  const room = voiceRooms.get(roomId);
+  if (!room) return res.status(404).json({ error: '语音房不存在' });
+  room.participants.set(req.user.username, { muted: false, joinedAt: new Date() });
+  res.json({ roomId, host: room.host, participants: Object.fromEntries(room.participants) });
+});
+
+app.post('/api/voice/leave', verifyToken, (req, res) => {
+  const { roomId } = req.body || {};
+  const room = voiceRooms.get(roomId);
+  if (!room) return res.json({ success: true });
+  room.participants.delete(req.user.username);
+  if (room.participants.size === 0) { voiceRooms.delete(roomId); }
+  res.json({ success: true });
+});
+
+app.post('/api/voice/mute', verifyToken, (req, res) => {
+  const { roomId, muted } = req.body || {};
+  const room = voiceRooms.get(roomId);
+  if (!room) return res.status(404).json({ error: '语音房不存在' });
+  const p = room.participants.get(req.user.username);
+  if (p) p.muted = typeof muted === 'boolean' ? muted : !p.muted;
+  res.json({ muted: p?.muted });
+});
+
+app.post('/api/voice/kick', verifyToken, (req, res) => {
+  const { roomId, username } = req.body || {};
+  const room = voiceRooms.get(roomId);
+  if (!room || room.host !== req.user.username) return res.status(403).json({ error: '需要房主权限' });
+  room.participants.delete(username);
+  res.json({ success: true });
+});
+
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
@@ -2455,6 +2963,29 @@ io.on('connection', (socket) => {
         }
       });
     }
+
+    // 实时翻译：如果房间开启了自动翻译，异步翻译并推送翻译结果
+    try {
+      const translateSetting = autoTranslateSettings.get(roomId);
+      if (translateSetting?.enabled && message.type === 'text' && message.content) {
+        const langNames = { en: 'English', ja: '日本語', ko: '한국어', fr: 'Français', de: 'Deutsch', es: 'Español', ru: 'Русский' };
+        const targetLang = translateSetting.targetLang || 'en';
+        const translateMessages = [
+          { role: 'system', content: `你是专业翻译。将消息翻译成${langNames[targetLang] || targetLang}。只输出翻译结果，不加解释。保持语气。` },
+          { role: 'user', content: message.content }
+        ];
+        callSelectedAIModel(translateMessages, 'glm-4-flash').then(tResult => {
+          if (tResult.ok && tResult.reply) {
+            io.to(roomId).emit('translatedMessage', {
+              messageId: message.id,
+              translated: tResult.reply.trim(),
+              targetLang,
+              sender: message.sender.username
+            });
+          }
+        }).catch(() => {});
+      }
+    } catch(e) { console.error('Auto-translate error:', e.message); }
   });
 
   // 消息转发
@@ -3077,6 +3608,64 @@ io.on('connection', (socket) => {
       }
     });
     socket.emit('unreadCounts', counts);
+  });
+
+  // ===== 协作画板 =====
+  socket.on('whiteboardJoin', ({ roomId }) => {
+    socket.join(`wb_${roomId}`);
+    const state = whiteboardStates.get(roomId) || { strokes: [], users: new Set() };
+    state.users.add(socket.username);
+    whiteboardStates.set(roomId, state);
+    socket.emit('whiteboardSync', { strokes: state.strokes, users: Array.from(state.users) });
+  });
+
+  socket.on('whiteboardStroke', ({ roomId, stroke }) => {
+    const state = whiteboardStates.get(roomId);
+    if (state) {
+      state.strokes.push(stroke);
+      if (state.strokes.length > 2000) state.strokes = state.strokes.slice(-2000);
+    }
+    socket.to(`wb_${roomId}`).emit('whiteboardStroke', { stroke, username: socket.username });
+  });
+
+  socket.on('whiteboardClear', ({ roomId }) => {
+    whiteboardStates.set(roomId, { strokes: [], users: new Set() });
+    io.to(`wb_${roomId}`).emit('whiteboardClear');
+  });
+
+  socket.on('whiteboardLeave', ({ roomId }) => {
+    socket.leave(`wb_${roomId}`);
+    const state = whiteboardStates.get(roomId);
+    if (state) state.users.delete(socket.username);
+  });
+
+  // ===== 语音房信令 =====
+  socket.on('voiceJoin', ({ roomId }) => {
+    socket.join(`voice_${roomId}`);
+    const room = voiceRooms.get(roomId);
+    if (room) {
+      const participants = Object.fromEntries(room.participants);
+      io.to(`voice_${roomId}`).emit('voiceParticipantUpdate', { participants, host: room.host });
+    }
+  });
+
+  socket.on('voiceLeave', ({ roomId }) => {
+    socket.leave(`voice_${roomId}`);
+  });
+
+  socket.on('voiceOffer', ({ roomId, to, offer }) => {
+    const targetSocket = userSockets.get(to);
+    if (targetSocket) targetSocket.emit('voiceOffer', { from: socket.userId, fromUsername: socket.username, offer });
+  });
+
+  socket.on('voiceAnswer', ({ roomId, to, answer }) => {
+    const targetSocket = userSockets.get(to);
+    if (targetSocket) targetSocket.emit('voiceAnswer', { from: socket.userId, answer });
+  });
+
+  socket.on('voiceIce', ({ roomId, to, candidate }) => {
+    const targetSocket = userSockets.get(to);
+    if (targetSocket) targetSocket.emit('voiceIce', { from: socket.userId, candidate });
   });
 
   socket.on('disconnect', () => {

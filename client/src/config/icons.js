@@ -5,7 +5,7 @@ import {
   X, ChevronRight, ArrowLeft, MoreHorizontal, Menu, Camera, Mic, MicOff, Square, Send,
   Paperclip, SmilePlus, Hash, Gift, Vote, Dice1, Hand, Swords, Crown, Volume2, Bell,
   BellOff, FileText, Download, Upload, Trash2, Copy, ExternalLink, RotateCcw, Clock,
-  Calendar, Zap, ListOrdered, FileUp, LogOut, Info, Sun, Moon
+  Calendar, Zap, ListOrdered, FileUp, LogOut, Info, Sun, Moon, Flame, Droplets, Wind
 } from 'lucide-react';
 
 export var iconProps = { size: 24, strokeWidth: 1.2, absoluteStrokeWidth: true };
@@ -16,6 +16,13 @@ export var iconMap = {
   video: Video, search: Search, smart: Lightbulb, polish: Wand2,
   reply: Reply, edit: Edit3, reaction: Smile, forward: Forward, star: Star, pin: Pin,
   translate: Globe, bilibili: MonitorPlay, bot: Bot, game: Gamepad2, palette: Palette,
+  twin: Bot,
+  contacts: Users,
+  globe: Globe,
+  fire: Flame,
+  news: Newspaper,
+  droplet: Droplets,
+  wind: Wind,
   stats: BarChart3, backup: Save, digest: Newspaper, wallet: DollarSign,
   phone: Phone, settings: Settings, security: ShieldCheck,
   close: X, arrowRight: ChevronRight, arrowLeft: ArrowLeft, more: MoreHorizontal,

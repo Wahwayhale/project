@@ -143,10 +143,7 @@
   padding: 18px 20px 20px;
   display: flex;
   flex-direction: column;
-  background: 
-    radial-gradient(ellipse at 20% 50%, rgba(91, 110, 247, 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 50%, rgba(139, 92, 246, 0.03) 0%, transparent 50%),
-    var(--bg);
+  background: var(--bg);
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.18);
 }
@@ -155,7 +152,6 @@
   margin-bottom: 18px;
   display: flex;
   align-items: flex-end;
-  animation: messageIn 0.3s var(--ease);
 }
 
 @keyframes messageIn {
@@ -1423,4 +1419,88 @@ html.dark .poll-bar {
   display: flex;
   align-items: center;
   gap: 14px;
+}
+
+/* --- Design Refresh MVP --- */
+.chat-header {
+  min-height: var(--header-height);
+  background: var(--bg-card);
+}
+
+.chat-header .header-tools {
+  gap: 6px;
+}
+
+.chat-header .header-tools button,
+.header-btn,
+.action-btn.small {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.chat-header .header-tools button:hover,
+.header-btn:hover,
+.action-btn.small:hover {
+  color: var(--primary);
+  background: var(--primary-bg);
+  border-color: rgba(7, 193, 96, 0.28);
+}
+
+.chat-header .header-tools button.danger-active {
+  background: var(--danger);
+  color: var(--text-white);
+  border-color: var(--danger);
+}
+
+.chat-compose-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.chat-compose-row .chat-input {
+  flex: 1;
+}
+
+.send-button {
+  min-height: 40px;
+  background: var(--primary);
+  border-radius: var(--radius-md);
+}
+
+.send-button:hover {
+  background: var(--primary-light);
+  box-shadow: none;
+}
+
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.empty-state-icon {
+  opacity: 0.25;
+  margin-bottom: 12px;
+}
+
+.empty-state-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.empty-state-desc {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
 }

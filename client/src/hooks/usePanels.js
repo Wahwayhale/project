@@ -196,7 +196,7 @@ export function usePanels({
 
   const shareNews = (story) => {
     if (!currentRoomId) { showToast('请先选择聊天室', 'error'); return; }
-    socketRef.current?.emit('sendMessage', { roomId: currentRoomId, content: `📰 ${story.title}\n${story.url}`, type: 'text' });
+    socketRef.current?.emit('sendMessage', { roomId: currentRoomId, content: `${story.title}\n${story.url}`, type: 'text' });
     showToast('已分享', 'success');
   };
 
@@ -241,7 +241,7 @@ export function usePanels({
   const shareWeather = () => {
     if (!currentRoomId || !weatherData) return;
     const w = weatherData;
-    const content = `🌤 ${w.city} 天气\n🌡 ${w.temp}°C (体感 ${w.feelsLike}°C)\n☁ ${w.desc}\n💧 湿度 ${w.humidity}% | 🌬 ${w.wind}\n📊 ${w.high}°C / ${w.low}°C`;
+    const content = `${w.city} 天气 | ${w.temp}°C (体感 ${w.feelsLike}°C) | ${w.desc} | 湿度 ${w.humidity}% | 风速 ${w.wind} | ${w.high}°C / ${w.low}°C`;
     socketRef.current?.emit('sendMessage', { roomId: currentRoomId, content, type: 'text' });
     showToast('已分享天气', 'success');
   };
@@ -280,7 +280,7 @@ export function usePanels({
   const shareMap = (poi) => {
     if (!currentRoomId) { showToast('请先选择聊天室', 'error'); return; }
     const mapUrl = `${API_URL}/api/map/static?lat=${poi.lat}&lng=${poi.lng}&zoom=16`;
-    socketRef.current?.emit('sendMessage', { roomId: currentRoomId, content: `📍 ${poi.name || poi.fullName}\n${mapUrl}`, type: 'text' });
+    socketRef.current?.emit('sendMessage', { roomId: currentRoomId, content: `${poi.name || poi.fullName}\n${mapUrl}`, type: 'text' });
     setShowMapPanel(false); setShowMapViewer(null);
     showToast('已分享', 'success');
   };

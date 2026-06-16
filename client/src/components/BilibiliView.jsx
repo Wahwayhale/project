@@ -39,7 +39,7 @@ export default function BilibiliView({
               <iframe src={`https://player.bilibili.com/player.html?bvid=${selectedBiliVideo.bvid}`} title={selectedBiliVideo.title} allowFullScreen />
             </div>
             <div className="panel-meta">
-              <div>{selectedBiliVideo.author} · ▶ {selectedBiliVideo.play}次 · {selectedBiliVideo.duration}</div>
+              <div>{selectedBiliVideo.author} · <I name="send" size={12} style={{ verticalAlign: 'middle' }} /> {selectedBiliVideo.play}次 · {selectedBiliVideo.duration}</div>
             </div>
             <button onClick={() => shareBilibiliToChat(selectedBiliVideo)} className="panel-primary-btn"><I name="forward" size={15} color="#fff" /> 分享到聊天</button>
           </div>
@@ -50,7 +50,7 @@ export default function BilibiliView({
               <div className="panel-list-copy">
                 <div className="panel-list-title">{video.title}</div>
                 <div className="panel-list-sub">{video.author}</div>
-                <div className="panel-list-meta">▶ {video.play} · {video.duration}</div>
+                <div className="panel-list-meta"><I name="send" size={12} style={{ verticalAlign: 'middle' }} /> {video.play} · {video.duration}</div>
               </div>
             </div>
           ))

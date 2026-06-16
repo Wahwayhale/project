@@ -1,0 +1,837 @@
+/* ==========================================
+   Liquid Glass Theme — 毛玻璃视觉效果
+   ========================================== */
+
+/* --- 背景装饰 --- */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(118, 255, 214, 0.7) 0, rgba(118, 255, 214, 0) 26%),
+    radial-gradient(circle at 86% 14%, rgba(147, 197, 253, 0.68) 0, rgba(147, 197, 253, 0) 24%),
+    radial-gradient(circle at 74% 82%, rgba(255, 209, 220, 0.5) 0, rgba(255, 209, 220, 0) 24%),
+    linear-gradient(160deg, #f3fffd 0%, #eaf6f4 44%, #eef4ff 100%);
+  color: var(--text);
+}
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(6px);
+  z-index: 0;
+}
+
+body::before {
+  top: -140px;
+  left: -110px;
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(151, 253, 223, 0.42) 0%, rgba(151, 253, 223, 0) 70%);
+}
+
+body::after {
+  right: -120px;
+  bottom: -120px;
+  width: 380px;
+  height: 380px;
+  background: radial-gradient(circle, rgba(176, 220, 255, 0.4) 0%, rgba(176, 220, 255, 0) 70%);
+}
+
+/* --- 容器 Glass 效果 --- */
+.app-container,
+.auth-container,
+.splash-screen {
+  position: relative;
+  z-index: 1;
+}
+
+.app-container {
+  max-width: min(1380px, calc(100vw - 24px));
+  margin: 12px auto;
+  height: calc(100vh - 24px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-xl), var(--glass-stroke);
+}
+
+.app-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.04)),
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.28), transparent 34%);
+  pointer-events: none;
+}
+
+.auth-container {
+  background:
+    radial-gradient(circle at top left, rgba(103, 232, 178, 0.42), transparent 28%),
+    radial-gradient(circle at right 18%, rgba(147, 197, 253, 0.38), transparent 26%),
+    linear-gradient(145deg, #edfdf9 0%, #e8f5ff 48%, #fdf2f8 100%);
+}
+
+.auth-container::before,
+.auth-container::after {
+  display: block;
+  border-radius: 36%;
+  background: rgba(255, 255, 255, 0.24);
+  filter: blur(2px);
+}
+
+/* --- 组件 Glass 效果 --- */
+.auth-box,
+.sidebar,
+.main-chat,
+.chat-header,
+.sidebar-header,
+.search-box,
+.sidebar-footer,
+.contacts-header,
+.contacts-search,
+.discover-header,
+.discover-list,
+.me-header,
+.me-menu,
+.me-footer,
+.ai-fullview,
+.ai-fullview-header,
+.video-fullview-header,
+.ai-model-selector,
+.chat-input-area,
+.ai-input-area,
+.bottom-tab-bar,
+.modal,
+.summary-flash,
+.message-search-bar,
+.panel-searchbar,
+.music-header,
+.diagnostic-bar {
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+.auth-box,
+.sidebar,
+.main-chat,
+.discover-list,
+.me-menu,
+.modal,
+.summary-flash,
+.panel-detail,
+.panel-list-item,
+.contacts-section,
+.me-header,
+.ai-model-selector,
+.message-search-bar,
+.diagnostic-bar,
+.room-manage-summary,
+.room-announcement-box,
+.room-member-row,
+.admin-metric,
+.ai-status-card,
+.audit-item {
+  background: var(--glass-panel);
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  box-shadow: var(--shadow-md), var(--glass-stroke);
+}
+
+.sidebar,
+.main-chat,
+.ai-fullview,
+.contacts-page,
+.discover-page,
+.me-page,
+.video-fullview {
+  background: transparent;
+}
+
+/* --- 头部 --- */
+.sidebar-header,
+.chat-header,
+.ai-fullview-header,
+.video-fullview-header,
+.contacts-header,
+.discover-header {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.38);
+}
+
+.sidebar-header,
+.contacts-header,
+.discover-header,
+.me-header,
+.ai-fullview-header,
+.video-fullview-header {
+  border-radius: 20px;
+}
+
+.sidebar-header,
+.chat-header,
+.ai-fullview-header,
+.video-fullview-header {
+  min-height: 68px;
+}
+
+/* --- 面板 --- */
+.search-box,
+.sidebar-footer,
+.contacts-search,
+.me-menu,
+.me-footer,
+.discover-list,
+.ai-model-selector,
+.chat-input-area,
+.ai-input-area {
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 20px;
+}
+
+/* --- 输入框 --- */
+.search-box input,
+.contacts-search input,
+.message-search-bar input,
+.auth-form input,
+.chat-input,
+.ai-input,
+.modal input,
+.modal textarea,
+.modal select,
+.ai-model-selector select {
+  background: rgba(255, 255, 255, 0.56);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.search-box input::placeholder,
+.contacts-search input::placeholder,
+.message-search-bar input::placeholder,
+.auth-form input::placeholder,
+.chat-input::placeholder,
+.ai-input::placeholder,
+.modal input::placeholder,
+.modal textarea::placeholder {
+  color: rgba(83, 114, 125, 0.8);
+}
+
+.search-box input:focus,
+.contacts-search input:focus,
+.message-search-bar input:focus,
+.auth-form input:focus,
+.chat-input:focus,
+.ai-input:focus,
+.modal input:focus,
+.modal textarea:focus,
+.modal select:focus,
+.ai-model-selector select:focus {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(103, 232, 178, 0.85);
+  box-shadow: 0 0 0 4px rgba(103, 232, 178, 0.14);
+}
+
+/* --- 列表项 --- */
+.room-item,
+.feature-item,
+.me-menu-item,
+.contact-item,
+.panel-list-item,
+.forward-item {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid transparent;
+  border-radius: 18px;
+  transition: transform 0.22s var(--ease), background 0.22s var(--ease), border-color 0.22s var(--ease), box-shadow 0.22s var(--ease);
+}
+
+.room-item:hover,
+.feature-item:hover,
+.me-menu-item:hover,
+.contact-item:hover,
+.panel-list-item:hover,
+.forward-item:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.34);
+  border-color: rgba(255, 255, 255, 0.44);
+  box-shadow: var(--shadow-sm);
+}
+
+.room-item.active,
+.feature-item:focus-visible,
+.me-menu-item:focus-visible,
+.contact-item:focus-visible,
+.bottom-tab.active {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.48), rgba(177, 250, 226, 0.32));
+  border-color: rgba(99, 235, 190, 0.46);
+  box-shadow: 0 14px 28px rgba(69, 140, 126, 0.14);
+}
+
+.room-item.active::before {
+  background: linear-gradient(180deg, rgba(73, 222, 181, 0.92), rgba(96, 165, 250, 0.86));
+  border-radius: 999px;
+  width: 4px;
+  left: 10px;
+  top: 12px;
+  bottom: 12px;
+}
+
+.room-item,
+.contact-item,
+.feature-item,
+.me-menu-item {
+  min-height: 56px;
+}
+
+/* --- 按钮 --- */
+.room-pin-btn,
+.header-btn,
+.chat-header .header-tools button,
+.sidebar-header .icon-btn,
+.chat-input-actions button,
+.message-actions button,
+.back-btn {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.room-pin-btn,
+.header-btn,
+.chat-header .header-tools button,
+.sidebar-header .icon-btn,
+.chat-input-actions button,
+.message-actions button,
+.back-btn {
+  background: rgba(255, 255, 255, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
+}
+
+.room-pin-btn:hover,
+.header-btn:hover,
+.chat-header .header-tools button:hover,
+.sidebar-header .icon-btn:hover,
+.chat-input-actions button:hover,
+.message-actions button:hover,
+.back-btn:hover {
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--primary-dark);
+}
+
+.sidebar-btn,
+.auth-form .auth-btn,
+.send-button,
+.ai-send-button,
+.modal .modal-buttons .confirm,
+.modal .modal-buttons .primary,
+.accept-btn,
+.solitaire-join,
+.panel-primary-btn {
+  background: var(--primary-gradient);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 14px 28px rgba(49, 196, 141, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+
+.sidebar-btn.secondary,
+.reject-btn,
+.modal .modal-buttons .cancel {
+  background: rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.44);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
+}
+
+.sidebar-btn,
+.auth-form .auth-btn,
+.send-button,
+.ai-send-button,
+.accept-btn,
+.reject-btn,
+.modal .modal-buttons button {
+  border-radius: 14px;
+}
+
+/* --- 气泡 --- */
+.message .bubble,
+.ai-message.assistant .ai-bubble,
+.ai-message.user .ai-bubble,
+.file-attachment,
+.poll-message,
+.solitaire-card,
+.red-packet-message,
+.music-message,
+.announcement-message {
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.message .bubble,
+.ai-message.assistant .ai-bubble,
+.file-attachment,
+.poll-message,
+.solitaire-card,
+.announcement-message,
+.translation-text {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.24));
+  border: 1px solid rgba(255, 255, 255, 0.46);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.46);
+}
+
+.message.sent .bubble,
+.ai-message.user .ai-bubble,
+.red-packet-message,
+.music-message {
+  background: linear-gradient(135deg, rgba(87, 225, 183, 0.92), rgba(96, 165, 250, 0.86));
+  color: var(--text-white);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 16px 26px rgba(67, 155, 144, 0.22);
+}
+
+.message.sent .sender-name,
+.message.sent .time,
+.message.sent .file-name,
+.message.sent .file-meta,
+.message.sent .file-download,
+.ai-message.user .ai-meta-line,
+.music-message a {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.message.received .bubble,
+.ai-message.assistant .ai-bubble {
+  color: var(--text);
+}
+
+/* --- 头像 --- */
+.message .avatar,
+.ai-avatar,
+.contact-avatar,
+.me-avatar,
+.sidebar .sidebar-user img {
+  border: 2px solid rgba(255, 255, 255, 0.52);
+  box-shadow: 0 10px 24px rgba(61, 113, 109, 0.16);
+}
+
+/* --- 徽章 --- */
+.unread-badge,
+.bottom-tab .tab-badge,
+.badge,
+.claimed-badge {
+  background: linear-gradient(135deg, var(--danger-light), var(--danger-glass));
+  box-shadow: 0 8px 20px rgba(255, 107, 129, 0.28);
+}
+
+/* --- 页面间距 --- */
+.contacts-page,
+.discover-page,
+.me-page,
+.ai-fullview,
+.video-fullview {
+  gap: 12px;
+}
+
+.discover-list,
+.me-menu,
+.me-footer,
+.contacts-section {
+  padding: 10px;
+  border-radius: 22px;
+}
+
+.contacts-section-title,
+.discover-section-title,
+.room-list-header,
+.diagnostic-item,
+.me-version,
+.ai-balance,
+.search-count {
+  color: var(--text-secondary);
+}
+
+/* --- 弹窗 --- */
+.modal-overlay {
+  background: rgba(127, 161, 170, 0.2);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.modal {
+  border-radius: 26px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.34) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.54);
+}
+
+/* --- 底部 Tab --- */
+.bottom-tab-bar {
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  height: 66px;
+  padding: 6px 10px calc(env(safe-area-inset-bottom, 0) + 4px);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.26));
+  border: 1px solid rgba(255, 255, 255, 0.44);
+  border-radius: 24px;
+  box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.52);
+}
+
+.bottom-tab {
+  min-width: 72px;
+  min-height: 52px;
+  border-radius: 18px;
+}
+
+.bottom-tab.active {
+  color: var(--primary-dark);
+}
+
+/* --- 空状态 --- */
+.empty-state {
+  margin: 16px;
+  padding: 30px 18px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.18));
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.page-empty-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-empty-desktop {
+  display: flex;
+}
+
+/* --- 特殊覆盖层 --- */
+.splash-content,
+.call-waiting,
+.call-incoming-overlay,
+.call-overlay {
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+/* --- Fresh Youth Theme 视觉覆盖 --- */
+.room-avatar,
+.forward-avatar {
+  background: var(--primary-gradient);
+  box-shadow: 0 6px 16px rgba(66, 214, 164, 0.22);
+}
+
+.message.sent .bubble,
+.ai-message.user .ai-bubble {
+  background: var(--primary-gradient);
+}
+
+.feature-item,
+.me-menu-item,
+.contact-item {
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.feature-icon,
+.menu-icon {
+  box-shadow: 0 6px 14px rgba(33, 56, 51, 0.08);
+}
+
+.feature-ai,
+.feature-bot {
+  background: linear-gradient(135deg, #8b8df9, #55c7f7);
+}
+
+.feature-image,
+.feature-gif {
+  background: linear-gradient(135deg, var(--bili-pink-light), #ffb4d8);
+}
+
+.feature-bili,
+.menu-download {
+  background: linear-gradient(135deg, #ff9a76, #ffc66d);
+}
+
+.feature-music,
+.menu-wallet {
+  background: linear-gradient(135deg, #ff7b8a, #ffb199);
+}
+
+.feature-map,
+.feature-backup,
+.menu-backup,
+.menu-primary {
+  background: var(--primary-gradient);
+}
+
+.feature-weather,
+.menu-phone,
+.menu-security {
+  background: linear-gradient(135deg, #55c7f7, #7dd3fc);
+}
+
+.splash-screen {
+  background:
+    linear-gradient(160deg, rgba(66,214,164,0.94), rgba(85,199,247,0.92)),
+    var(--primary-gradient);
+}
+
+.splash-icon {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+}
+
+/* --- Liquid Glass 布局修正 --- */
+.app-container {
+  align-items: stretch;
+}
+
+.sidebar {
+  flex: 0 0 344px;
+  min-width: 320px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: min(344px, 100%);
+  padding: 14px;
+  gap: 14px;
+  border-right: 1px solid rgba(255, 255, 255, 0.34);
+}
+
+.room-list,
+.contacts-body,
+.discover-list,
+.panel-scroll,
+.forward-list,
+.audit-list {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.main-chat {
+  flex: 1 1 auto;
+  width: auto !important;
+  min-width: 0;
+  min-height: 0;
+  height: auto !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 12px;
+  padding: 14px;
+}
+
+.main-chat.full-view {
+  width: auto !important;
+  flex: 1 1 auto !important;
+}
+
+.main-chat > * {
+  min-height: 0;
+}
+
+.contacts-page,
+.discover-page,
+.me-page,
+.ai-fullview,
+.video-fullview {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.messages-container,
+.ai-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.chat-input-area,
+.ai-input-area {
+  flex-shrink: 0;
+}
+
+.me-page {
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.me-version {
+  padding-bottom: 8px;
+}
+
+.bottom-tab-bar {
+  display: flex;
+}
+
+.dark-mode-toggle {
+  right: 24px;
+  bottom: 96px;
+}
+
+.modal-overlay {
+  padding: 16px;
+}
+
+.modal {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+}
+
+.major-update-modal,
+.room-manage-modal,
+.forward-modal,
+.music-panel,
+.ai-image-modal {
+  width: min(520px, calc(100vw - 32px));
+}
+
+.chat-header {
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  border-radius: 22px;
+}
+
+.messages-container,
+.ai-messages,
+.contacts-body,
+.panel-scroll {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.messages-container {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 24px;
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+
+.auth-form input,
+.search-box input,
+.contacts-search input,
+.chat-input,
+.ai-input {
+  background: #f9fffc;
+  border-color: var(--border);
+}
+
+.auth-form input:focus,
+.search-box input:focus,
+.contacts-search input:focus,
+.chat-input:focus,
+.ai-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-bg);
+}
+
+.sidebar {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.sidebar-header,
+.chat-header,
+.bottom-tab-bar {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(18px);
+}
+
+.bottom-tab.active .tab-icon {
+  background: var(--primary-bg);
+}
+
+.auth-box {
+  border-color: rgba(66, 214, 164, 0.22);
+  box-shadow: 0 18px 50px rgba(45, 154, 126, 0.12);
+}
+
+.auth-box h1,
+.splash-title {
+  color: var(--text);
+}
+
+.auth-box .auth-subtitle {
+  color: var(--text-secondary);
+}
+
+.major-update-icon {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 12px;
+  border-radius: 18px;
+  background: var(--primary-gradient);
+  color: var(--text-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 26px rgba(66, 214, 164, 0.26);
+}
+
+.major-update-modal h3,
+.major-update-version {
+  text-align: center;
+}
+
+.major-update-version {
+  margin: 4px 0 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.major-update-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.major-update-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--primary-bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.major-update-item svg {
+  color: var(--primary-dark);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.major-update-modal .confirm {
+  width: 100%;
+}
+
+.ai-status-card.configured {
+  border-color: rgba(66, 214, 164, 0.34);
+  background: var(--primary-bg);
+}
+
+.ai-status-card.failed {
+  border-color: rgba(255, 107, 122, 0.34);
+  background: rgba(255, 107, 122, 0.08);
+}
+
+.panel-bili-searchbar button {
+  background: var(--bili-pink);
+}

@@ -9,7 +9,7 @@ export default function WrappedModal({ showWrapped, wrappedData, setShowWrapped 
         <div className="wrapped-hero"><I name="stats" size={48} /></div>
         <h3>你的聊天年度报告</h3>
         <div className="wrapped-stat"><div className="wstat-num">{wrappedData.total}</div><div className="wstat-label">总消息数</div></div>
-        <div className="wrapped-stat"><div className="wstat-num">{wrappedData.totalSent}</div><div className="wstat-label">📤 发送 / 📥 {wrappedData.totalReceived} 接收</div></div>
+        <div className="wrapped-stat"><div className="wstat-num">{wrappedData.totalSent}</div><div className="wstat-label">发送 {wrappedData.totalSent} / 接收 {wrappedData.totalReceived}</div></div>
         <div className="wrapped-stat"><div className="wstat-num">{wrappedData.activeHour}:00</div><div className="wstat-label">最活跃时间段</div></div>
         {wrappedData.topFriend && (
           <div className="wrapped-friend">

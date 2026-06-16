@@ -1,49 +1,97 @@
 /* CSS Variables — Design Tokens */
 :root {
-  /* 主色调 - 温暖的品牌色 */
-  --primary: #5b6ef7;
-  --primary-light: #7b8ffa;
-  --primary-dark: #4a5bd6;
-  --primary-gradient: linear-gradient(135deg, #5b6ef7 0%, #8b5cf6 100%);
-  --primary-bg: rgba(91, 110, 247, 0.08);
+  /* 主色调 - Liquid Glass 主题 */
+  --primary: #31c48d;
+  --primary-light: #67e8b2;
+  --primary-dark: #1f9d73;
+  --primary-gradient: linear-gradient(135deg, rgba(74, 222, 181, 0.92) 0%, rgba(96, 165, 250, 0.88) 100%);
+  --primary-bg: rgba(87, 225, 183, 0.16);
 
   /* 语义色 */
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --info: #3b82f6;
+  --success: #31c48d;
+  --warning: #ffb84d;
+  --danger: #ff6b81;
+  --info: #60a5fa;
 
   /* 中性色 */
-  --bg: #f0f2f5;
-  --bg-card: #ffffff;
-  --bg-hover: #f5f6fa;
-  --bg-active: #eef0f7;
-  --border: #e8eaef;
-  --border-light: #f0f1f5;
+  --bg: #eaf6f4;
+  --bg-card: rgba(255, 255, 255, 0.5);
+  --bg-hover: rgba(255, 255, 255, 0.68);
+  --bg-active: rgba(255, 255, 255, 0.82);
+  --border: rgba(255, 255, 255, 0.42);
+  --border-light: rgba(255, 255, 255, 0.24);
 
   /* 文字 */
-  --text: #1a1a2e;
-  --text-secondary: #6b7280;
-  --text-tertiary: #9ca3af;
+  --text: #14313b;
+  --text-secondary: #53727d;
+  --text-tertiary: #7fa0aa;
   --text-white: #ffffff;
 
   /* 阴影 */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.08);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 10px 24px rgba(34, 60, 80, 0.08);
+  --shadow-md: 0 18px 40px rgba(34, 60, 80, 0.12);
+  --shadow-lg: 0 28px 60px rgba(34, 60, 80, 0.16);
+  --shadow-xl: 0 36px 80px rgba(34, 60, 80, 0.18);
 
   /* 圆角 */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
   --radius-xl: 24px;
+  --radius-2xl: 16px;
+  --radius-full: 9999px;
+  --radius-header: 22px;
+  --radius-modal: 26px;
+  --radius-app: 30px;
 
-  /* 动画 */
+  /* 动效 */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-sm: 150ms;
+  --duration-md: 200ms;
+  --duration-lg: 300ms;
 
-  /* 尺寸 */
-  --sidebar-width: 320px;
-  --header-height: 60px;
+  /* 间距 */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+
+  /* 字号 */
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+
+  /* 布局 */
+  --sidebar-width: 344px;
+  --header-height: 68px;
+  --mobile-tab-offset: 92px;
+
+  /* Glass 专属 */
+  --glass-blur: blur(22px);
+  --glass-panel: linear-gradient(180deg, rgba(255, 255, 255, 0.54) 0%, rgba(255, 255, 255, 0.22) 100%);
+  --glass-stroke: inset 0 1px 0 rgba(255, 255, 255, 0.62), inset 0 -1px 0 rgba(255, 255, 255, 0.16);
+
+  /* Glass 透明度变量 */
+  --glass-white-18: rgba(255, 255, 255, 0.18);
+  --glass-white-22: rgba(255, 255, 255, 0.22);
+  --glass-white-34: rgba(255, 255, 255, 0.34);
+  --glass-white-48: rgba(255, 255, 255, 0.48);
+  --glass-white-56: rgba(255, 255, 255, 0.56);
+
+  /* Glass 辅助变量 */
+  --glass-focus: rgba(103, 232, 178, 0.85);
+  --glass-overlay: rgba(127, 161, 170, 0.2);
+
+  /* 领域语义变量 */
+  --bili-pink: #fb7299;
+  --bili-pink-light: #ff8fc7;
+  --danger-glass: #ff6b81;
+  --danger-light: #ff8aa1;
 }

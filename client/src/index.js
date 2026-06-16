@@ -19,7 +19,7 @@ class ErrorBoundary extends React.Component {
     if (this.state.hasError) {
       return (
         <div style={{ padding: 40, maxWidth: 650, margin: '40px auto', fontFamily: '-apple-system,BlinkMacSystemFont,sans-serif', background: '#fff', borderRadius: 16, boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
+          <div style={{ fontSize: 48, marginBottom: 12, color: '#ef4444' }}>⚠</div>
           <h2 style={{ color: '#ef4444', marginBottom: 16 }}>页面渲染错误</h2>
           <div style={{ background: '#fee2e2', padding: 16, borderRadius: 8, marginBottom: 16, fontSize: 14, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto' }}>
             {this.state.error?.toString()}
@@ -34,7 +34,7 @@ class ErrorBoundary extends React.Component {
           )}
           <button onClick={() => window.location.reload()}
             style={{ padding: '12px 28px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: 700 }}>
-            🔄 刷新页面
+            刷新页面
           </button>
         </div>
       );

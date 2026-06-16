@@ -11,7 +11,7 @@ export default function CallOverlay({ callState, toggleMute, hangUp }) {
           <video ref={el => { if (el && callState?.remoteStream) { try { el.srcObject = callState.remoteStream; el.play().catch(() => {}); } catch(e) {} } }} autoPlay playsInline />
         ) : (
           <div className="call-waiting">
-            {(callState.status === 'calling' || callState.status === 'connecting') ? (callState.status === 'calling' ? '正在呼叫...' : '连接中...') : '📞'}
+            {(callState.status === 'calling' || callState.status === 'connecting') ? (callState.status === 'calling' ? '正在呼叫...' : '连接中...') : '通话中'}
           </div>
         )}
       </div>

@@ -24,8 +24,8 @@ export default function MomentsPanel({ showMoments, setShowMoments, newMoment, s
               </div>
               <div className="moment-content">{m.content}</div>
               <div className="moment-actions">
-                <button onClick={() => likeMoment(m.id)}>❤️ {(m.likes || []).length}</button>
-                <button onClick={() => commentMoment(m.id)}>💬 {(m.comments || []).length}</button>
+                <button onClick={() => likeMoment(m.id)} style={{ display: 'flex', alignItems: 'center', gap: 4 }}><I name="star" size={14} /> {(m.likes || []).length}</button>
+                <button onClick={() => commentMoment(m.id)} style={{ display: 'flex', alignItems: 'center', gap: 4 }}><I name="chat" size={14} /> {(m.comments || []).length}</button>
               </div>
               {(m.comments || []).length > 0 && (
                 <div className="moment-comments">

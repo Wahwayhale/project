@@ -29,7 +29,7 @@ export default function DailyDigestModal({ showDailyDigest, setShowDailyDigest, 
             </div>
             {dailyDigest.highlightMessages?.length > 0 && (
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>📌 最新消息</div>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>最新消息</div>
                 {dailyDigest.highlightMessages.map((m, i) => (
                   <div key={i} style={{ padding: '6px 0', borderTop: '1px solid var(--border)', fontSize: 13 }}>
                     <span style={{ color: 'var(--text-secondary)' }}>[{m.room}]</span> <strong>{m.sender}</strong>: {m.content?.slice(0, 40)}{(m.content?.length > 40) ? '...' : ''}

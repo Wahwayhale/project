@@ -1,26 +1,40 @@
 import React from 'react';
 import { I } from './Icon';
 
+const tabs = [
+  { key: 'chats', label: '聊天', icon: 'chat' },
+  { key: 'contacts', label: '通讯录', icon: 'contacts' },
+  { key: 'discover', label: '发现', icon: 'discover' },
+  { key: 'me', label: '我', icon: 'me' },
+];
+
 export default function BottomTabBar({ bottomTab, setBottomTab, friendRequests, fetchFriendRequests }) {
+  const handleTabClick = (key) => {
+    setBottomTab(key);
+    if (key === 'contacts') fetchFriendRequests();
+  };
+
   return (
-    <div className="bottom-tab-bar">
-      <button className={`bottom-tab ${bottomTab === 'chats' ? 'active' : ''}`} onClick={() => { setBottomTab('chats'); }}>
-        <span className="tab-icon"><I name="chat" size={22} /></span>
-        <span className="tab-label">聊天</span>
-      </button>
-      <button className={`bottom-tab ${bottomTab === 'contacts' ? 'active' : ''}`} onClick={() => { setBottomTab('contacts'); fetchFriendRequests(); }}>
-        <span className="tab-icon"><I name="contacts" size={22} /></span>
-        <span className="tab-label">通讯录</span>
-        {friendRequests.length > 0 && <span className="tab-badge">{friendRequests.length}</span>}
-      </button>
-      <button className={`bottom-tab ${bottomTab === 'discover' ? 'active' : ''}`} onClick={() => setBottomTab('discover')}>
-        <span className="tab-icon"><I name="discover" size={22} /></span>
-        <span className="tab-label">发现</span>
-      </button>
-      <button className={`bottom-tab ${bottomTab === 'me' ? 'active' : ''}`} onClick={() => setBottomTab('me')}>
-        <span className="tab-icon"><I name="me" size={22} /></span>
-        <span className="tab-label">我</span>
-      </button>
-    </div>
+    <nav className="bottom-tab-bar" aria-label="主导航">
+      {tabs.map(tab => {
+        const isActive = bottomTab === tab.key;
+        const showBadge = tab.key === 'contacts' && friendRequests.length > 0;
+
+        return (
+          <button
+            key={tab.key}
+            type="button"
+            className={`bottom-tab ${isActive ? 'active' : ''}`}
+            onClick={() => handleTabClick(tab.key)}
+            aria-label={tab.label}
+            aria-current={isActive ? 'page' : undefined}
+          >
+            <span className="tab-icon"><I name={tab.icon} size={22} /></span>
+            <span className="tab-label">{tab.label}</span>
+            {showBadge && <span className="tab-badge">{friendRequests.length}</span>}
+          </button>
+        );
+      })}
+    </nav>
   );
 }

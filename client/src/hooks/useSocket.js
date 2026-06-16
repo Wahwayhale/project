@@ -410,6 +410,11 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
         h.setCheckInData(data);
       });
       socketRef.current.on('checkInError', ({ error }) => { h.showToast(error, 'error'); });
+
+      // 实时翻译消息
+      socketRef.current.on('translatedMessage', ({ messageId, translated, targetLang, sender }) => {
+        h.setTranslatedMessages(prev => ({ ...prev, [messageId]: { translated, targetLang, sender } }));
+      });
     };
 
     connectSocket();
@@ -430,6 +435,7 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
         socketRef.current.off('checkInUpdate');
         socketRef.current.off('checkInList');
         socketRef.current.off('checkInError');
+        socketRef.current.off('translatedMessage');
         socketRef.current.disconnect();
       }
     };

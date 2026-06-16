@@ -18,7 +18,7 @@ export default function WeatherPanel({
     <div className="modal-overlay" onClick={() => { setShowWeatherPanel(false); setWeatherData(null); setWeatherCity(''); }}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>🌤 天气查询</h3>
+           <h3 style={{ margin: 0 }}>天气查询</h3>
           <button onClick={() => { setShowWeatherPanel(false); setWeatherData(null); setWeatherCity(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="close" size={20} /></button>
         </div>
         <form onSubmit={searchWeather} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -37,11 +37,11 @@ export default function WeatherPanel({
               </div>
             </div>
             <div style={{ display: 'flex', gap: 16, fontSize: 13, opacity: 0.9, marginBottom: 12 }}>
-              <span>💧 {weatherData.humidity}%</span>
-              <span>🌬 {weatherData.wind}</span>
-              <span>📊 {weatherData.high}° / {weatherData.low}°</span>
+              <span><I name="droplet" size={12} /> {weatherData.humidity}%</span>
+              <span><I name="wind" size={12} /> {weatherData.wind}</span>
+              <span><I name="stats" size={12} /> {weatherData.high}° / {weatherData.low}°</span>
             </div>
-            <button onClick={shareWeather} style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.2)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>📤 分享天气到聊天</button>
+            <button onClick={shareWeather} style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.2)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>分享天气到聊天</button>
           </div>
         )}
       </div>

@@ -81,3 +81,180 @@
   font-weight: 300;
 }
 
+/* --- Design Refresh MVP --- */
+.discover-page,
+.contacts-page,
+.me-page {
+  background: var(--bg);
+}
+
+.discover-header,
+.contacts-header {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+}
+
+.discover-list {
+  padding-bottom: 96px;
+}
+
+.feature-item {
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-card);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.feature-item:hover {
+  background: var(--bg-hover);
+}
+
+.feature-icon,
+.menu-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-white);
+  flex-shrink: 0;
+}
+
+.feature-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.feature-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.feature-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feature-arrow,
+.menu-arrow {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.feature-ai,
+.feature-bot {
+  background: #6366f1;
+}
+
+.feature-image,
+.feature-gif {
+  background: #ec4899;
+}
+
+.feature-digest,
+.feature-news {
+  background: #3b82f6;
+}
+
+.feature-bili,
+.feature-download {
+  background: #ff6b35;
+}
+
+.feature-music,
+.menu-wallet {
+  background: #ef4444;
+}
+
+.feature-moments,
+.menu-moments {
+  background: #f59e0b;
+}
+
+.feature-game {
+  background: #8b5cf6;
+}
+
+.feature-weather,
+.menu-phone,
+.menu-security {
+  background: #1890ff;
+}
+
+.feature-map,
+.feature-backup,
+.menu-backup {
+  background: #00b894;
+}
+
+.feature-stats {
+  background: #f59e0b;
+}
+
+.menu-primary {
+  background: var(--primary);
+}
+
+.menu-download {
+  background: #ff6b35;
+}
+
+/* ===== AI 数字分身 ===== */
+.twin-hero { position: relative; }
+.twin-toggle-section .toggle-switch {
+  width: 48px; height: 26px; border-radius: 13px;
+  background: var(--border); cursor: pointer;
+  position: relative; transition: background 0.2s;
+}
+.twin-toggle-section .toggle-switch.active {
+  background: var(--primary);
+}
+.twin-toggle-section .toggle-knob {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: white; position: absolute;
+  top: 2px; left: 2px; transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+.twin-toggle-section .toggle-switch.active .toggle-knob {
+  transform: translateX(22px);
+}
+.twin-tag {
+  transition: background 0.15s;
+}
+.twin-tag:hover {
+  background: var(--primary-bg, rgba(66,214,164,0.15)) !important;
+}
+
+/* ===== AI 情报站 ===== */
+.intelligence-story {
+  transition: background 0.15s;
+}
+.intelligence-story:hover {
+  background: var(--bg-hover);
+}
+
+/* ===== 自动翻译 ===== */
+.translate-indicator {
+  font-size: 11px;
+  color: var(--primary);
+  margin-top: 2px;
+  font-style: italic;
+}
+

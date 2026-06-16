@@ -4,6 +4,7 @@ import AvatarImg from './ui/AvatarImg';
 import { getAvatarUrl } from '../utils/avatar';
 import { formatTime, formatFileSize, getFileIcon, parseBilibiliUrl, formatRecordingTime } from '../utils/format';
 import { EMOJIS } from '../utils/constants';
+import { API_URL } from '../utils/constants';
 
 /**
  * ChatView — 聊天主视图组件
@@ -51,6 +52,11 @@ export default function ChatView({
   setShowRoomManage,
   searchQuery,
   setSearchQuery,
+  autoTranslate,
+  setAutoTranslate,
+  translateLang,
+  setTranslateLang,
+  translatedMessages,
 
   // === 消息多媒体 ===
   translations,
@@ -167,6 +173,19 @@ export default function ChatView({
             <button onClick={() => setShowSearch(s => !s)} title="搜索消息">
               {showSearch ? <I name="close" size={15} /> : <I name="search" size={15} />}
             </button>
+            <button onClick={() => {
+              const newEnabled = !autoTranslate;
+              setAutoTranslate(newEnabled);
+              fetch(`${API_URL}/api/ai/auto-translate/toggle`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: localStorage.getItem('token') },
+                body: JSON.stringify({ roomId: currentRoomId, enabled: newEnabled, targetLang: translateLang })
+              }).catch(() => {});
+            }} title={autoTranslate ? '关闭自动翻译' : '开启自动翻译'}
+              style={{ position: 'relative' }}>
+              <I name="translate" size={15} />
+              {autoTranslate && <span style={{ position: 'absolute', top: -2, right: -2, width: 6, height: 6, borderRadius: '50%', background: 'var(--primary)' }} />}
+            </button>
             {currentRoom?.members?.length > 1 && (
               <button onClick={() => setShowRoomManage(true)} title="群管理"><I name="settings" size={15} /></button>
             )}
@@ -205,7 +224,7 @@ export default function ChatView({
         )}
       </div>
       <div className="chat-thread">
-        <div className="messages-container">
+        <div className="messages-container" role="log" aria-live="polite" aria-relevant="additions text">
         {messages.map((msg, index) => {
           const isSearchMatch = searchQuery && !msg.recalled && msg.content?.toLowerCase().includes(searchQuery.toLowerCase());
           const isPinned = pinnedMessages[currentRoomId]?.includes(msg.id);
@@ -251,15 +270,14 @@ export default function ChatView({
               )}
               {/* AI 翻译结果 */}
               {translations[msg.id] && (
-                <div className="translation-text" style={{ fontSize: 13, color: 'var(--text-secondary)', fontStyle: 'italic', padding: '6px 0', borderTop: '1px dashed var(--border)' }}>
+                <div className="translation-text">
                   {translations[msg.id]}
                 </div>
               )}
               {msg.type === 'image' && (
-                <div style={{ position: 'relative' }}>
+                <div className="media-wrap">
                   <img className="media" src={msg.fileUrl} alt="" onClick={() => openImageViewer(msg.fileUrl, messages.filter(m => m.type === 'image').map(m => m.fileUrl))} />
-                  <button onClick={() => describeImage(msg.id, msg.fileUrl)} disabled={descLoading === msg.id}
-                    style={{ position: 'absolute', bottom: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', fontSize: 11, cursor: 'pointer' }}>
+                  <button className="media-ai-btn" type="button" onClick={() => describeImage(msg.id, msg.fileUrl)} disabled={descLoading === msg.id}>
                     {descLoading === msg.id ? '…' : imageDesc[msg.id] ? imageDesc[msg.id] : 'AI 识图'}
                   </button>
                 </div>
@@ -269,9 +287,9 @@ export default function ChatView({
                   onClick={() => window.open(msg.fileUrl)} />
               )}
               {msg.type === 'audio' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 200 }}>
-                  <span style={{ fontSize: 24 }}><I name="music" size={20} /></span>
-                  <audio src={msg.fileUrl} controls style={{ flex: 1, maxWidth: 250, height: 36 }} />
+                <div className="audio-message">
+                  <span className="audio-icon"><I name="music" size={20} /></span>
+                  <audio src={msg.fileUrl} controls />
                 </div>
               )}
               {msg.type === 'file' && (
@@ -368,8 +386,8 @@ export default function ChatView({
                       {msg.participants.map((p, i) => (
                         <div key={i} className="solitaire-entry">
                           <span className="solitaire-num">{p.index}</span>
-                          <span style={{ fontWeight: 600, fontSize: 12 }}>{p.username}</span>
-                          <span style={{ color: 'var(--text-secondary)' }}>{p.content}</span>
+                          <span className="solitaire-user">{p.username}</span>
+                          <span className="solitaire-content">{p.content}</span>
                         </div>
                       ))}
                     </div>
@@ -380,7 +398,7 @@ export default function ChatView({
                       if (content) joinSolitaire(msg.id, content);
                     }}>+ 参与接龙</button>
                   ) : (
-                    <div style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
+                    <div className="solitaire-joined">
                       已参与（{(msg.participants || []).length}人）
                     </div>
                   )}
@@ -476,7 +494,7 @@ export default function ChatView({
               {/* 打卡消息 */}
               {msg.type === 'checkIn' && (
                 <div className="checkin-card">
-                  <div className="checkin-day">✅ {new Date(msg.timestamp).toLocaleDateString('zh-CN')}</div>
+                  <div className="checkin-day"><I name="checkin" size={12} /> {new Date(msg.timestamp).toLocaleDateString('zh-CN')}</div>
                   <div className="checkin-count">{msg.sender?.username} 打卡{msg.note ? `：${msg.note}` : ''}</div>
                 </div>
               )}
@@ -501,7 +519,7 @@ export default function ChatView({
             {REACTION_EMOJIS.map(emoji => (
               <button key={emoji} onClick={() => toggleReaction(reactionPicker.messageId, emoji)}>{emoji}</button>
             ))}
-            <button onClick={() => setReactionPicker(null)} style={{ fontSize: 14 }}><I name="close" size={14} /></button>
+            <button className="reaction-picker-close" type="button" onClick={() => setReactionPicker(null)}><I name="close" size={14} /></button>
           </div>
         )}
           <div ref={setMessageEndRef} />
@@ -544,7 +562,7 @@ export default function ChatView({
                 <input
                   type="file"
                   ref={fileInputRef}
-                  style={{ display: 'none' }}
+                  className="visually-hidden-file"
                   accept="*/*"
                   onChange={handleFileSelect}
                 />
@@ -623,12 +641,14 @@ export default function ChatView({
             <div className="chat-compose-row">
               <textarea
                 className="chat-input"
+                aria-label="Message input"
+                rows={1}
                 placeholder="输入消息... 输入 @ 提及用户"
                 value={newMessage}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
               />
-              <button className="send-button" onClick={sendMessage} disabled={!newMessage.trim() && !editingMessage}>
+              <button className="send-button" type="button" onClick={sendMessage} disabled={!newMessage.trim() && !editingMessage}>
                 {editingMessage ? '保存' : '发送'}
               </button>
             </div>

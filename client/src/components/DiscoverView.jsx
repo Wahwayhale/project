@@ -18,6 +18,8 @@ export default function DiscoverView({
   wrappedLoading,
   fetchWrapped,
   setShowBackupModal,
+  setTwinView,
+  setIntelligenceView,
 }) {
   return (
     <div className="discover-page">
@@ -28,6 +30,8 @@ export default function DiscoverView({
         <FeatureItem icon="palette" tone="image" title="AI 图片生成" desc="描述你想要的图片，一键生成并分享" onClick={() => setShowImageGen(true)} />
         <FeatureItem icon="digest" tone="digest" title="AI 每日摘要" desc="AI 总结你今天的聊天内容" onClick={fetchDailyDigest} />
         <FeatureItem icon="bot" tone="bot" title="聊天机器人" desc="创建自定义自动回复机器人" onClick={() => { setShowBotModal(true); fetchBots(); }} />
+        <FeatureItem icon="twin" tone="ai" title="AI 数字分身" desc="AI 学习你的风格，代替你回复消息" onClick={() => { setView('twin'); setBottomTab('chats'); }} />
+        <FeatureItem icon="news" tone="news" title="AI 情报站" desc="AI 个性化新闻资讯，每日情报简报" onClick={() => { setView('intelligence'); setBottomTab('chats'); }} />
 
         <div className="discover-section-title">内容分享</div>
         <FeatureItem icon="bilibili" tone="bili" title="B站视频" desc="搜索和分享B站视频" onClick={() => { setView('video'); setBottomTab('chats'); }} />
@@ -44,6 +48,14 @@ export default function DiscoverView({
         <div className="discover-section-title">数据管理</div>
         <FeatureItem icon="stats" tone="stats" title="年度聊天报告" desc="查看你的聊天数据统计" loading={wrappedLoading ? '加载中...' : ''} onClick={fetchWrapped} />
         <FeatureItem icon="backup" tone="backup" title="聊天记录管理" desc="备份与恢复聊天记录" onClick={() => setShowBackupModal(true)} />
+
+        <div className="discover-section-title">安全与社交</div>
+        <FeatureItem icon="security" tone="ai" title="加密聊天" desc="端到端加密私密对话" onClick={() => { setView('encrypted'); setBottomTab('chats'); }} />
+        <FeatureItem icon="contacts" tone="moments" title="社交图谱" desc="AI 分析你的社交网络可视化" onClick={() => { setView('socialGraph'); setBottomTab('chats'); }} />
+
+        <div className="discover-section-title">实时协作</div>
+        <FeatureItem icon="palette" tone="game" title="协作画板" desc="多人实时协作绘画 + AI 生成" onClick={() => { setView('whiteboard'); setBottomTab('chats'); }} />
+        <FeatureItem icon="mic" tone="music" title="语音房" desc="实时语音聊天，面对面交流" onClick={() => { setView('voiceRoom'); setBottomTab('chats'); }} />
       </div>
     </div>
   );

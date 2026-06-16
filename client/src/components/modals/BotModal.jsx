@@ -11,7 +11,7 @@ export default function BotModal({ showBotModal, setShowBotModal, bots, deleteBo
           <div key={bot.id} className="bot-card">
             <div className="bot-info">
               <div className="bot-name">{bot.name}</div>
-              <div className="bot-status">{bot.autoReply ? '自动回复中' : '已关闭回复'} {bot.schedule ? `| ⏰ ${bot.schedule.cron}` : ''}</div>
+              <div className="bot-status">{bot.autoReply ? '自动回复中' : '已关闭回复'} {bot.schedule ? `| ${bot.schedule.cron}` : ''}</div>
             </div>
             <button onClick={() => deleteBot(bot.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><I name="delete" size={16} /></button>
           </div>

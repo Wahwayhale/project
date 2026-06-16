@@ -11,7 +11,7 @@ export default function AddFriendModal({ showSearchModal, setShowSearchModal, se
         <div style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--primary-bg)', borderRadius: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
           我的ID：<strong style={{ color: 'var(--primary)', fontSize: 16, letterSpacing: 3 }}>{user?.sixDigitId}</strong>
           <span style={{ marginLeft: 8, cursor: 'pointer', color: 'var(--primary)' }}
-            onClick={() => { navigator.clipboard?.writeText(user?.sixDigitId || ''); showToast('ID已复制', 'success'); }}>📋复制</span>
+            onClick={() => { navigator.clipboard?.writeText(user?.sixDigitId || ''); showToast('ID已复制', 'success'); }}>复制</span>
         </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <input

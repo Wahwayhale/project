@@ -11,23 +11,23 @@ export function formatFileSize(bytes) {
 }
 
 export function getFileIcon(mimeType, filename) {
-  if (!mimeType && !filename) return '📄';
+  if (!mimeType && !filename) return '[FILE]';
   const ext = (filename?.split('.').pop() || mimeType?.split('/').pop() || '').toLowerCase();
   const iconMap = {
-    pdf: '📕', doc: '📘', docx: '📘', xls: '📗', xlsx: '📗', csv: '📗',
-    ppt: '📙', pptx: '📙', zip: '🗜️', rar: '🗜️', '7z': '🗜️', tar: '🗜️', gz: '🗜️',
-    txt: '📄', json: '📋', xml: '📋', html: '🌐', css: '🎨', js: '📜', ts: '📜',
-    mp3: '🎵', wav: '🎵', flac: '🎵', aac: '🎵', ogg: '🎵',
-    mp4: '🎬', avi: '🎬', mkv: '🎬', mov: '🎬', wmv: '🎬',
-    exe: '⚙️', msi: '⚙️', dmg: '⚙️', apk: '📱', ipa: '📱'
+    pdf: 'PDF', doc: 'DOC', docx: 'DOC', xls: 'XLS', xlsx: 'XLS', csv: 'CSV',
+    ppt: 'PPT', pptx: 'PPT', zip: 'ZIP', rar: 'RAR', '7z': '7Z', tar: 'TAR', gz: 'GZ',
+    txt: 'TXT', json: 'JSON', xml: 'XML', html: 'HTML', css: 'CSS', js: 'JS', ts: 'TS',
+    mp3: 'MP3', wav: 'WAV', flac: 'FLAC', aac: 'AAC', ogg: 'OGG',
+    mp4: 'MP4', avi: 'AVI', mkv: 'MKV', mov: 'MOV', wmv: 'WMV',
+    exe: 'EXE', msi: 'MSI', dmg: 'DMG', apk: 'APK', ipa: 'IPA'
   };
   if (iconMap[ext]) return iconMap[ext];
-  if (mimeType?.startsWith('image/')) return '🖼️';
-  if (mimeType?.startsWith('video/')) return '🎬';
-  if (mimeType?.startsWith('audio/')) return '🎵';
-  if (mimeType?.includes('pdf')) return '📕';
-  if (mimeType?.includes('zip') || mimeType?.includes('compressed')) return '🗜️';
-  return '📄';
+  if (mimeType?.startsWith('image/')) return 'IMG';
+  if (mimeType?.startsWith('video/')) return 'VIDEO';
+  if (mimeType?.startsWith('audio/')) return 'AUDIO';
+  if (mimeType?.includes('pdf')) return 'PDF';
+  if (mimeType?.includes('zip') || mimeType?.includes('compressed')) return 'ZIP';
+  return '[FILE]';
 }
 
 export function parseBilibiliUrl(text) {

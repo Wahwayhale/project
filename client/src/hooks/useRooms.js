@@ -13,7 +13,7 @@ import { useState } from 'react';
  *
  * 返回房间列表、当前房间、未读计数等状态及其 setters，以及房间操作函数。
  */
-export function useRooms({ socketRef, user, friendsRef, setMessages, setMessagesLoading, showToast }) {
+export function useRooms({ socketRef, user, friendsRef, setMessages, setMessagesLoading, showToast, setView }) {
   const [rooms, setRooms] = useState([]);
   const [currentRoom, setCurrentRoom] = useState(null);
   const [currentRoomId, setCurrentRoomId] = useState(null);
@@ -22,8 +22,12 @@ export function useRooms({ socketRef, user, friendsRef, setMessages, setMessages
   const [unreadCounts, setUnreadCounts] = useState({});
 
   const handleRoomClick = (room) => {
+    if (setView) setView(null);
     setCurrentRoom(room);
     setCurrentRoomId(room.id);
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('joinRoom', room.id);
+    }
   };
 
   const createGroup = () => {

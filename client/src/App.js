@@ -28,6 +28,12 @@ import BottomTabBar from './components/BottomTabBar';
 import ContactsView from './components/ContactsView';
 import DiscoverView from './components/DiscoverView';
 import MeView from './components/MeView';
+import DigitalTwinView from './components/DigitalTwinView';
+import IntelligenceView from './components/IntelligenceView';
+import SocialGraphView from './components/SocialGraphView';
+import EncryptedChat from './components/EncryptedChat';
+import WhiteboardView from './components/WhiteboardView';
+import VoiceRoomView from './components/VoiceRoomView';
 import GameModal from './components/modals/GameModal';
 import MusicShareModal from './components/modals/MusicShareModal';
 import ForwardModal from './components/modals/ForwardModal';
@@ -188,6 +194,14 @@ function App() {
   const [resetPwStep, setResetPwStep] = useState(0); // 0=phone, 1=code, 2=newPw
   const [resetPwCountdown, setResetPwCountdown] = useState(0);
   // ===== 第2代新功能 =====
+  // AI 数字分身
+  const [showTwinView, setShowTwinView] = useState(false);
+  // AI 情报站
+  const [showIntelligenceView, setShowIntelligenceView] = useState(false);
+  // 实时翻译
+  const [autoTranslate, setAutoTranslate] = useState(false);
+  const [translateLang, setTranslateLang] = useState('en');
+  const [translatedMessages, setTranslatedMessages] = useState({});
 
   // 闪屏自动消失
   useEffect(() => {
@@ -213,6 +227,7 @@ function App() {
     setMessages,
     setMessagesLoading,
     showToast,
+    setView,
   });
   const {
     rooms, setRooms,
@@ -539,6 +554,7 @@ function App() {
       setShowCreateModal,
       setFriendRequests,
       setMessagesLoading,
+      setTranslatedMessages,
       currentRoomId,
       peerRef,
       notifyEnabled,
@@ -1263,6 +1279,38 @@ function App() {
             shareBilibiliToChat={shareBilibiliToChat}
             observeVideo={observeVideo}
           />
+        ) : view === 'twin' ? (
+          <DigitalTwinView
+            showToast={showToast}
+            onBack={() => { setView(null); setBottomTab('discover'); }}
+          />
+        ) : view === 'intelligence' ? (
+          <IntelligenceView
+            showToast={showToast}
+            onBack={() => { setView(null); setBottomTab('discover'); }}
+          />
+        ) : view === 'socialGraph' ? (
+          <SocialGraphView
+            showToast={showToast}
+            onBack={() => { setView(null); setBottomTab('discover'); }}
+          />
+        ) : view === 'encrypted' ? (
+          <EncryptedChat
+            showToast={showToast}
+            onBack={() => { setView(null); setBottomTab('discover'); }}
+            user={user}
+          />
+        ) : view === 'whiteboard' ? (
+          <WhiteboardView
+            showToast={showToast}
+            onBack={() => { setView(null); setBottomTab('discover'); }}
+          />
+        ) : view === 'voiceRoom' ? (
+          <VoiceRoomView
+            showToast={showToast}
+            onBack={() => { setView(null); setBottomTab('discover'); }}
+            user={user}
+          />
         ) : currentRoom ? (
           <ChatView
             currentRoom={currentRoom}
@@ -1295,6 +1343,11 @@ function App() {
             setShowRoomManage={setShowRoomManage}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
+            autoTranslate={autoTranslate}
+            setAutoTranslate={setAutoTranslate}
+            translateLang={translateLang}
+            setTranslateLang={setTranslateLang}
+            translatedMessages={translatedMessages}
             translations={translations}
             openImageViewer={openImageViewer}
             descLoading={descLoading}

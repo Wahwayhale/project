@@ -44,7 +44,7 @@ export default function RechargeModal({ showRechargeModal, setShowRechargeModal,
               style={{ width: 200, height: 200, borderRadius: 8 }}
             />
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 12 }}>
-              ⏳ 转账后等待管理员确认，确认后余额自动增加
+              转账后等待管理员确认，确认后余额自动增加
             </div>
           </div>
         )}
