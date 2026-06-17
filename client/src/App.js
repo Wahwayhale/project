@@ -34,6 +34,8 @@ import SocialGraphView from './components/SocialGraphView';
 import EncryptedChat from './components/EncryptedChat';
 import WhiteboardView from './components/WhiteboardView';
 import VoiceRoomView from './components/VoiceRoomView';
+import ContextThemeLayer from './components/ContextThemeLayer';
+import { useContextTheme } from './hooks/useContextTheme';
 import GameModal from './components/modals/GameModal';
 import MusicShareModal from './components/modals/MusicShareModal';
 import ForwardModal from './components/modals/ForwardModal';
@@ -427,6 +429,8 @@ function App() {
     socketRef,
   });
 
+  const contextTheme = useContextTheme(weatherData);
+
   // ===== 钱包与红包 =====
   const {
     showRechargeModal, setShowRechargeModal,
@@ -620,8 +624,9 @@ function App() {
         const info = res.data || {};
         setOtaInfo(info);
         const major = String(info.majorVersion || (info.appVersion || '').split('.')[0] || MAJOR_VERSION);
-        const seenKey = `seenMajorUpdate:${major}`;
-        if (info.showMajorUpdate && major !== localStorage.getItem(seenKey)) {
+        const updateId = String(info.updateId || info.updateKey || major);
+        const seenKey = `seenMajorUpdate:${updateId}`;
+        if (info.showMajorUpdate && updateId !== localStorage.getItem(seenKey)) {
           setShowMajorUpdateModal(true);
         }
       } catch (e) { /* 离线忽略 */ }
@@ -985,6 +990,40 @@ function App() {
     a.click();
   };
 
+  const startSyncMedia = () => {
+    if (!currentRoomId || !socketRef.current) {
+      showToast('请先选择一个聊天', 'error');
+      return;
+    }
+    const url = window.prompt('输入可直接播放的音频或视频链接：');
+    if (!url || !/^https?:\/\//i.test(url.trim())) {
+      if (url) showToast('请输入 http 或 https 开头的媒体链接', 'error');
+      return;
+    }
+    const title = window.prompt('给这次一起听/看起个名字：') || '同步媒体房';
+    const cover = window.prompt('可选：封面图片链接，留空即可：') || '';
+    const mediaType = /\.(mp4|webm|ogg|mov)(\?|#|$)/i.test(url.trim()) ? 'video' : 'audio';
+    socketRef.current.emit('syncMediaStart', {
+      roomId: currentRoomId,
+      media: {
+        url: url.trim(),
+        title: title.trim() || '同步媒体房',
+        cover: cover.trim(),
+        mediaType,
+      }
+    });
+    showToast('已发起同步播放', 'success');
+  };
+
+  const sendCanvasCard = () => {
+    if (!currentRoomId || !socketRef.current) {
+      showToast('请先选择一个聊天', 'error');
+      return;
+    }
+    socketRef.current.emit('sendCanvasCard', { roomId: currentRoomId });
+    showToast('涂鸦卡片已发送', 'success');
+  };
+
   // @提及
 
   // 获取已读人数文本
@@ -1100,7 +1139,8 @@ function App() {
   }
 
   return (
-    <div className={`app-container ${bottomTab !== 'chats' ? 'sidebar-hidden' : ''}`}>
+    <div className={`app-container ${bottomTab !== 'chats' ? 'sidebar-hidden' : ''} ${contextTheme.className}`}>
+      <ContextThemeLayer rain={contextTheme.isRain} />
       <div className="sidebar">
         <div className="sidebar-header">
           <div className="user-info sidebar-user" onClick={() => setShowProfileModal(true)}>
@@ -1318,6 +1358,13 @@ function App() {
             setCurrentRoom={setCurrentRoom}
             setCurrentRoomId={setCurrentRoomId}
             setMessages={setMessages}
+            setView={setView}
+            setBottomTab={setBottomTab}
+            socketRef={socketRef}
+            showToast={showToast}
+            unreadCount={unreadCounts[currentRoomId] || 0}
+            startSyncMedia={startSyncMedia}
+            sendCanvasCard={sendCanvasCard}
             user={user}
             allUsers={allUsers}
             messages={messages}
@@ -1331,12 +1378,19 @@ function App() {
             setAiSummary={setAiSummary}
             summarizeChat={summarizeChat}
             setShowImageGen={setShowImageGen}
+            setShowBotModal={setShowBotModal}
+            fetchBots={fetchBots}
             isSharingLocation={isSharingLocation}
             startSharingLocation={startSharingLocation}
             stopSharingLocation={stopSharingLocation}
             setShowCheckIn={setShowCheckIn}
             fetchCheckIns={fetchCheckIns}
             setShowMusicPanel={setShowMusicPanel}
+            setShowGifPanel={setShowGifPanel}
+            setShowNewsPanel={setShowNewsPanel}
+            fetchNews={fetchNews}
+            setShowWeatherPanel={setShowWeatherPanel}
+            setShowMapPanel={setShowMapPanel}
             startCall={startCall}
             showSearch={showSearch}
             setShowSearch={setShowSearch}

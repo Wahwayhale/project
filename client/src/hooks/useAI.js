@@ -213,13 +213,14 @@ export function useAI({
   };
 
   // AI 摘要
-  const summarizeChat = async () => {
+  const summarizeChat = async (messageCount = 50) => {
     if (!currentRoomId || aiSummaryLoading) return;
+    const count = typeof messageCount === 'number' ? messageCount : 50;
     setAiSummaryLoading(true);
     setAiSummary(null);
     try {
-      const res = await axios.post(`${API_URL}/api/ai/summarize`,
-        { roomId: currentRoomId, messageCount: 30 },
+      const res = await axios.post(`${API_URL}/api/ai/tldr`,
+        { roomId: currentRoomId, messageCount: count },
         { headers: { Authorization: token } }
       );
       setAiSummary({ text: res.data.summary });

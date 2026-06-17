@@ -81,6 +81,7 @@ export function formatMessagePreview(lastMessage) {
   if (type === 'announcement') return '[群公告]';
   if (type === 'solitaire') return '[群接龙]';
   if (type === 'music') return '[音乐]';
+  if (type === 'canvasCard') return '[涂鸦卡片]';
   const content = lastMessage.content || '';
   return content.length > 50 ? content.slice(0, 50) + '...' : content;
 }

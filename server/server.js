@@ -191,6 +191,15 @@ function isRoomMember(room, username) {
   return room && room.members && room.members.includes(username);
 }
 
+function canAccessRoom(room, username) {
+  return room && (room.type === 'public' || isRoomMember(room, username));
+}
+
+function safeNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 // ========== 健康检查 ==========
 app.get('/health', (req, res) => {
   res.json({
@@ -1622,7 +1631,8 @@ app.post('/api/ai/summarize', verifyToken, (req, res) => {
   if (!roomId) return res.status(400).json({ error: '缺少房间ID' });
   const room = rooms.get(roomId);
   if (!room) return res.status(404).json({ error: '聊天室不存在' });
-  const count = Math.min(messageCount || 30, 100);
+  if (!canAccessRoom(room, req.user.username)) return res.status(403).json({ error: '无权访问该房间' });
+  const count = Math.min(Math.max(parseInt(messageCount, 10) || 50, 50), 100);
   const recentMessages = room.messages.slice(-count);
   const chatText = recentMessages
     .filter(m => m.type === 'text' && !m.recalled)
@@ -1640,6 +1650,38 @@ app.post('/api/ai/summarize', verifyToken, (req, res) => {
 });
 
 // ========== 头像上传 ==========
+app.post('/api/ai/tldr', verifyToken, (req, res) => {
+  const { roomId, messageCount } = req.body || {};
+  if (!roomId) return res.status(400).json({ error: '缺少房间ID' });
+  const room = rooms.get(roomId);
+  if (!room) return res.status(404).json({ error: '聊天室不存在' });
+  if (!canAccessRoom(room, req.user.username)) return res.status(403).json({ error: '无权访问该房间' });
+
+  const count = Math.min(Math.max(parseInt(messageCount, 10) || 50, 50), 100);
+  const chatText = room.messages
+    .slice(-count)
+    .filter(m => m.type === 'text' && m.content && !m.recalled)
+    .map(m => {
+      const time = new Date(m.timestamp).toLocaleString('zh-CN', { hour12: false });
+      return `[${time}] ${m.sender?.username || '匿名'}: ${m.content}`;
+    })
+    .join('\n');
+
+  if (chatText.trim().length < 10) {
+    return res.status(400).json({ error: '消息太少，无法生成摘要' });
+  }
+
+  const prompt = [
+    { role: 'system', content: '你是群聊 TL;DR 助手。请只用中文输出两段：第一段以“提要：”开头，后面是 50 字以内极简总结；第二段以“任务：”开头，列出谁需要做什么，没有任务就写“暂无”。不要输出多余解释。' },
+    { role: 'user', content: `请总结以下聊天记录：\n${chatText}` }
+  ];
+
+  callAIFree(prompt, (err, reply) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ summary: reply.trim(), messageCount: count, model: 'glm-4-flash' });
+  });
+});
+
 app.post('/api/upload/avatar', verifyToken, upload.single('avatar'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
@@ -2730,6 +2772,32 @@ app.post('/api/ai/social-graph', verifyToken, async (req, res) => {
 
 // --- 协作画板 ---
 const whiteboardStates = new Map(); // roomId -> { strokes: [], users: Set }
+const canvasCardStates = new Map(); // cardId -> { roomId, points: [], users: Set }
+const syncMediaRooms = new Map(); // roomId -> media sync state
+
+function serializeSyncMediaState(roomId) {
+  const state = syncMediaRooms.get(roomId);
+  if (!state) return { roomId, active: false, serverNow: Date.now() };
+  const now = Date.now();
+  const elapsed = state.isPlaying ? (now - state.updatedAt) / 1000 : 0;
+  return {
+    ...state,
+    currentTime: Math.max(0, safeNumber(state.currentTime) + elapsed),
+    serverNow: now,
+    active: true,
+  };
+}
+
+function emitSyncMediaState(roomId) {
+  io.to(roomId).emit('syncMediaState', serializeSyncMediaState(roomId));
+}
+
+function ensureCanvasCardState(roomId, cardId) {
+  const state = canvasCardStates.get(cardId) || { roomId, points: [], users: new Set() };
+  state.roomId = roomId;
+  canvasCardStates.set(cardId, state);
+  return state;
+}
 
 app.post('/api/whiteboard/clear', verifyToken, (req, res) => {
   const { roomId } = req.body || {};
@@ -2755,6 +2823,107 @@ app.post('/api/whiteboard/ai-beautify', verifyToken, async (req, res) => {
 // --- 语音房 ---
 const voiceRooms = new Map(); // roomId -> { host, participants: Map<username, { muted, joinedAt }>, createdAt }
 
+function serializeVoiceParticipants(room) {
+  if (!room) return {};
+  const entries = [];
+  room.participants.forEach((info, username) => {
+    const profile = users.get(username) || {};
+    entries.push([username, {
+      ...info,
+      username,
+      userId: profile.id || null,
+      joinedAt: info.joinedAt
+    }]);
+  });
+  return Object.fromEntries(entries);
+}
+
+function emitVoiceParticipantUpdate(roomId) {
+  const room = voiceRooms.get(roomId);
+  if (!room) return;
+  io.to(`voice_${roomId}`).emit('voiceParticipantUpdate', {
+    participants: serializeVoiceParticipants(room),
+    host: room.host
+  });
+}
+
+function getVoiceSockets(roomId) {
+  const socketIds = io.sockets.adapter.rooms.get(`voice_${roomId}`) || new Set();
+  return Array.from(socketIds)
+    .map(id => io.sockets.sockets.get(id))
+    .filter(s => s && s.userId);
+}
+
+function emitToVoicePeer(roomId, toUserId, eventName, payload) {
+  const target = getVoiceSockets(roomId).find(s => String(s.userId) === String(toUserId));
+  if (target) {
+    target.emit(eventName, payload);
+    return true;
+  }
+  const fallback = userSockets.get(toUserId);
+  if (fallback) {
+    fallback.emit(eventName, payload);
+    return true;
+  }
+  return false;
+}
+
+function cleanupVoiceSocket(socket, roomId = socket.voiceRoomId) {
+  if (!roomId || !socket.username) return;
+  socket.leave(`voice_${roomId}`);
+  socket.voiceRoomId = null;
+
+  const room = voiceRooms.get(roomId);
+  if (!room) return;
+  room.participants.delete(socket.username);
+  socket.to(`voice_${roomId}`).emit('voicePeerLeft', {
+    roomId,
+    userId: socket.userId,
+    username: socket.username
+  });
+  if (room.participants.size === 0) {
+    voiceRooms.delete(roomId);
+  } else {
+    emitVoiceParticipantUpdate(roomId);
+  }
+}
+
+function joinVoiceSocket(socket, roomId) {
+  if (!roomId) return false;
+  if (!socket.userId || !socket.username) {
+    socket.pendingVoiceRoomId = roomId;
+    return false;
+  }
+
+  const room = voiceRooms.get(roomId);
+  if (!room) {
+    socket.emit('voiceError', { error: '语音房不存在' });
+    return false;
+  }
+
+  if (socket.voiceRoomId && socket.voiceRoomId !== roomId) {
+    cleanupVoiceSocket(socket, socket.voiceRoomId);
+  }
+
+  room.participants.set(socket.username, room.participants.get(socket.username) || { muted: false, joinedAt: new Date() });
+  socket.voiceRoomId = roomId;
+  socket.pendingVoiceRoomId = null;
+  socket.join(`voice_${roomId}`);
+
+  const peers = getVoiceSockets(roomId)
+    .filter(s => s.id !== socket.id)
+    .map(s => ({ userId: s.userId, username: s.username }));
+
+  socket.emit('voicePeers', { roomId, peers });
+  socket.to(`voice_${roomId}`).emit('voicePeerJoined', {
+    roomId,
+    userId: socket.userId,
+    username: socket.username
+  });
+  emitVoiceParticipantUpdate(roomId);
+  return true;
+}
+
 app.post('/api/voice/create', verifyToken, (req, res) => {
   const { roomId } = req.body || {};
   const rid = roomId || `voice_${uuidv4().slice(0, 8)}`;
@@ -2766,13 +2935,13 @@ app.post('/api/voice/create', verifyToken, (req, res) => {
     });
   }
   const room = voiceRooms.get(rid);
-  res.json({ roomId: rid, host: room.host, participants: Object.fromEntries(room.participants) });
+  res.json({ roomId: rid, host: room.host, participants: serializeVoiceParticipants(room) });
 });
 
 app.get('/api/voice/list', verifyToken, (req, res) => {
   const list = [];
   voiceRooms.forEach((room, id) => {
-    list.push({ id, host: room.host, participantCount: room.participants.size, createdAt: room.createdAt });
+    list.push({ id, host: room.host, participantCount: room.participants.size, participants: serializeVoiceParticipants(room), createdAt: room.createdAt });
   });
   res.json(list);
 });
@@ -2782,7 +2951,8 @@ app.post('/api/voice/join', verifyToken, (req, res) => {
   const room = voiceRooms.get(roomId);
   if (!room) return res.status(404).json({ error: '语音房不存在' });
   room.participants.set(req.user.username, { muted: false, joinedAt: new Date() });
-  res.json({ roomId, host: room.host, participants: Object.fromEntries(room.participants) });
+  emitVoiceParticipantUpdate(roomId);
+  res.json({ roomId, host: room.host, participants: serializeVoiceParticipants(room) });
 });
 
 app.post('/api/voice/leave', verifyToken, (req, res) => {
@@ -2791,6 +2961,7 @@ app.post('/api/voice/leave', verifyToken, (req, res) => {
   if (!room) return res.json({ success: true });
   room.participants.delete(req.user.username);
   if (room.participants.size === 0) { voiceRooms.delete(roomId); }
+  else emitVoiceParticipantUpdate(roomId);
   res.json({ success: true });
 });
 
@@ -2800,6 +2971,7 @@ app.post('/api/voice/mute', verifyToken, (req, res) => {
   if (!room) return res.status(404).json({ error: '语音房不存在' });
   const p = room.participants.get(req.user.username);
   if (p) p.muted = typeof muted === 'boolean' ? muted : !p.muted;
+  emitVoiceParticipantUpdate(roomId);
   res.json({ muted: p?.muted });
 });
 
@@ -2834,6 +3006,9 @@ io.on('connection', (socket) => {
       socket.emit('onlineUsersList', onlineList);
       
       ensureUserData(decoded.id);
+      if (socket.pendingVoiceRoomId) {
+        joinVoiceSocket(socket, socket.pendingVoiceRoomId);
+      }
       
       const globalRoom = rooms.get('global');
       if (globalRoom) {
@@ -2876,6 +3051,7 @@ io.on('connection', (socket) => {
       io.to(roomId).emit('allMessagesRead', { roomId, userId: socket.userId });
     }
     socket.emit('joinedRoom', { roomId, messages: room.messages.slice(-100) });
+    socket.emit('syncMediaState', serializeSyncMediaState(roomId));
   });
 
   socket.on('leaveRoom', (roomId) => {
@@ -3611,6 +3787,121 @@ io.on('connection', (socket) => {
   });
 
   // ===== 协作画板 =====
+  socket.on('sendCanvasCard', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!canAccessRoom(room, socket.username)) return;
+    const cardId = uuidv4();
+    const message = {
+      id: uuidv4(),
+      type: 'canvasCard',
+      content: '实时涂鸦卡片',
+      cardId,
+      sender: { id: socket.userId, username: socket.username, avatar: users.get(socket.username)?.avatar },
+      roomId,
+      timestamp: new Date(),
+      readBy: [socket.userId],
+    };
+    ensureCanvasCardState(roomId, cardId);
+    room.messages.push(message);
+    if (room.messages.length > 3000) room.messages = room.messages.slice(-3000);
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('newMessage', message);
+  });
+
+  socket.on('canvasCardJoin', ({ roomId, cardId }) => {
+    const room = rooms.get(roomId);
+    if (!cardId || !canAccessRoom(room, socket.username)) return;
+    const state = ensureCanvasCardState(roomId, cardId);
+    state.users.add(socket.username);
+    socket.join(`canvas_${cardId}`);
+    socket.emit('canvasCardSync', { roomId, cardId, points: state.points, users: Array.from(state.users) });
+  });
+
+  socket.on('canvasCardDraw', ({ roomId, cardId, point }) => {
+    const room = rooms.get(roomId);
+    if (!cardId || !point || !canAccessRoom(room, socket.username)) return;
+    const state = ensureCanvasCardState(roomId, cardId);
+    const safePoint = {
+      x: Math.max(0, Math.min(300, safeNumber(point.x))),
+      y: Math.max(0, Math.min(300, safeNumber(point.y))),
+      type: point.type === 'move' ? 'move' : 'draw',
+      color: typeof point.color === 'string' ? point.color.slice(0, 24) : '#334155',
+      size: Math.max(1, Math.min(12, safeNumber(point.size, 3))),
+      userId: socket.userId,
+    };
+    state.points.push(safePoint);
+    if (state.points.length > 4000) state.points = state.points.slice(-4000);
+    socket.to(`canvas_${cardId}`).emit('canvasCardPoint', { roomId, cardId, point: safePoint, username: socket.username });
+  });
+
+  socket.on('canvasCardClear', ({ roomId, cardId }) => {
+    const room = rooms.get(roomId);
+    if (!cardId || !canAccessRoom(room, socket.username)) return;
+    const state = ensureCanvasCardState(roomId, cardId);
+    state.points = [];
+    io.to(`canvas_${cardId}`).emit('canvasCardClear', { roomId, cardId });
+  });
+
+  socket.on('canvasCardLeave', ({ cardId }) => {
+    if (!cardId) return;
+    socket.leave(`canvas_${cardId}`);
+    const state = canvasCardStates.get(cardId);
+    if (state) state.users.delete(socket.username);
+  });
+
+  socket.on('syncMediaJoin', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!canAccessRoom(room, socket.username)) return;
+    socket.emit('syncMediaState', serializeSyncMediaState(roomId));
+  });
+
+  socket.on('syncMediaStart', ({ roomId, media }) => {
+    const room = rooms.get(roomId);
+    if (!canAccessRoom(room, socket.username)) return;
+    const url = typeof media?.url === 'string' ? media.url.trim() : '';
+    if (!/^https?:\/\//i.test(url)) {
+      socket.emit('syncMediaError', { error: '媒体链接无效' });
+      return;
+    }
+    syncMediaRooms.set(roomId, {
+      roomId,
+      hostId: socket.userId,
+      hostUsername: socket.username,
+      url,
+      title: typeof media?.title === 'string' ? media.title.slice(0, 80) : '同步媒体房',
+      cover: typeof media?.cover === 'string' ? media.cover.slice(0, 500) : '',
+      mediaType: media?.mediaType === 'video' ? 'video' : 'audio',
+      isPlaying: false,
+      currentTime: 0,
+      updatedAt: Date.now(),
+      createdAt: Date.now(),
+    });
+    emitSyncMediaState(roomId);
+  });
+
+  socket.on('syncMediaControl', ({ roomId, action, currentTime }) => {
+    const room = rooms.get(roomId);
+    const state = syncMediaRooms.get(roomId);
+    if (!state || !canAccessRoom(room, socket.username)) return;
+    if (state.hostId !== socket.userId) {
+      socket.emit('syncMediaError', { error: '只有发起人可以控制同步播放' });
+      return;
+    }
+    const adjusted = serializeSyncMediaState(roomId);
+    state.currentTime = Math.max(0, safeNumber(currentTime, adjusted.currentTime));
+    state.updatedAt = Date.now();
+    if (action === 'play') state.isPlaying = true;
+    if (action === 'pause' || action === 'seek') state.isPlaying = action === 'seek' ? state.isPlaying : false;
+    if (action === 'stop') {
+      syncMediaRooms.delete(roomId);
+      io.to(roomId).emit('syncMediaState', { roomId, active: false, serverNow: Date.now() });
+      return;
+    }
+    syncMediaRooms.set(roomId, state);
+    emitSyncMediaState(roomId);
+  });
+
   socket.on('whiteboardJoin', ({ roomId }) => {
     socket.join(`wb_${roomId}`);
     const state = whiteboardStates.get(roomId) || { strokes: [], users: new Set() };
@@ -3640,42 +3931,56 @@ io.on('connection', (socket) => {
   });
 
   // ===== 语音房信令 =====
+  // ===== Voice room signaling =====
   socket.on('voiceJoin', ({ roomId }) => {
-    socket.join(`voice_${roomId}`);
-    const room = voiceRooms.get(roomId);
-    if (room) {
-      const participants = Object.fromEntries(room.participants);
-      io.to(`voice_${roomId}`).emit('voiceParticipantUpdate', { participants, host: room.host });
-    }
+    joinVoiceSocket(socket, roomId);
   });
 
   socket.on('voiceLeave', ({ roomId }) => {
-    socket.leave(`voice_${roomId}`);
+    cleanupVoiceSocket(socket, roomId);
   });
 
   socket.on('voiceOffer', ({ roomId, to, offer }) => {
-    const targetSocket = userSockets.get(to);
-    if (targetSocket) targetSocket.emit('voiceOffer', { from: socket.userId, fromUsername: socket.username, offer });
+    if (!socket.userId || !roomId || !to || !offer) return;
+    emitToVoicePeer(roomId, to, 'voiceOffer', {
+      roomId,
+      from: socket.userId,
+      fromUsername: socket.username,
+      offer
+    });
   });
 
   socket.on('voiceAnswer', ({ roomId, to, answer }) => {
-    const targetSocket = userSockets.get(to);
-    if (targetSocket) targetSocket.emit('voiceAnswer', { from: socket.userId, answer });
+    if (!socket.userId || !roomId || !to || !answer) return;
+    emitToVoicePeer(roomId, to, 'voiceAnswer', {
+      roomId,
+      from: socket.userId,
+      answer
+    });
   });
 
   socket.on('voiceIce', ({ roomId, to, candidate }) => {
-    const targetSocket = userSockets.get(to);
-    if (targetSocket) targetSocket.emit('voiceIce', { from: socket.userId, candidate });
+    if (!socket.userId || !roomId || !to || !candidate) return;
+    emitToVoicePeer(roomId, to, 'voiceIce', {
+      roomId,
+      from: socket.userId,
+      candidate
+    });
   });
-
   socket.on('disconnect', () => {
+    cleanupVoiceSocket(socket);
     if (socket.userId) {
       const count = (userConnectionCount.get(socket.userId) || 1) - 1;
+      if (userSockets.get(socket.userId)?.id === socket.id) {
+        const replacement = Array.from(io.sockets.sockets.values())
+          .find(s => s.id !== socket.id && s.userId === socket.userId);
+        if (replacement) userSockets.set(socket.userId, replacement);
+        else userSockets.delete(socket.userId);
+      }
       if (count <= 0) {
         // 所有连接都已断开
         userConnectionCount.delete(socket.userId);
         onlineUsers.delete(socket.userId);
-        userSockets.delete(socket.userId);
         io.emit('userOffline', { id: socket.userId });
       } else {
         userConnectionCount.set(socket.userId, count);

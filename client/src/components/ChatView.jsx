@@ -1,9 +1,11 @@
 import React from 'react';
 import { I } from './Icon';
+import FreshChatComposer from './FreshChatComposer';
+import SyncMediaRoom from './SyncMediaRoom';
+import CanvasCollaborativeCard from './CanvasCollaborativeCard';
 import AvatarImg from './ui/AvatarImg';
 import { getAvatarUrl } from '../utils/avatar';
-import { formatTime, formatFileSize, getFileIcon, parseBilibiliUrl, formatRecordingTime } from '../utils/format';
-import { EMOJIS } from '../utils/constants';
+import { formatTime, formatFileSize, getFileIcon, parseBilibiliUrl } from '../utils/format';
 import { API_URL } from '../utils/constants';
 
 /**
@@ -19,6 +21,13 @@ export default function ChatView({
   setCurrentRoom,
   setCurrentRoomId,
   setMessages,
+  setView,
+  setBottomTab,
+  socketRef,
+  showToast,
+  unreadCount = 0,
+  startSyncMedia,
+  sendCanvasCard,
 
   // === 用户 ===
   user,
@@ -40,12 +49,19 @@ export default function ChatView({
 
   // === 头部工具栏 ===
   setShowImageGen,
+  setShowBotModal,
+  fetchBots,
   isSharingLocation,
   startSharingLocation,
   stopSharingLocation,
   setShowCheckIn,
   fetchCheckIns,
   setShowMusicPanel,
+  setShowGifPanel,
+  setShowNewsPanel,
+  fetchNews,
+  setShowWeatherPanel,
+  setShowMapPanel,
   startCall,
   showSearch,
   setShowSearch,
@@ -182,9 +198,9 @@ export default function ChatView({
                 body: JSON.stringify({ roomId: currentRoomId, enabled: newEnabled, targetLang: translateLang })
               }).catch(() => {});
             }} title={autoTranslate ? '关闭自动翻译' : '开启自动翻译'}
-              style={{ position: 'relative' }}>
+              className={`translate-toggle-button ${autoTranslate ? 'is-active' : ''}`}>
               <I name="translate" size={15} />
-              {autoTranslate && <span style={{ position: 'absolute', top: -2, right: -2, width: 6, height: 6, borderRadius: '50%', background: 'var(--primary)' }} />}
+              {autoTranslate && <span className="translate-active-dot" />}
             </button>
             {currentRoom?.members?.length > 1 && (
               <button onClick={() => setShowRoomManage(true)} title="群管理"><I name="settings" size={15} /></button>
@@ -221,6 +237,13 @@ export default function ChatView({
               </span>
             )}
           </div>
+        )}
+        <SyncMediaRoom roomId={currentRoomId} socketRef={socketRef} user={user} showToast={showToast} />
+        {unreadCount > 50 && !aiSummary && (
+          <button className="tldr-sticky-btn" type="button" onClick={() => summarizeChat(50)} disabled={aiSummaryLoading}>
+            <I name="ai" size={16} />
+            <span>{aiSummaryLoading ? '正在总结...' : 'AI 总结当前群聊'}</span>
+          </button>
         )}
       </div>
       <div className="chat-thread">
@@ -310,6 +333,14 @@ export default function ChatView({
                   <span className="music-icon"><I name="music" size={20} /></span>
                   <a href={msg.content} target="_blank" rel="noopener noreferrer">点击播放音乐</a>
                 </div>
+              )}
+              {msg.type === 'canvasCard' && (
+                <CanvasCollaborativeCard
+                  roomId={currentRoomId}
+                  cardId={msg.cardId || msg.id}
+                  socketRef={socketRef}
+                  user={user}
+                />
               )}
               {msg.type === 'redPacket' && (
                 <div className="red-packet-message" onClick={() => claimRedPacket(msg.id)}>
@@ -525,136 +556,81 @@ export default function ChatView({
           <div ref={setMessageEndRef} />
         </div>
       </div>
-      <div className="chat-input-area">
-        <div className="chat-input-stack">
-          {roomAnnouncements[currentRoomId] && (
-            <div className="room-announcement">{roomAnnouncements[currentRoomId]}</div>
-          )}
-          {replyToMessage && (
-            <div className="reply-preview">
-              <span>回复 {replyToMessage.sender?.username}：</span>
-              <span className="reply-content">{replyToMessage.content?.slice(0, 50) || '[媒体消息]'}</span>
-              <button className="cancel-reply" onClick={cancelReply}><I name="close" size={14} /></button>
-            </div>
-          )}
-          {editingMessage && (
-            <div className="edit-preview">
-              <span><I name="edit" size={13} /> 编辑消息中...</span>
-              <button className="cancel-edit" onClick={cancelEdit}><I name="close" size={14} /></button>
-            </div>
-          )}
-          <div className="chat-input-wrapper">
-            <div className="chat-input-toolbar">
-              <div className="chat-input-actions">
-                <button onClick={() => fileInputRef.current?.click()} title="发送文件"><I name="attach" size={17} /></button>
-                <button onClick={isRecording ? stopRecording : startRecording} title={isRecording ? '停止录音' : '语音消息'} className={isRecording ? 'recording' : ''}>
-                  {isRecording ? <I name="stop" size={17} color="var(--danger)" /> : <I name="mic" size={17} />}
-                </button>
-                <button onClick={() => setShowEmojiPicker(s => !s)} title="表情" className={showEmojiPicker ? 'active' : ''}><I name="emoji" size={17} /></button>
-                <button onClick={() => setShowMentionPicker(s => !s)} title="@提及" className={showMentionPicker ? 'active' : ''}>@</button>
-                <button onClick={() => setShowQuickReplies(s => !s)} title="快捷回复"><I name="quick" size={17} /></button>
-                <button onClick={sendDice} title="骰子"><I name="dice" size={17} /></button>
-                <button onClick={() => setShowGameModal(true)} title="猜拳"><I name="hand" size={17} /></button>
-                <button onClick={() => setShowRedPacketModal(true)} title="红包"><I name="gift" size={17} /></button>
-                <button onClick={() => setShowPollModal(true)} title="投票"><I name="vote" size={17} /></button>
-                <button onClick={() => setShowSolitaireModal(true)} title="群接龙"><I name="solitaire" size={17} /></button>
-                <button onClick={() => setShowMusicModal(true)} title="音乐"><I name="music" size={17} /></button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="visually-hidden-file"
-                  accept="*/*"
-                  onChange={handleFileSelect}
-                />
-              </div>
-              <div className="chat-compose-tools">
-                <button
-                  className="action-btn small"
-                  onClick={fetchSmartReplies}
-                  disabled={smartRepliesLoading || !currentRoomId}
-                  title="AI智能回复建议"
-                >{smartRepliesLoading ? '…' : <I name="smart" size={16} />}</button>
-                <button
-                  className="action-btn small"
-                  onClick={() => { setPolishText(newMessage); setPolishResult(''); setShowPolishModal(true); }}
-                  disabled={!newMessage.trim()}
-                  title="AI润色文字"
-                ><I name="polish" size={16} /></button>
-              </div>
-            </div>
-            {isRecording && (
-              <div className="recording-indicator">
-                <span className="recording-dot" />
-                <span>录音中 {formatRecordingTime(recordingTime)}</span>
-                <button onClick={cancelRecording} className="cancel-recording">取消</button>
-              </div>
-            )}
-            {showEmojiPicker && (
-              <div className="emoji-picker">
-                {EMOJIS.map((emoji, i) => (
-                  <button key={i} className="emoji-item" onClick={() => insertEmoji(emoji)}>
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-            {showMentionPicker && (
-              <div className="mention-picker">
-                <input
-                  type="text"
-                  className="mention-search-input"
-                  placeholder="搜索用户..."
-                  value={mentionFilter}
-                  onChange={e => setMentionFilter(e.target.value)}
-                  autoFocus
-                />
-                <div className="mention-list">
-                  {getFilteredMentionUsers().map(u => (
-                    <button key={u.id} className="mention-item" onClick={() => insertMention(u.username)}>
-                      <AvatarImg src={getAvatarUrl(u.avatar)} alt="" className="mention-avatar" />
-                      <span>{u.username}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {showQuickReplies && (
-              <div className="quick-replies-panel">
-                {quickReplies.map((reply, i) => (
-                  <button key={i} className="quick-reply-item" onClick={() => insertQuickReply(reply)}>
-                    {reply}
-                  </button>
-                ))}
-              </div>
-            )}
-            {smartReplies.length > 0 && (
-              <div className="smart-replies-bar">
-                <span className="smart-replies-label">AI建议：</span>
-                {smartReplies.map((reply, i) => (
-                  <button key={i} className="smart-reply-btn" onClick={() => { setNewMessage(reply); setSmartReplies([]); }}>
-                    {reply}
-                  </button>
-                ))}
-                <button className="smart-reply-close" onClick={() => setSmartReplies([])}><I name="close" size={14} /></button>
-              </div>
-            )}
-            <div className="chat-compose-row">
-              <textarea
-                className="chat-input"
-                aria-label="Message input"
-                rows={1}
-                placeholder="输入消息... 输入 @ 提及用户"
-                value={newMessage}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-              />
-              <button className="send-button" type="button" onClick={sendMessage} disabled={!newMessage.trim() && !editingMessage}>
-                {editingMessage ? '保存' : '发送'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <FreshChatComposer
+        currentRoom={currentRoom}
+        currentRoomId={currentRoomId}
+        user={user}
+        allUsers={allUsers}
+        roomAnnouncements={roomAnnouncements}
+        replyToMessage={replyToMessage}
+        cancelReply={cancelReply}
+        editingMessage={editingMessage}
+        cancelEdit={cancelEdit}
+        fileInputRef={fileInputRef}
+        isRecording={isRecording}
+        startRecording={startRecording}
+        stopRecording={stopRecording}
+        cancelRecording={cancelRecording}
+        recordingTime={recordingTime}
+        showEmojiPicker={showEmojiPicker}
+        setShowEmojiPicker={setShowEmojiPicker}
+        showMentionPicker={showMentionPicker}
+        setShowMentionPicker={setShowMentionPicker}
+        showQuickReplies={showQuickReplies}
+        setShowQuickReplies={setShowQuickReplies}
+        sendDice={sendDice}
+        setShowGameModal={setShowGameModal}
+        setShowRedPacketModal={setShowRedPacketModal}
+        setShowPollModal={setShowPollModal}
+        setShowSolitaireModal={setShowSolitaireModal}
+        setShowMusicModal={setShowMusicModal}
+        setShowImageGen={setShowImageGen}
+        setShowMusicPanel={setShowMusicPanel}
+        setShowGifPanel={setShowGifPanel}
+        setShowNewsPanel={setShowNewsPanel}
+        fetchNews={fetchNews}
+        setShowWeatherPanel={setShowWeatherPanel}
+        setShowMapPanel={setShowMapPanel}
+        setShowBotModal={setShowBotModal}
+        fetchBots={fetchBots}
+        setShowCheckIn={setShowCheckIn}
+        fetchCheckIns={fetchCheckIns}
+        isSharingLocation={isSharingLocation}
+        startSharingLocation={startSharingLocation}
+        stopSharingLocation={stopSharingLocation}
+        startCall={startCall}
+        setShowSearch={setShowSearch}
+        setShowRoomManage={setShowRoomManage}
+        autoTranslate={autoTranslate}
+        setAutoTranslate={setAutoTranslate}
+        translateLang={translateLang}
+        setView={setView}
+        setBottomTab={setBottomTab}
+        handleFileSelect={handleFileSelect}
+        fetchSmartReplies={fetchSmartReplies}
+        smartRepliesLoading={smartRepliesLoading}
+        setPolishText={setPolishText}
+        setPolishResult={setPolishResult}
+        setShowPolishModal={setShowPolishModal}
+        newMessage={newMessage}
+        setNewMessage={setNewMessage}
+        insertEmoji={insertEmoji}
+        mentionFilter={mentionFilter}
+        setMentionFilter={setMentionFilter}
+        getFilteredMentionUsers={getFilteredMentionUsers}
+        insertMention={insertMention}
+        quickReplies={quickReplies}
+        insertQuickReply={insertQuickReply}
+        smartReplies={smartReplies}
+        setSmartReplies={setSmartReplies}
+        handleInputChange={handleInputChange}
+        handleKeyDown={handleKeyDown}
+        sendMessage={sendMessage}
+        summarizeChat={summarizeChat}
+        aiSummaryLoading={aiSummaryLoading}
+        startSyncMedia={startSyncMedia}
+        sendCanvasCard={sendCanvasCard}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { I } from './Icon';
-import { API_URL, SERVER_URL } from '../utils/constants';
+import { API_URL } from '../utils/constants';
 import io from 'socket.io-client';
 
 export default function VoiceRoomView({ showToast, onBack, user }) {
@@ -11,33 +11,72 @@ export default function VoiceRoomView({ showToast, onBack, user }) {
   const [loading, setLoading] = useState(true);
   const socketRef = useRef(null);
   const localStreamRef = useRef(null);
+  const roomIdRef = useRef(null);
+  const socketReadyRef = useRef(false);
   const peersRef = useRef({}); // userId -> RTCPeerConnection
   const audioRefs = useRef({}); // userId -> audio element
+  const pendingIceRef = useRef({}); // userId -> RTCIceCandidateInit[]
 
   useEffect(() => {
-    const wsUrl = SERVER_URL || window.location.origin;
+    const wsUrl = API_URL || window.location.origin;
     socketRef.current = io(wsUrl, { transports: ['websocket'] });
     socketRef.current.on('connect', () => {
+      socketReadyRef.current = false;
       socketRef.current.emit('authenticate', localStorage.getItem('token'));
+    });
+    socketRef.current.on('authenticated', () => {
+      socketReadyRef.current = true;
+      emitVoiceJoin();
+    });
+    socketRef.current.on('disconnect', () => {
+      socketReadyRef.current = false;
     });
     socketRef.current.on('voiceParticipantUpdate', ({ participants: p, host }) => {
       setParticipants(p);
     });
-    socketRef.current.on('voiceOffer', async ({ from, fromUsername, offer }) => {
+    socketRef.current.on('voicePeers', async ({ roomId, peers = [] }) => {
+      if (roomId !== roomIdRef.current || !localStreamRef.current) return;
+      for (const peer of peers) {
+        if (peer.userId && peer.userId !== user?.id) {
+          await createOffer(peer.userId, peer.username);
+        }
+      }
+    });
+    socketRef.current.on('voicePeerJoined', async ({ userId, username }) => {
+      // 新用户通过 voicePeers 创建 offer，已有用户被动等待 offer 即可
+    });
+    socketRef.current.on('voicePeerLeft', ({ userId }) => {
+      closePeer(userId);
+    });
+    socketRef.current.on('voiceError', ({ error }) => {
+      showToast(error || '语音房连接失败', 'error');
+    });
+    socketRef.current.on('voiceOffer', async ({ roomId, from, fromUsername, offer }) => {
+      if (roomId !== roomIdRef.current) return;
       if (!localStreamRef.current) return;
-      const pc = createPeerConnection(from, fromUsername);
+      const pc = getPeerConnection(from, fromUsername);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      await flushPendingIce(from);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      socketRef.current.emit('voiceAnswer', { roomId: currentRoom?.id, to: from, answer });
+      socketRef.current.emit('voiceAnswer', { roomId: roomIdRef.current, to: from, answer: pc.localDescription });
     });
-    socketRef.current.on('voiceAnswer', async ({ from, answer }) => {
+    socketRef.current.on('voiceAnswer', async ({ roomId, from, answer }) => {
+      if (roomId !== roomIdRef.current) return;
       const pc = peersRef.current[from];
-      if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      if (pc) {
+        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        await flushPendingIce(from);
+      }
     });
-    socketRef.current.on('voiceIce', async ({ from, candidate }) => {
+    socketRef.current.on('voiceIce', async ({ roomId, from, candidate }) => {
+      if (roomId !== roomIdRef.current || !candidate) return;
       const pc = peersRef.current[from];
-      if (pc && candidate) await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      if (pc?.remoteDescription) {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
+      } else {
+        pendingIceRef.current[from] = [...(pendingIceRef.current[from] || []), candidate];
+      }
     });
     fetchRooms();
     return () => { leaveRoom(); if (socketRef.current) { socketRef.current.disconnect(); } };
@@ -52,64 +91,122 @@ export default function VoiceRoomView({ showToast, onBack, user }) {
     setLoading(false);
   };
 
-  const createPeerConnection = (peerId, peerUsername) => {
+  const closePeer = (peerId) => {
+    if (!peerId) return;
+    peersRef.current[peerId]?.close();
+    delete peersRef.current[peerId];
+    audioRefs.current[peerId]?.remove();
+    delete audioRefs.current[peerId];
+    delete pendingIceRef.current[peerId];
+  };
+
+  const flushPendingIce = async (peerId) => {
+    const pc = peersRef.current[peerId];
+    const queued = pendingIceRef.current[peerId] || [];
+    if (!pc || !pc.remoteDescription || queued.length === 0) return;
+    pendingIceRef.current[peerId] = [];
+    for (const candidate of queued) {
+      await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
+    }
+  };
+
+  const getPeerConnection = (peerId, peerUsername) => {
+    if (peersRef.current[peerId]) return peersRef.current[peerId];
+
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     peersRef.current[peerId] = pc;
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current));
     }
     pc.onicecandidate = (e) => {
-      if (e.candidate) socketRef.current?.emit('voiceIce', { roomId: currentRoom?.id, to: peerId, candidate: e.candidate });
+      if (e.candidate) socketRef.current?.emit('voiceIce', { roomId: roomIdRef.current, to: peerId, candidate: e.candidate });
     };
     pc.ontrack = (e) => {
       if (!audioRefs.current[peerId]) {
         const audio = document.createElement('audio');
         audio.autoplay = true;
+        audio.playsInline = true;
         audio.id = `voice_audio_${peerId}`;
+        audio.dataset.peerName = peerUsername || '';
         document.body.appendChild(audio);
         audioRefs.current[peerId] = audio;
       }
       audioRefs.current[peerId].srcObject = e.streams[0];
+      audioRefs.current[peerId].play?.().catch(() => {
+        showToast('\u5df2\u63a5\u5165\u8bed\u97f3\uff0c\u8bf7\u70b9\u4e00\u4e0b\u9875\u9762\u4ee5\u5141\u8bb8\u64ad\u653e\u58f0\u97f3', 'info');
+      });
+    };
+    pc.onconnectionstatechange = () => {
+      if (['failed', 'closed'].includes(pc.connectionState)) {
+        closePeer(peerId);
+      }
     };
     return pc;
   };
 
+  const createOffer = async (peerId, peerUsername) => {
+    if (!roomIdRef.current || !localStreamRef.current || !peerId) return;
+    const pc = getPeerConnection(peerId, peerUsername);
+    const offer = await pc.createOffer({ offerToReceiveAudio: true });
+    await pc.setLocalDescription(offer);
+    socketRef.current?.emit('voiceOffer', { roomId: roomIdRef.current, to: peerId, offer: pc.localDescription });
+  };
+
+  const emitVoiceJoin = () => {
+    if (!socketReadyRef.current || !roomIdRef.current) return;
+    socketRef.current?.emit('voiceJoin', { roomId: roomIdRef.current });
+  };
+
   const joinRoom = async (room) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, echoCancellation: true, noiseSuppression: true });
+      if (!navigator.mediaDevices?.getUserMedia) {
+        showToast('\u5f53\u524d\u73af\u5883\u4e0d\u652f\u6301\u9ea6\u514b\u98ce\uff0c\u8bf7\u4f7f\u7528 HTTPS \u6216 localhost \u6253\u5f00', 'error');
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
       localStreamRef.current = stream;
-      await fetch(`${API_URL}/api/voice/join`, {
+      const res = await fetch(`${API_URL}/api/voice/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: localStorage.getItem('token') },
         body: JSON.stringify({ roomId: room.id })
       });
-      setCurrentRoom(room);
-      socketRef.current?.emit('voiceJoin', { roomId: room.id });
-
-      const res = await fetch(`${API_URL}/api/voice/list`, { headers: { Authorization: localStorage.getItem('token') } });
-      const data = await res.json();
-      const updatedRoom = data.find(r => r.id === room.id);
-      if (updatedRoom) setParticipants(updatedRoom.participants || {});
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || '\u52a0\u5165\u8bed\u97f3\u623f\u5931\u8d25');
+      roomIdRef.current = room.id;
+      setCurrentRoom({ ...room, participants: data.participants || room.participants || {} });
+      setParticipants(data.participants || {});
+      emitVoiceJoin();
     } catch (err) {
-      showToast('无法访问麦克风', 'error');
+      localStreamRef.current?.getTracks().forEach(t => t.stop());
+      localStreamRef.current = null;
+      showToast(err.message || '\u65e0\u6cd5\u8bbf\u95ee\u9ea6\u514b\u98ce', 'error');
     }
   };
 
   const leaveRoom = async () => {
-    if (currentRoom) {
+    const roomId = roomIdRef.current || currentRoom?.id;
+    if (roomId) {
       await fetch(`${API_URL}/api/voice/leave`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: localStorage.getItem('token') },
-        body: JSON.stringify({ roomId: currentRoom.id })
+        body: JSON.stringify({ roomId })
       }).catch(() => {});
-      socketRef.current?.emit('voiceLeave', { roomId: currentRoom.id });
+      socketRef.current?.emit('voiceLeave', { roomId });
     }
+    roomIdRef.current = null;
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     localStreamRef.current = null;
     Object.values(peersRef.current).forEach(pc => pc.close());
     peersRef.current = {};
     Object.values(audioRefs.current).forEach(a => a.remove());
     audioRefs.current = {};
+    pendingIceRef.current = {};
     setCurrentRoom(null);
     setParticipants({});
     setMuted(false);
@@ -123,7 +220,7 @@ export default function VoiceRoomView({ showToast, onBack, user }) {
     await fetch(`${API_URL}/api/voice/mute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: localStorage.getItem('token') },
-      body: JSON.stringify({ roomId: currentRoom?.id, muted: newMuted })
+      body: JSON.stringify({ roomId: roomIdRef.current || currentRoom?.id, muted: newMuted })
     }).catch(() => {});
   };
 
@@ -136,6 +233,9 @@ export default function VoiceRoomView({ showToast, onBack, user }) {
       });
       const data = await res.json();
       fetchRooms();
+      if (data?.roomId) {
+        await joinRoom({ id: data.roomId, host: data.host, participants: data.participants || {}, participantCount: Object.keys(data.participants || {}).length });
+      }
       showToast('语音房已创建', 'success');
     } catch { showToast('创建失败', 'error'); }
   };

@@ -1,0 +1,34 @@
+/* Room list timestamp alignment */
+.room-list .room-item,
+.room-list-mobile .room-item {
+  align-items: flex-start;
+}
+
+.room-list .room-info,
+.room-list-mobile .room-info {
+  align-self: center;
+  min-width: 0;
+}
+
+.room-list .room-name,
+.room-list-mobile .room-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-list .room-side,
+.room-list-mobile .room-side {
+  align-self: flex-start;
+  justify-content: flex-start;
+  min-width: 78px;
+  padding-top: 2px;
+}
+
+.room-list .room-time,
+.room-list-mobile .room-time {
+  line-height: 18px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}

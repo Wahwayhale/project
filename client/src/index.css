@@ -31,3 +31,15 @@
 
 /* --- 移动端优化 --- */
 @import './styles/mobile-optimized.css';
+
+/* --- Fresh chat composer --- */
+@import './styles/fresh-chat-composer.css';
+
+/* --- Room list alignment fixes --- */
+@import './styles/room-list-alignment.css';
+
+/* --- Sync media, canvas cards, slash commands, context theme --- */
+@import './styles/sync-media-room.css';
+@import './styles/canvas-collab-card.css';
+@import './styles/slash-commands.css';
+@import './styles/context-theme.css';

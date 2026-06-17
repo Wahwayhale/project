@@ -905,7 +905,7 @@ textarea {
 }
 
 .bottom-tab-bar {
-  left: 50%;
+  left: 50vw;
   right: auto;
   bottom: 14px;
   transform: translateX(-50%);

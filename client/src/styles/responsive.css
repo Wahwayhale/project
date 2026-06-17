@@ -421,7 +421,7 @@
   }
 
   .bottom-tab-bar {
-    left: 50%;
+    left: 50vw;
     right: auto;
     bottom: 12px;
     transform: translateX(-50%);

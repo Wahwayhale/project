@@ -1,0 +1,45 @@
+.app-container {
+  transition: all 1s ease;
+}
+
+.context-theme-night {
+  --bg: #0f172a;
+  --bg-card: rgba(20, 31, 54, 0.84);
+  --text: #e5eefc;
+  --text-secondary: rgba(226, 238, 252, 0.74);
+  --text-tertiary: rgba(226, 238, 252, 0.54);
+  background: radial-gradient(circle at 18% 12%, rgba(85, 199, 247, 0.14), transparent 30%), #0f172a;
+}
+
+.context-theme-night .messages-container,
+.context-theme-night .chat-header,
+.context-theme-night .fresh-composer-island {
+  transition: all 1s ease;
+}
+
+.context-theme-night .message .bubble {
+  animation: nightBubbleGlow 3.8s ease-in-out infinite;
+}
+
+@keyframes nightBubbleGlow {
+  0%, 100% { box-shadow: 0 0 0 rgba(85, 199, 247, 0); }
+  50% { box-shadow: 0 0 18px rgba(85, 199, 247, 0.18); }
+}
+
+.context-theme-rain .messages-container {
+  background:
+    linear-gradient(180deg, rgba(240, 248, 255, 0.66), rgba(221, 245, 249, 0.5)),
+    var(--bg);
+}
+
+.context-rain-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.app-container > :not(.context-rain-canvas):not(.bottom-tab-bar) {
+  position: relative;
+  z-index: 1;
+}

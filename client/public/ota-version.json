@@ -1,18 +1,19 @@
 {
   "appVersion": "3.0.0",
   "majorVersion": "3",
-  "webBuild": 229,
+  "webBuild": 235,
+  "updateId": "web-235-sync-media-tldr-whiteboard-theme",
   "nativeBuild": 4,
   "minNativeBuild": 1,
   "apkUrl": "/releases/ChatRoom-v3.0.0.apk",
   "apkSize": "5.8MB",
   "forceUpdate": false,
   "showMajorUpdate": true,
-  "updateTitle": "聊天室焕新上线",
+  "updateTitle": "群聊协作功能更新",
   "updateNotes": [
-    "应用正式更名为「聊天室」。",
-    "整体视觉升级为青春活力、小清新的风格。",
-    "手机端登录不再弹 APK 更新下载窗。",
-    "以后只有大版本升级时展示一次更新说明。"
+    "新增一起听/一起看同步播放条，房主播放、暂停和拖动进度会同步到群成员。",
+    "新增聊天内实时涂鸦卡片，群成员可以直接在气泡里协作画画。",
+    "新增 50 条未读 TL;DR 群聊摘要入口和输入框斜杠指令菜单。",
+    "新增天气与时间联动氛围层，夜间和雨天会自动改变聊天背景动效。"
   ]
 }
