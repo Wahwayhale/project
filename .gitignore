@@ -30,3 +30,9 @@ package-lock.json
 *.exe
 client/releases/
 logs/
+
+# Runtime data (user data + runtime logs, regenerated at runtime)
+server/data/
+server/codes.log
+server/server.out.log
+server/server.err.log
