@@ -201,7 +201,7 @@ export function useChat({ socketRef, user, currentRoomId, currentRoom, showToast
   });
 
   // ===== 发送媒体消息 =====
-  const sendMediaMessage = (fileUrl, filename, mimeType, fileSize) => {
+  const sendMediaMessage = (fileUrl, filename, mimeType, fileSize, documentSummary) => {
     if (!currentRoomId) return;
     let type = 'file';
     if (mimeType.startsWith('image/')) type = 'image';
@@ -215,7 +215,8 @@ export function useChat({ socketRef, user, currentRoomId, currentRoom, showToast
       fileUrl: `${API_URL}${fileUrl}`,
       filename,
       fileSize,
-      mimeType
+      mimeType,
+      documentSummary
     });
   };
 
@@ -229,7 +230,7 @@ export function useChat({ socketRef, user, currentRoomId, currentRoom, showToast
       onUploadProgress: (e) => setUploadProgress({ filename: file.name, progress: Math.round((e.loaded / e.total) * 100) })
     });
     setUploadProgress(null);
-    sendMediaMessage(response.data.url, file.name, file.type, file.size);
+    sendMediaMessage(response.data.url, file.name, file.type, file.size, response.data.documentSummary);
   };
 
   // ===== 分片上传 =====

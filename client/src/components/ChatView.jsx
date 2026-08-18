@@ -357,17 +357,22 @@ export default function ChatView({
                 </div>
               )}
               {msg.type === 'file' && (
-                <a href={msg.fileUrl} download={msg.filename} className="file-attachment">
-                  <div className="file-icon">{getFileIcon(msg.mimeType, msg.filename)}</div>
-                  <div className="file-info">
-                    <div className="file-name">{msg.filename || '未命名文件'}</div>
-                    <div className="file-meta">
-                      {msg.mimeType && <span>{msg.mimeType.split('/')[1]?.toUpperCase() || msg.mimeType}</span>}
-                      {msg.fileSize && <span>{formatFileSize(msg.fileSize)}</span>}
+                <>
+                  <a href={msg.fileUrl} download={msg.filename} className="file-attachment">
+                    <div className="file-icon">{getFileIcon(msg.mimeType, msg.filename)}</div>
+                    <div className="file-info">
+                      <div className="file-name">{msg.filename || '未命名文件'}</div>
+                      <div className="file-meta">
+                        {msg.mimeType && <span>{msg.mimeType.split('/')[1]?.toUpperCase() || msg.mimeType}</span>}
+                        {msg.fileSize && <span>{formatFileSize(msg.fileSize)}</span>}
+                      </div>
                     </div>
-                  </div>
-                  <div className="file-download">下载</div>
-                </a>
+                    <div className="file-download">下载</div>
+                  </a>
+                  {msg.documentSummary && (
+                    <div className="document-summary">📄 {msg.documentSummary}</div>
+                  )}
+                </>
               )}
               {msg.type === 'music' && (
                 <div className="music-message">

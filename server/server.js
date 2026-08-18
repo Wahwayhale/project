@@ -249,6 +249,12 @@ const upload = multer({
   limits: { fileSize: 500 * 1024 * 1024 }
 });
 
+// 简单文件上传用内存存储（前端仅 <2MB 走此路径），解析直接用 buffer 避开落盘竞态
+const simpleUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }
+});
+
 function verifyToken(req, res, next) {
   // 支持大小写不敏感的 Authorization header
   const token = req.headers['authorization'] || req.headers['Authorization'];
@@ -1416,12 +1422,65 @@ app.post('/api/upload/complete', verifyToken, (req, res) => {
   });
 });
 
-app.post('/api/upload/simple', verifyToken, upload.single('file'), (req, res) => {
+// ========== 文档解析（PDF/Word/文本） ==========
+const DOC_PARSE_EXTENSIONS = ['.pdf', '.docx', '.txt', '.md'];
+
+// 文档解析直接从内存 buffer 读取（pdf-parse 2.x / mammoth）
+async function extractDocumentText(buffer, ext) {
+  if (ext === '.pdf') {
+    const { PDFParse } = require('pdf-parse');
+    const parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
+    return (result.text || '').trim();
+  }
+  if (ext === '.docx') {
+    const mammoth = require('mammoth');
+    const result = await mammoth.extractRawText({ buffer });
+    return (result.value || '').trim();
+  }
+  if (ext === '.txt' || ext === '.md') {
+    return buffer.toString('utf-8').trim();
+  }
+  return '';
+}
+
+app.post('/api/upload/simple', verifyToken, simpleUpload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  const fileUrl = `/uploads/${req.file.filename}`;
-  res.json({ url: fileUrl, filename: req.file.originalname });
+
+  // memoryStorage 不自动落盘，手动同步写盘（确保 fileUrl 可用）
+  const ext = path.extname(req.file.originalname || '').toLowerCase();
+  const filename = `${Date.now()}-${uuidv4()}${ext}`;
+  const uploadDir = path.join(__dirname, 'uploads');
+  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+  const filePath = path.join(uploadDir, filename);
+  fs.writeFileSync(filePath, req.file.buffer);
+
+  const fileUrl = `/uploads/${filename}`;
+  const response = { url: fileUrl, filename: req.file.originalname };
+
+  // 文档自动解析：PDF/Word/文本上传后生成 AI 摘要（解析失败不阻断上传，降级为普通文件消息）
+  if (DOC_PARSE_EXTENSIONS.includes(ext)) {
+    try {
+      const text = await extractDocumentText(req.file.buffer, ext);
+      if (text && text.length > 10) {
+        const truncated = text.slice(0, 4000);
+        const messages = [
+          { role: 'system', content: '你是文档摘要助手。请用简洁中文总结文档核心内容，100字以内，直接输出要点，不要多余解释。' },
+          { role: 'user', content: `请总结以下文档内容：\n${truncated}` }
+        ];
+        const result = await callSelectedAIModel(messages, 'glm-4-flash');
+        if (result.ok && result.reply) {
+          response.documentSummary = result.reply;
+        }
+      }
+    } catch (e) {
+      console.error('[DOC-PARSE] 解析失败:', e.message);
+    }
+  }
+
+  res.json(response);
 });
 
 // ========== 手机号绑定（验证码流程） ==========
@@ -3103,7 +3162,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('sendMessage', (data) => {
-    const { roomId, content, type, fileUrl, filename, fileSize, mimeType, replyTo, mentions } = data;
+    const { roomId, content, type, fileUrl, filename, fileSize, mimeType, replyTo, mentions, documentSummary } = data;
     const room = rooms.get(roomId);
     if (!room) return;
     // 验证发送者是房间成员
@@ -3121,6 +3180,7 @@ io.on('connection', (socket) => {
       filename,
       fileSize,
       mimeType,
+      documentSummary: documentSummary || null,
       replyTo: replyTo || null,
       mentions: mentions || [],
       sender: {
