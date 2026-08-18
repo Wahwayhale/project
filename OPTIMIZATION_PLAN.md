@@ -25,12 +25,9 @@
 - 新增 `server/data/`、`server/codes.log`、`server/server.out.log`、`server/server.err.log`
 - 已执行 ✅
 
-### 1.3 冒烟测试（需谨慎设计，未执行）
-- **风险点**：`db.js` 的 `DATA_DIR` 硬编码为 `server/data/`，测试若调用 `set()/save()` 会覆盖真实数据。
-- **安全做法**（二选一）：
-  1. 只测 `Collection` 纯查询 API（`find/findAll/filter/map/toArray/size/has/get`），零文件 I/O。
-  2. 若要测原子写入/登录/消息链路，需先把 `DATA_DIR` 改为可用环境变量覆盖（这是一次代码改动，需单独小步做 + 验证）。
-- 状态：⏳ 待执行，建议先做方案 1（零风险）。
+### 1.3 冒烟测试（部分完成）
+- **方案 1（已完成 ✅）**：`server/test/db.test.js` 测 `Collection` 纯查询 API（`size/has/get/find/findAll/map/filter/toArray/forEach/keys/values/entries`），零文件 I/O，5/5 通过；`server/package.json` 已加 `"test": "node --test"`。
+- **方案 2（待做 ⏳）**：原子写入/登录/消息链路集成测试，需先给 `db.js` 的 `DATA_DIR` 加环境变量覆盖（一次代码改动，单独小步 + 验证后执行）。
 
 ---
 
