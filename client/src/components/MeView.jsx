@@ -15,6 +15,7 @@ export default function MeView({
   phoneInfo,
   fetchPhoneInfo,
   setShowPhoneModal,
+  setShowChangelogModal,
   otaInfo,
   appVersion,
 }) {
@@ -34,6 +35,7 @@ export default function MeView({
         <MeMenuItem icon="wallet" tone="wallet" label="钱包" meta={`¥${(balance || 0).toFixed(2)}`} onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }} />
         <MeMenuItem icon="backup" tone="backup" label="聊天记录管理" onClick={() => setShowBackupModal(true)} />
         <MeMenuItem icon="phone" tone="phone" label={phoneInfo.phoneBound ? phoneInfo.phone : '绑定手机号'} onClick={() => { fetchPhoneInfo(); setShowPhoneModal(true); }} />
+        <MeMenuItem icon="sparkles" tone="primary" label="历史版本公告" onClick={() => setShowChangelogModal(true)} />
         <MeMenuItem icon="settings" tone="primary" label="设置" onClick={() => { setShowProfileModal(true); }} />
       </div>
       <div className="me-footer">

@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 
 export function useSettings() {
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
+  // 强制关闭深色模式，避免浅色文字看不清
+  localStorage.removeItem('darkMode');
+  const [darkMode, setDarkMode] = useState(false);
   const [fontSize, setFontSize] = useState(() => parseInt(localStorage.getItem('chatFontSize') || '15'));
   const [themePreset, setThemePreset] = useState(() => localStorage.getItem('themePreset') || 'mint');
   const [chatBackgrounds, setChatBackgrounds] = useState(() => {

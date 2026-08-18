@@ -72,21 +72,43 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
         const ids = new Set(list.map(u => u.id));
         setOnlineUsers(list);
         h.setFriends(prev => prev.map(f => ({ ...f, online: ids.has(f.id) })));
+        h.setAllUsers(prev => prev.map(u => ({ ...u, online: ids.has(u.id) })));
       });
 
       socketRef.current.on('userOnline', (data) => {
         setOnlineUsers(prev => [...prev.filter(u => u.id !== data.id), data]);
         h.setFriends(prev => prev.map(f => f.id === data.id ? { ...f, online: true } : f));
+        h.setAllUsers(prev => prev.map(u => u.id === data.id ? { ...u, online: true } : u));
       });
 
       socketRef.current.on('userOffline', (data) => {
         setOnlineUsers(prev => prev.filter(u => u.id !== data.id));
         h.setFriends(prev => prev.map(f => f.id === data.id ? { ...f, online: false } : f));
+        h.setAllUsers(prev => prev.map(u => u.id === data.id ? { ...u, online: false } : u));
       });
 
       socketRef.current.on('newMessage', (message) => {
         h.setMessages(prev => {
-          const next = [...prev, message];
+          // 替换乐观更新的临时消息，避免重复
+          const currentUser = userRef.current;
+          const isSelf = message.sender?.id === currentUser?.id || message.sender?.username === currentUser?.username;
+          let next;
+          if (isSelf) {
+            const tempIdx = prev.findIndex(m =>
+              m.id?.startsWith('temp-') &&
+              m.roomId === message.roomId &&
+              m.sender?.username === currentUser?.username &&
+              m.content === message.content
+            );
+            if (tempIdx !== -1) {
+              next = [...prev];
+              next[tempIdx] = message;
+            } else {
+              next = [...prev, message];
+            }
+          } else {
+            next = [...prev, message];
+          }
           try { localStorage.setItem('msgCache_' + message.roomId, JSON.stringify(next.slice(-100))); } catch {}
           return next;
         });
@@ -366,17 +388,33 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
         h.showToast(`${from.username} 正在呼叫你...`, 'info');
       });
       socketRef.current.on('callAccepted', ({ from, signal }) => {
+        console.log('[WebRTC:caller] 收到 callAccepted, from:', from, 'signal?', !!signal);
         try {
           if (h.peerRef?.current && h.peerRef.current.signalingState !== 'closed') {
-            h.peerRef.current.setRemoteDescription(new RTCSessionDescription(signal)).catch(() => {});
+            h.peerRef.current.setRemoteDescription(new RTCSessionDescription(signal))
+              .then(() => {
+                console.log('[WebRTC:caller] setRemoteDescription 成功, signalingState:', h.peerRef.current?.signalingState, 'remoteDescription?', !!h.peerRef.current?.remoteDescription);
+                h.flushPendingCandidates?.();
+              })
+              .catch((err) => {
+                console.error('[WebRTC:caller] setRemoteDescription 失败:', err);
+              });
             h.setCallState(prev => prev ? { ...prev, status: 'connecting' } : null);
+          } else {
+            console.warn('[WebRTC:caller] 收到 callAccepted 但 peerRef 不可用, signalingState:', h.peerRef?.current?.signalingState);
           }
-        } catch(e) {}
+        } catch(e) {
+          console.error('[WebRTC:caller] callAccepted 处理异常:', e);
+        }
       });
       socketRef.current.on('iceCandidate', ({ from, candidate }) => {
         try {
-          if (h.peerRef?.current && h.peerRef.current.signalingState !== 'closed' && candidate) {
+          if (!candidate) return;
+          if (h.peerRef?.current && h.peerRef.current.signalingState !== 'closed' && h.peerRef.current.remoteDescription) {
             h.peerRef.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
+          } else if (h.pendingCandidatesRef?.current) {
+            // peerRef 未建好或 remoteDescription 未设置，缓存起来等 flush
+            h.pendingCandidatesRef.current.push(candidate);
           }
         } catch(e) {}
       });

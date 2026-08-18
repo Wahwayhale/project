@@ -41,6 +41,7 @@ import MusicShareModal from './components/modals/MusicShareModal';
 import ForwardModal from './components/modals/ForwardModal';
 import BackupModal from './components/modals/BackupModal';
 import MajorUpdateModal from './components/modals/MajorUpdateModal';
+import ChangelogModal from './components/modals/ChangelogModal';
 import SolitaireModal from './components/modals/SolitaireModal';
 import CheckInModal from './components/modals/CheckInModal';
 import WrappedModal from './components/modals/WrappedModal';
@@ -182,6 +183,8 @@ function App() {
   const [contactsLetter, setContactsLetter] = useState('');
   // 聊天记录备份
   const [showBackupModal, setShowBackupModal] = useState(false);
+  // 历史版本公告
+  const [showChangelogModal, setShowChangelogModal] = useState(false);
   // 聊天背景选择
   const [showBgPicker, setShowBgPicker] = useState(false);
 
@@ -250,9 +253,9 @@ function App() {
     token,
     showToast,
     rooms,
-    setCurrentRoom,
-    setCurrentRoomId,
+    handleRoomClick,
     setView,
+    setBottomTab,
   });
   const {
     friends, setFriends,
@@ -517,6 +520,8 @@ function App() {
   const {
     callState, setCallState,
     localVideoRef,
+    pendingCandidatesRef,
+    flushPendingCandidates,
     sharedLocations, setSharedLocations,
     isSharingLocation, setIsSharingLocation,
     locationWatchId,
@@ -559,8 +564,11 @@ function App() {
       setFriendRequests,
       setMessagesLoading,
       setTranslatedMessages,
+      setAllUsers,
       currentRoomId,
       peerRef,
+      pendingCandidatesRef,
+      flushPendingCandidates,
       notifyEnabled,
       notifyMuted,
       showToast,
@@ -597,11 +605,8 @@ function App() {
 
   useEffect(() => {
     if (currentRoomId && socketRef.current) {
-      try {
-        const cached = JSON.parse(localStorage.getItem('msgCache_' + currentRoomId) || '[]');
-        if (cached.length > 0) { setMessages(cached); setMessagesLoading(false); }
-        else { setMessagesLoading(true); }
-      } catch { setMessagesLoading(true); }
+      // 不再用 localStorage 缓存覆盖，始终通过 joinRoom 从服务器获取最新消息
+      setMessagesLoading(true);
     }
   }, [currentRoomId]);
 
@@ -1244,6 +1249,7 @@ function App() {
             startChatWithFriend={startChatWithFriend}
             acceptFriendRequest={acceptFriendRequest}
             rejectFriendRequest={rejectFriendRequest}
+            onlineUsers={onlineUsers}
           />
         ) : bottomTab === 'discover' ? (
           /* ===== 发现页面 ===== */
@@ -1278,6 +1284,7 @@ function App() {
             phoneInfo={phoneInfo}
             fetchPhoneInfo={fetchPhoneInfo}
             setShowPhoneModal={setShowPhoneModal}
+            setShowChangelogModal={setShowChangelogModal}
             otaInfo={otaInfo}
             appVersion={appVersion}
           />
@@ -1470,6 +1477,7 @@ function App() {
             handleInputChange={handleInputChange}
             handleKeyDown={handleKeyDown}
             sendMessage={sendMessage}
+            onlineUsers={onlineUsers}
           />
         ) : bottomTab === 'chats' ? (
           <>
@@ -1570,7 +1578,7 @@ function App() {
 
       <AdminModal showAdminModal={showAdminModal} setShowAdminModal={setShowAdminModal} fetchAdminDashboard={fetchAdminDashboard} adminDashboardLoading={adminDashboardLoading} adminDashboard={adminDashboard} aiStatus={aiStatus} aiStatusLoading={aiStatusLoading} fetchAiStatus={fetchAiStatus} pendingRecharges={pendingRecharges} fetchPendingRecharges={fetchPendingRecharges} confirmRecharge={confirmRecharge} rejectRecharge={rejectRecharge} />
 
-      <RoomManageModal showRoomManage={showRoomManage} setShowRoomManage={setShowRoomManage} currentRoom={currentRoom} allUsers={allUsers} roomAnnouncements={roomAnnouncements} currentRoomId={currentRoomId} isRoomOwner={isRoomOwner} setAnnouncement={setAnnouncement} unmuteRoomMember={unmuteRoomMember} muteRoomMember={muteRoomMember} kickRoomMember={kickRoomMember} user={user} />
+      <RoomManageModal showRoomManage={showRoomManage} setShowRoomManage={setShowRoomManage} currentRoom={currentRoom} allUsers={allUsers} roomAnnouncements={roomAnnouncements} currentRoomId={currentRoomId} isRoomOwner={isRoomOwner} setAnnouncement={setAnnouncement} unmuteRoomMember={unmuteRoomMember} muteRoomMember={muteRoomMember} kickRoomMember={kickRoomMember} user={user} onlineUsers={onlineUsers} />
 
       <AddFriendModal showSearchModal={showSearchModal} setShowSearchModal={setShowSearchModal} setSearchId={setSearchId} setSearchResult={setSearchResult} searchId={searchId} searchResult={searchResult} searchUser={searchUser} user={user} showToast={showToast} friendRequests={friendRequests} sendFriendRequest={sendFriendRequest} acceptFriendRequest={acceptFriendRequest} rejectFriendRequest={rejectFriendRequest} />
 
@@ -1631,6 +1639,8 @@ function App() {
       <BackupModal showBackupModal={showBackupModal} setShowBackupModal={setShowBackupModal} exportChat={exportChat} messageStats={messageStats} />
       {/* 大版本更新说明：同一大版本仅展示一次，不触发 APK 下载 */}
       <MajorUpdateModal showMajorUpdateModal={showMajorUpdateModal} otaInfo={otaInfo} setShowMajorUpdateModal={setShowMajorUpdateModal} appVersion={appVersion} />
+      {/* 历史版本公告：从「我的」页面入口打开 */}
+      <ChangelogModal show={showChangelogModal} onClose={() => setShowChangelogModal(false)} />
 
       {/* ===== 图片查看器 ===== */}
       <ImageViewer imageViewer={imageViewer} setImageViewer={setImageViewer} imageViewerNav={imageViewerNav} downloadImage={downloadImage} />

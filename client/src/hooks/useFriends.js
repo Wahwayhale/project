@@ -11,11 +11,11 @@ import { API_URL } from '../utils/constants';
  * @param {string}   params.token              — JWT
  * @param {function} params.showToast          — Toast 回调
  * @param {array}    params.rooms              — 聊天室列表
- * @param {function} params.setCurrentRoom     — 设置当前房间
- * @param {function} params.setCurrentRoomId   — 设置当前房间 ID
+ * @param {function} params.handleRoomClick    — 点击房间（设置 currentRoom + joinRoom）
  * @param {function} params.setView            — 设置视图
+ * @param {function} params.setBottomTab       — 设置底部 Tab
  */
-export function useFriends({ socketRef, user, token, showToast, rooms, setCurrentRoom, setCurrentRoomId, setView }) {
+export function useFriends({ socketRef, user, token, showToast, rooms, handleRoomClick, setView, setBottomTab }) {
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
@@ -109,21 +109,25 @@ export function useFriends({ socketRef, user, token, showToast, rooms, setCurren
   };
 
   const startChatWithFriend = (friend) => {
-    const roomName = `chat_${[user.username, friend.username].sort().join('_')}`;
-    const existingRoom = (rooms || []).find(r => r.name === roomName || (r.members && r.members.includes(user.username) && r.members.includes(friend.username)));
+    setView(null);
+    setBottomTab('chats');
+
+    // 匹配已有私聊房间：双方都在 members 中
+    const existingRoom = (rooms || []).find(r =>
+      r.type !== 'public' &&
+      r.members && r.members.length === 2 &&
+      r.members.includes(user.username) &&
+      r.members.includes(friend.username)
+    );
     if (existingRoom) {
-      setCurrentRoom(existingRoom);
-      setCurrentRoomId(existingRoom.id);
+      handleRoomClick(existingRoom);
     } else {
+      // 新房间：emit 后由 groupCreated 事件回调设置 currentRoom/currentRoomId
       socketRef.current.emit('createGroup', {
         name: `${friend.username} & ${user.username}`,
         members: [friend.username]
       });
-      setTimeout(() => {
-        setCurrentRoomId(`chat_${[user.username, friend.username].sort().join('_')}`);
-      }, 500);
     }
-    setView('chats');
   };
 
   return {

@@ -21,10 +21,10 @@
   --border: rgba(255, 255, 255, 0.42);
   --border-light: rgba(255, 255, 255, 0.24);
 
-  /* 文字 */
-  --text: #14313b;
-  --text-secondary: #53727d;
-  --text-tertiary: #7fa0aa;
+  /* 文字 — 加深主色确保高对比度 */
+  --text: #0a1c23;
+  --text-secondary: #2f4b55;
+  --text-tertiary: #4e6b75;
   --text-white: #ffffff;
 
   /* 阴影 */

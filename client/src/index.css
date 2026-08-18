@@ -20,9 +20,6 @@
 @import './styles/me.css';
 @import './styles/ai.css';
 
-/* --- Liquid Glass 主题层 --- */
-@import './styles/glass-theme.css';
-
 /* --- 响应式 --- */
 @import './styles/responsive.css';
 
@@ -43,3 +40,9 @@
 @import './styles/canvas-collab-card.css';
 @import './styles/slash-commands.css';
 @import './styles/context-theme.css';
+
+/* --- Code Sandbox --- */
+@import './styles/code-sandbox.css';
+
+/* --- Video Call --- */
+@import './styles/video-call.css';

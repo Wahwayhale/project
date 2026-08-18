@@ -1,7 +1,7 @@
 import {
   MessageCircle, Users, Compass, User, Sparkles, Image, MapPin, Check, Music, Video, Search,
   Lightbulb, Wand2, Reply, Edit3, Smile, Forward, Star, Pin, Globe, MonitorPlay, Bot,
-  Gamepad2, Palette, BarChart3, Save, Newspaper, DollarSign, Phone, Settings, ShieldCheck,
+  Gamepad2, Palette, BarChart3, Save, Newspaper, DollarSign, Phone, PhoneOff, Settings, ShieldCheck,
   X, Plus, ChevronRight, ArrowLeft, MoreHorizontal, Menu, Camera, Mic, MicOff, Square, Send,
   Paperclip, SmilePlus, Hash, Gift, Vote, Dice1, Hand, Swords, Crown, Volume2, Bell,
   BellOff, FileText, Download, Upload, Trash2, Copy, ExternalLink, RotateCcw, Clock,
@@ -25,7 +25,7 @@ export var iconMap = {
   droplet: Droplets,
   wind: Wind,
   stats: BarChart3, backup: Save, digest: Newspaper, wallet: DollarSign,
-  phone: Phone, settings: Settings, security: ShieldCheck,
+  phone: Phone, phoneOff: PhoneOff, settings: Settings, security: ShieldCheck,
   close: X, plus: Plus, arrowRight: ChevronRight, arrowLeft: ArrowLeft, more: MoreHorizontal,
   menu: Menu, camera: Camera, mic: Mic, micOff: MicOff, send: Send,
   attach: Paperclip, emoji: SmilePlus, hash: Hash, gift: Gift,

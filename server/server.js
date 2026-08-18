@@ -1314,6 +1314,7 @@ app.get('/api/rooms', verifyToken, (req, res) => {
       id: room.id,
       name: room.name,
       type: room.type,
+      members: room.members || [],
       memberCount: room.members ? room.members.length : 0,
       lastMessage: room.messages[room.messages.length - 1] || null
     }));
@@ -2775,6 +2776,35 @@ const whiteboardStates = new Map(); // roomId -> { strokes: [], users: Set }
 const canvasCardStates = new Map(); // cardId -> { roomId, points: [], users: Set }
 const syncMediaRooms = new Map(); // roomId -> media sync state
 
+// --- 赛博电子宠物 ---
+const roomPets = new Map(); // roomId -> { hunger, mood, level, totalInteract }
+
+function getOrCreatePet(roomId) {
+  if (!roomPets.has(roomId)) {
+    roomPets.set(roomId, { hunger: 60, mood: 60, level: 1, totalInteract: 0 });
+  }
+  return roomPets.get(roomId);
+}
+
+function calcLevel(totalInteract) {
+  // 每 30 次互动升一级，缓升曲线
+  return Math.floor(Math.sqrt(totalInteract / 10)) + 1;
+}
+
+function broadcastPetState(roomId) {
+  const pet = roomPets.get(roomId);
+  if (pet) io.to(roomId).emit('petState', { roomId, ...pet });
+}
+
+// 宠物状态衰减（每 60 秒，缓慢下降）
+setInterval(() => {
+  roomPets.forEach((pet, roomId) => {
+    pet.hunger = Math.max(0, pet.hunger - 1);
+    pet.mood = Math.max(0, pet.mood - 1);
+    broadcastPetState(roomId);
+  });
+}, 60000);
+
 function serializeSyncMediaState(roomId) {
   const state = syncMediaRooms.get(roomId);
   if (!state) return { roomId, active: false, serverNow: Date.now() };
@@ -3110,6 +3140,15 @@ io.on('connection', (socket) => {
     rooms.set(roomId, room);
     rooms.save(); // 立即持久化
     io.to(roomId).emit('newMessage', message);
+
+    // 赛博宠物：每条消息增加心情值
+    if (roomPets.has(roomId)) {
+      const pet = roomPets.get(roomId);
+      pet.mood = Math.min(100, pet.mood + 1);
+      pet.totalInteract += 1;
+      pet.level = calcLevel(pet.totalInteract);
+      broadcastPetState(roomId);
+    }
 
     // 触发房间内的自动回复机器人（限频：每个bot每10秒最多回复一次）
     try {
@@ -3769,6 +3808,31 @@ io.on('connection', (socket) => {
   socket.on('triggerBot', ({ botId, roomId, message }) => {
     const bot = bots.get(botId);
     if (bot && bot.autoReply) triggerBotReply(bot, roomId, message);
+  });
+
+  // ===== 赛博电子宠物 =====
+  socket.on('petFeed', ({ roomId }) => {
+    if (!socket.userId || !roomId) return;
+    const pet = getOrCreatePet(roomId);
+    pet.hunger = Math.min(100, pet.hunger + 20);
+    pet.totalInteract += 1;
+    pet.level = calcLevel(pet.totalInteract);
+    broadcastPetState(roomId);
+  });
+
+  socket.on('petPet', ({ roomId }) => {
+    if (!socket.userId || !roomId) return;
+    const pet = getOrCreatePet(roomId);
+    pet.mood = Math.min(100, pet.mood + 1);
+    pet.totalInteract += 1;
+    pet.level = calcLevel(pet.totalInteract);
+    broadcastPetState(roomId);
+  });
+
+  socket.on('petGetState', ({ roomId }) => {
+    if (!socket.userId || !roomId) return;
+    const pet = getOrCreatePet(roomId);
+    socket.emit('petState', { roomId, ...pet });
   });
 
   // ===== 未读消息计数 =====

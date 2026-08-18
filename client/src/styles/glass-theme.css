@@ -361,30 +361,8 @@ body::after {
 }
 
 /* --- 气泡 --- */
-.message .bubble,
-.ai-message.assistant .ai-bubble,
-.ai-message.user .ai-bubble,
-.file-attachment,
-.poll-message,
-.solitaire-card,
-.red-packet-message,
-.music-message,
-.announcement-message {
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-}
 
-.message .bubble,
-.ai-message.assistant .ai-bubble,
-.file-attachment,
-.poll-message,
-.solitaire-card,
-.announcement-message,
-.translation-text {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.24));
-  border: 1px solid rgba(255, 255, 255, 0.46);
-  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.46);
-}
+/* 气泡样式使用 components.css 原始定义，不覆盖 */
 
 .message.sent .bubble,
 .ai-message.user .ai-bubble,
@@ -822,6 +800,138 @@ body::after {
   width: 100%;
 }
 
+/* ===== 历史版本公告弹窗 ===== */
+.changelog-modal {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.changelog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.changelog-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.changelog-title-row h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.changelog-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--primary-gradient);
+  color: var(--text-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 18px rgba(66, 214, 164, 0.22);
+}
+
+.changelog-close {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.changelog-close:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+}
+
+.changelog-loading,
+.changelog-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.changelog-list {
+  overflow-y: auto;
+  padding: 16px 20px 20px;
+  flex: 1;
+}
+
+.changelog-item {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.changelog-item:last-child {
+  border-bottom: none;
+}
+
+.changelog-item-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.changelog-item-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.changelog-item-version {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.changelog-item-date {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.changelog-item-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.changelog-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--primary-bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.changelog-note svg {
+  color: var(--primary-dark);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
 .ai-status-card.configured {
   border-color: rgba(66, 214, 164, 0.34);
   background: var(--primary-bg);
@@ -834,4 +944,82 @@ body::after {
 
 .panel-bili-searchbar button {
   background: var(--bili-pink);
+}
+
+/* --- 深色模式覆盖：修复浅色文字在浅色背景上看不见的问题 --- */
+html.dark body {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(30, 80, 100, 0.5) 0, rgba(30, 80, 100, 0) 26%),
+    radial-gradient(circle at 86% 14%, rgba(40, 60, 120, 0.5) 0, rgba(40, 60, 120, 0) 24%),
+    radial-gradient(circle at 74% 82%, rgba(80, 30, 60, 0.4) 0, rgba(80, 30, 60, 0) 24%),
+    linear-gradient(160deg, #0f172a 0%, #1a1a2e 44%, #16213e 100%);
+}
+
+html.dark .app-container {
+  background: rgba(20, 20, 40, 0.45);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+html.dark .app-container::before {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01)),
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 34%);
+}
+
+html.dark .sidebar {
+  background: rgba(20, 25, 45, 0.72);
+}
+
+html.dark .sidebar-header,
+html.dark .chat-header,
+html.dark .bottom-tab-bar {
+  background: rgba(15, 20, 40, 0.92);
+}
+
+html.dark .messages-container {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+html.dark .auth-form input,
+html.dark .search-box input,
+html.dark .contacts-search input,
+html.dark .chat-input,
+html.dark .ai-input {
+  background: #1a1a2e;
+}
+
+/* --- 自动夜间主题修复：确保背景色也变深 --- */
+.app-container.context-theme-night {
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.app-container.context-theme-night::before {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.06), transparent 34%);
+}
+
+body:has(.app-container.context-theme-night) {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(30, 80, 100, 0.5) 0, rgba(30, 80, 100, 0) 26%),
+    radial-gradient(circle at 86% 14%, rgba(40, 60, 120, 0.5) 0, rgba(40, 60, 120, 0) 24%),
+    radial-gradient(circle at 74% 82%, rgba(80, 30, 60, 0.4) 0, rgba(80, 30, 60, 0) 24%),
+    linear-gradient(160deg, #0f172a 0%, #1a1a2e 44%, #16213e 100%);
+}
+
+.app-container.context-theme-night .sidebar {
+  background: rgba(20, 25, 45, 0.72);
+}
+
+.app-container.context-theme-night .sidebar-header,
+.app-container.context-theme-night .chat-header,
+.app-container.context-theme-night .bottom-tab-bar {
+  background: rgba(15, 20, 40, 0.92);
+}
+
+.app-container.context-theme-night .messages-container {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+  border-color: rgba(255, 255, 255, 0.08);
 }

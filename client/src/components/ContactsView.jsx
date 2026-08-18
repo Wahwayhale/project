@@ -29,7 +29,9 @@ export default function ContactsView({
   startChatWithFriend,
   acceptFriendRequest,
   rejectFriendRequest,
+  onlineUsers = [],
 }) {
+  const onlineIds = new Set((onlineUsers || []).map(u => u.id));
   const filtered = searchQuery
     ? friends.filter(f => f.username.toLowerCase().includes(searchQuery.toLowerCase()))
     : friends;
@@ -67,15 +69,18 @@ export default function ContactsView({
         {letters.map(letter => (
           <div key={letter} className="contacts-section" id={`contact-${letter}`}>
             <div className="contacts-section-title">{letter}</div>
-            {groups[letter].map(friend => (
-              <div key={friend.id || friend.username} className="contact-item" onClick={() => { if (!friend.isRequest) startChatWithFriend(friend); }}>
-                <AvatarImg src={getAvatarUrl(friend.avatar)} alt="" className="contact-avatar" />
-                <div className="contact-info">
-                  <div className="contact-name">{friend.username}</div>
-                  {!friend.isRequest && <div className="contact-desc">在线</div>}
+            {groups[letter].map(friend => {
+              const isOnline = friend.id && onlineIds.has(friend.id);
+              return (
+                <div key={friend.id || friend.username} className="contact-item" onClick={() => { if (!friend.isRequest) startChatWithFriend(friend); }}>
+                  <AvatarImg src={getAvatarUrl(friend.avatar)} alt="" className="contact-avatar" />
+                  <div className="contact-info">
+                    <div className="contact-name">{friend.username}</div>
+                    {!friend.isRequest && <div className={`contact-desc ${isOnline ? '' : 'offline'}`}>{isOnline ? '在线' : '离线'}</div>}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ))}
       </div>

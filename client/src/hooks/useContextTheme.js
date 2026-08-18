@@ -23,12 +23,10 @@ export function useContextTheme(weatherData) {
   }, []);
 
   return useMemo(() => {
-    const isNight = hour >= 22 || hour < 6;
-    const isRain = isRainWeather(weatherData);
-    const className = [
-      isNight ? 'context-theme-night' : 'context-theme-day',
-      isRain ? 'context-theme-rain' : '',
-    ].filter(Boolean).join(' ');
+    // 禁用自动夜间主题，避免文字看不清
+    const isNight = false;
+    const isRain = false;
+    const className = 'context-theme-day';
     return { isNight, isRain, className };
-  }, [hour, weatherData]);
+  }, []);
 }

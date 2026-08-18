@@ -741,7 +741,6 @@
   }
 
   /* 内容可见性优化 */
-  .chat-shell,
   .chat-top-stack {
     contain: layout style;
   }

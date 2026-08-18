@@ -4,8 +4,9 @@ import { getAvatarUrl } from '../../utils/avatar';
 import AvatarImg from '../ui/AvatarImg';
 import RoomAvatar from '../ui/RoomAvatar';
 
-export default function RoomManageModal({ showRoomManage, setShowRoomManage, currentRoom, allUsers, roomAnnouncements, currentRoomId, isRoomOwner, setAnnouncement, unmuteRoomMember, muteRoomMember, kickRoomMember, user }) {
+export default function RoomManageModal({ showRoomManage, setShowRoomManage, currentRoom, allUsers, roomAnnouncements, currentRoomId, isRoomOwner, setAnnouncement, unmuteRoomMember, muteRoomMember, kickRoomMember, user, onlineUsers }) {
   if (!showRoomManage || !currentRoom) return null;
+  const onlineIds = new Set((onlineUsers || []).map(u => u.id));
   return (
     <div className="modal-overlay" onClick={() => setShowRoomManage(false)}>
       <div className="modal room-manage-modal" onClick={e => e.stopPropagation()}>
@@ -31,12 +32,13 @@ export default function RoomManageModal({ showRoomManage, setShowRoomManage, cur
           {(currentRoom.members || []).map(username => {
             const member = allUsers.find(u => u.username === username);
             const muted = currentRoom.mutedMembers?.includes(username);
+            const isOnline = member && onlineIds.has(member.id);
             return (
               <div key={username} className="room-member-row">
                 <AvatarImg src={getAvatarUrl(member?.avatar)} alt="" />
                 <div className="room-member-copy">
                   <strong>{username}</strong>
-                  <span>{currentRoom.owner === username ? '群主' : muted ? '已禁言' : '成员'}</span>
+                  <span>{currentRoom.owner === username ? '群主' : muted ? '已禁言' : isOnline ? '在线' : '离线'}</span>
                 </div>
                 {isRoomOwner() && username !== user?.username && (
                   <div className="room-member-actions">

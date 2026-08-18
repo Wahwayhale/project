@@ -39,7 +39,7 @@
   pointer-events: none;
 }
 
-.app-container > :not(.context-rain-canvas):not(.bottom-tab-bar) {
+.app-container > :not(.context-rain-canvas):not(.bottom-tab-bar):not(.call-overlay):not(.call-incoming-overlay) {
   position: relative;
   z-index: 1;
 }

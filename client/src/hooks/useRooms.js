@@ -25,8 +25,14 @@ export function useRooms({ socketRef, user, friendsRef, setMessages, setMessages
     if (setView) setView(null);
     setCurrentRoom(room);
     setCurrentRoomId(room.id);
+    setMessages([]);
+    // 确保 joinRoom 一定发出
+    const emitJoin = () => socketRef.current?.emit('joinRoom', room.id);
     if (socketRef.current?.connected) {
-      socketRef.current.emit('joinRoom', room.id);
+      emitJoin();
+    } else {
+      // socket 未连接时，等重连后自动 join
+      socketRef.current?.once('connect', emitJoin);
     }
   };
 

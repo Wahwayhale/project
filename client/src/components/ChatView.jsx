@@ -2,8 +2,10 @@ import React from 'react';
 import { I } from './Icon';
 import FreshChatComposer from './FreshChatComposer';
 import SyncMediaRoom from './SyncMediaRoom';
+import TamagotchiPet from './TamagotchiPet';
 import CanvasCollaborativeCard from './CanvasCollaborativeCard';
 import AvatarImg from './ui/AvatarImg';
+import CodeSandbox from './CodeSandbox';
 import { getAvatarUrl } from '../utils/avatar';
 import { formatTime, formatFileSize, getFileIcon, parseBilibiliUrl } from '../utils/format';
 import { API_URL } from '../utils/constants';
@@ -32,6 +34,7 @@ export default function ChatView({
   // === 用户 ===
   user,
   allUsers,
+  onlineUsers = [],
 
   // === 消息列表 ===
   messages,
@@ -152,6 +155,13 @@ export default function ChatView({
   handleKeyDown,
   sendMessage,
 }) {
+  // 计算私聊对方是否在线
+  const onlineIds = new Set((onlineUsers || []).map(u => u.id));
+  const otherMember = currentRoom?.members?.find(m => m !== user?.username);
+  const otherUser = allUsers.find(u => u.username === otherMember);
+  const isOtherOnline = otherUser && onlineIds.has(otherUser.id);
+  const isPrivateChat = currentRoom?.members?.length === 2;
+
   return (
     <div className="chat-shell">
       <div className="chat-top-stack">
@@ -163,7 +173,11 @@ export default function ChatView({
             <div className="chat-header-copy">
               <h3>{currentRoom.name}</h3>
               <div className="chat-header-meta">
-                <div className="online-badge">在线</div>
+                {isPrivateChat ? (
+                  <div className={`online-badge ${isOtherOnline ? '' : 'offline'}`}>{isOtherOnline ? '在线' : '离线'}</div>
+                ) : (
+                  <div className="online-badge">在线</div>
+                )}
                 <span className="chat-header-hint">
                   {currentRoom?.members?.length > 1 ? `${currentRoom.members.length} 位成员` : '私密对话'}
                 </span>
@@ -180,12 +194,10 @@ export default function ChatView({
             </button>
             <button onClick={() => { setShowCheckIn(true); fetchCheckIns(); }} title="打卡签到"><I name="checkin" size={15} /></button>
             <button onClick={() => setShowMusicPanel(true)} title="听歌"><I name="music" size={15} /></button>
-            {!currentRoom?.type?.includes('group') && currentRoom?.members?.filter(m => m !== user?.username).length > 0 && (
-              <button onClick={() => {
-                const otherUser = allUsers.find(u => currentRoom.members.includes(u.username) && u.username !== user?.username);
-                if (otherUser) startCall(otherUser.id, 'video');
-              }} title="视频通话"><I name="video" size={15} /></button>
-            )}
+            <button onClick={() => {
+              const otherUser = allUsers.find(u => currentRoom?.members?.includes(u.username) && u.username !== user?.username);
+              if (otherUser) startCall(otherUser.id, 'video');
+            }} title="视频通话"><I name="video" size={15} /></button>
             <button onClick={() => setShowSearch(s => !s)} title="搜索消息">
               {showSearch ? <I name="close" size={15} /> : <I name="search" size={15} />}
             </button>
@@ -282,12 +294,41 @@ export default function ChatView({
             });
           };
 
+          // 渲染消息内容（支持代码块 + @提及）
+          const renderMessageContent = (content) => {
+            if (!content) return content;
+            // 匹配 fenced code blocks: ```lang\ncode\n``` （有闭合）或 ```lang\ncode（无闭合，取到末尾）
+            const codeBlockRe = /```(\w*)\s*\n?([\s\S]*?)(?:```|$)/g;
+            const result = [];
+            let lastIndex = 0;
+            let match;
+            while ((match = codeBlockRe.exec(content)) !== null) {
+              // 匹配前的普通文本
+              if (match.index > lastIndex) {
+                const text = content.slice(lastIndex, match.index);
+                if (text) result.push(<React.Fragment key={lastIndex}>{renderMentions(text)}</React.Fragment>);
+              }
+              const lang = match[1] || '';
+              const code = match[2] || '';
+              if (code.trim()) {
+                result.push(<CodeSandbox key={match.index} code={code} language={lang} />);
+              }
+              lastIndex = match.index + match[0].length;
+            }
+            // 剩余的普通文本
+            if (lastIndex < content.length) {
+              const tail = content.slice(lastIndex);
+              if (tail) result.push(<React.Fragment key={lastIndex}>{renderMentions(tail)}</React.Fragment>);
+            }
+            return result;
+          };
+
           const contentToRender = msg.recalled ? null : (
             <>
               {msg.replyTo && renderReply(messages.find(m => m.id === msg.replyTo))}
               {msg.type === 'text' && (
                 <div className="message-text">
-                  {renderMentions(msg.content)}
+                  {renderMessageContent(msg.content)}
                   {msg.edited && <span className="edited-tag">（已编辑）</span>}
                 </div>
               )}
@@ -556,6 +597,7 @@ export default function ChatView({
           <div ref={setMessageEndRef} />
         </div>
       </div>
+      <TamagotchiPet socketRef={socketRef} roomId={currentRoomId} user={user} showToast={showToast} />
       <FreshChatComposer
         currentRoom={currentRoom}
         currentRoomId={currentRoomId}

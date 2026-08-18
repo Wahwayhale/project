@@ -105,8 +105,12 @@
 
 .contact-desc {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--success);
   margin-top: 2px;
+}
+
+.contact-desc.offline {
+  color: var(--text-secondary);
 }
 
 .contact-actions {
