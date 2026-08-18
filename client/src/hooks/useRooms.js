@@ -47,6 +47,13 @@ export function useRooms({ socketRef, user, friendsRef, setMessages, setMessages
     });
   };
 
+  const createChannel = () => {
+    const channelName = prompt('请输入频道名称：');
+    if (!channelName || !channelName.trim()) return;
+    const description = prompt('请输入频道简介（可选）：') || '';
+    socketRef.current.emit('createChannel', { name: channelName.trim(), description });
+  };
+
   const deleteChat = (roomId, e) => {
     e?.stopPropagation();
     if (!window.confirm('确定要删除该聊天吗？\n\n删除后你将不再看到此聊天记录。')) return;
@@ -76,6 +83,7 @@ export function useRooms({ socketRef, user, friendsRef, setMessages, setMessages
     unreadCounts, setUnreadCounts,
     handleRoomClick,
     createGroup,
+    createChannel,
     deleteChat,
     openFileTransfer,
   };

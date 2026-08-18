@@ -196,6 +196,35 @@ function canAccessRoom(room, username) {
   return room && (room.type === 'public' || isRoomMember(room, username));
 }
 
+// 频道（channel）相关判断
+function isChannelRoom(room) {
+  return room && room.type === 'channel';
+}
+
+function isChannelAdmin(room, username) {
+  return isChannelRoom(room) && (room.owner === username || (room.admins || []).includes(username));
+}
+
+function isChannelSubscriber(room, username) {
+  return isChannelRoom(room) && (room.members || []).includes(username);
+}
+
+// 话题（thread）序列化：仅返回元数据 + 最近 100 条消息，避免全量下发
+function serializeThread(thread) {
+  return {
+    id: thread.id,
+    title: thread.title,
+    creator: thread.creator,
+    createdAt: thread.createdAt,
+    messageCount: (thread.messages || []).length,
+    messages: (thread.messages || []).slice(-100)
+  };
+}
+
+function serializeThreads(room) {
+  return (room.threads || []).map(serializeThread);
+}
+
 function safeNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -1316,13 +1345,16 @@ app.get('/api/bilibili/proxy-image', (req, res) => {
 
 app.get('/api/rooms', verifyToken, (req, res) => {
   const roomList = Array.from(rooms.values())
-    .filter(room => room.type === 'public' || isRoomMember(room, req.user.username))
+    .filter(room => room.type === 'public' || room.type === 'channel' || isRoomMember(room, req.user.username))
     .map(room => ({
       id: room.id,
       name: room.name,
       type: room.type,
+      owner: room.owner || room.createdBy || null,
+      admins: room.admins || [],
       members: room.members || [],
       memberCount: room.members ? room.members.length : 0,
+      threadCount: room.threads ? room.threads.length : 0,
       lastMessage: room.messages[room.messages.length - 1] || null
     }));
   res.json(roomList);
@@ -1350,7 +1382,7 @@ app.get('/api/rooms/:roomId/messages', verifyToken, (req, res) => {
     return res.status(404).json({ error: 'Room not found' });
   }
   // 私有房间只允许成员访问
-  if (room.type !== 'public' && !isRoomMember(room, req.user.username)) {
+  if (room.type !== 'public' && room.type !== 'channel' && !isRoomMember(room, req.user.username)) {
     return res.status(403).json({ error: '无权访问该房间' });
   }
   const page = parseInt(req.query.page) || 1;
@@ -3121,7 +3153,7 @@ io.on('connection', (socket) => {
       return;
     }
     // 私有房间只允许成员加入
-    if (room.type !== 'public' && !isRoomMember(room, socket.username)) {
+    if (room.type !== 'public' && room.type !== 'channel' && !isRoomMember(room, socket.username)) {
       socket.emit('roomError', { error: '你不是该房间的成员' });
       return;
     }
@@ -3140,7 +3172,7 @@ io.on('connection', (socket) => {
       rooms.set(roomId, room);
       io.to(roomId).emit('allMessagesRead', { roomId, userId: socket.userId });
     }
-    socket.emit('joinedRoom', { roomId, messages: room.messages.slice(-100) });
+    socket.emit('joinedRoom', { roomId, messages: room.messages.slice(-100), threads: serializeThreads(room) });
     socket.emit('syncMediaState', serializeSyncMediaState(roomId));
   });
 
@@ -3165,6 +3197,11 @@ io.on('connection', (socket) => {
     const { roomId, content, type, fileUrl, filename, fileSize, mimeType, replyTo, mentions, documentSummary } = data;
     const room = rooms.get(roomId);
     if (!room) return;
+    // 频道权限：仅频道主和管理员可发言（游客也会收到明确提示）
+    if (isChannelRoom(room) && !isChannelAdmin(room, socket.username)) {
+      socket.emit('sendError', { error: '仅频道主和管理员可在频道发言' });
+      return;
+    }
     // 验证发送者是房间成员
     if (!isRoomMember(room, socket.username)) return;
     // 禁言检查
@@ -3686,6 +3723,147 @@ io.on('connection', (socket) => {
     rooms.set(room.id, room);
     io.emit('roomCreated', room);
     socket.emit('groupCreated', room);
+  });
+
+  // ===== 频道（Channel）=====
+  socket.on('createChannel', ({ name, description }) => {
+    const channelName = (name || '').trim();
+    if (!channelName) {
+      socket.emit('channelError', { error: '请输入频道名称' });
+      return;
+    }
+    const room = {
+      id: uuidv4(),
+      name: channelName,
+      type: 'channel',
+      owner: socket.username,
+      admins: [socket.username],
+      members: [socket.username],
+      description: description || '',
+      messages: [],
+      threads: [],
+      createdBy: socket.username,
+      createdAt: new Date()
+    };
+    rooms.set(room.id, room);
+    rooms.save();
+    socket.join(room.id);
+    io.emit('roomCreated', room);
+    socket.emit('channelCreated', room);
+  });
+
+  socket.on('subscribeChannel', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room || room.type !== 'channel') return;
+    if (!room.members) room.members = [];
+    if (!room.members.includes(socket.username)) {
+      room.members.push(socket.username);
+      rooms.set(roomId, room);
+      rooms.save();
+    }
+    socket.join(roomId);
+    socket.emit('channelUpdated', {
+      id: room.id,
+      name: room.name,
+      type: room.type,
+      owner: room.owner,
+      admins: room.admins || [],
+      members: room.members || [],
+      memberCount: room.members.length
+    });
+    io.to(roomId).emit('channelSubscribed', { roomId, username: socket.username, memberCount: room.members.length });
+  });
+
+  socket.on('unsubscribeChannel', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room || room.type !== 'channel') return;
+    if (socket.username === room.owner) {
+      socket.emit('channelError', { error: '频道主不能退订自己的频道' });
+      return;
+    }
+    room.members = (room.members || []).filter(m => m !== socket.username);
+    room.admins = (room.admins || []).filter(a => a !== socket.username);
+    rooms.set(roomId, room);
+    rooms.save();
+    socket.leave(roomId);
+    socket.emit('channelUpdated', {
+      id: room.id,
+      name: room.name,
+      type: room.type,
+      owner: room.owner,
+      admins: room.admins || [],
+      members: room.members || [],
+      memberCount: room.members.length
+    });
+    io.to(roomId).emit('channelUnsubscribed', { roomId, username: socket.username, memberCount: room.members.length });
+  });
+
+  socket.on('setChannelAdmins', ({ roomId, admins }) => {
+    const room = rooms.get(roomId);
+    if (!room || room.type !== 'channel') return;
+    if (room.owner !== socket.username) {
+      socket.emit('channelError', { error: '只有频道主可以设置管理员' });
+      return;
+    }
+    room.admins = [socket.username, ...(admins || []).filter(a => a !== socket.username)];
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('channelAdminsUpdated', { roomId, admins: room.admins });
+  });
+
+  // ===== 群话题 Threads =====
+  socket.on('createThread', ({ roomId, title, content }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    if (!isRoomMember(room, socket.username)) return;
+    const threadTitle = (title || '').trim();
+    if (!threadTitle) {
+      socket.emit('threadError', { error: '请输入话题标题' });
+      return;
+    }
+    const thread = {
+      id: uuidv4(),
+      title: threadTitle,
+      creator: socket.username,
+      createdAt: new Date(),
+      messages: []
+    };
+    if (content && content.trim()) {
+      thread.messages.push({
+        id: uuidv4(),
+        content: content.trim(),
+        type: 'text',
+        sender: { id: socket.userId, username: socket.username, avatar: users.get(socket.username)?.avatar },
+        timestamp: new Date()
+      });
+    }
+    if (!room.threads) room.threads = [];
+    room.threads.push(thread);
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('threadCreated', { roomId, thread: serializeThread(thread) });
+  });
+
+  socket.on('sendThreadMessage', ({ roomId, threadId, content }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    if (!isRoomMember(room, socket.username)) return;
+    const thread = (room.threads || []).find(t => t.id === threadId);
+    if (!thread) return;
+    const text = (content || '').trim();
+    if (!text) return;
+    const message = {
+      id: uuidv4(),
+      content: text,
+      type: 'text',
+      sender: { id: socket.userId, username: socket.username, avatar: users.get(socket.username)?.avatar },
+      timestamp: new Date()
+    };
+    thread.messages.push(message);
+    if (thread.messages.length > 500) thread.messages = thread.messages.slice(-500);
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('threadMessage', { roomId, threadId, message });
   });
 
   socket.on('addToGroup', ({ roomId, username }) => {

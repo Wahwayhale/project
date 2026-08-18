@@ -80,6 +80,7 @@ export default function FreshChatComposer({
   aiSummaryLoading,
   startSyncMedia,
   sendCanvasCard,
+  channelReadOnly,
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [slashOpen, setSlashOpen] = useState(false);
@@ -300,6 +301,12 @@ export default function FreshChatComposer({
       </div>
 
       <div className="fresh-composer-island">
+        {channelReadOnly && (
+          <div className="channel-readonly-tip">
+            <span>🔒</span>
+            <span>你已订阅此频道，仅频道主和管理员可发言</span>
+          </div>
+        )}
         {roomAnnouncements[currentRoomId] && (
           <div className="room-announcement fresh-context-strip">{roomAnnouncements[currentRoomId]}</div>
         )}
@@ -345,10 +352,11 @@ export default function FreshChatComposer({
               className="chat-input fresh-textarea"
               aria-label="Message input"
               rows={1}
-              placeholder="把今天的小想法放进来..."
+              placeholder={channelReadOnly ? '仅频道主和管理员可发言' : '把今天的小想法放进来...'}
               value={newMessage}
               onChange={handleComposerChange}
               onKeyDown={handleComposerKeyDown}
+              disabled={channelReadOnly}
             />
             <div className="fresh-quick-tools" aria-label="快捷功能">
               <button className="fresh-soft-icon" type="button" onClick={openImageUpload} title="图片">
@@ -378,7 +386,7 @@ export default function FreshChatComposer({
             <I name="plus" size={24} />
           </button>
 
-          <button className="send-button fresh-send-button" type="button" onClick={sendMessage} disabled={!newMessage.trim() && !editingMessage} title="发送">
+          <button className="send-button fresh-send-button" type="button" onClick={sendMessage} disabled={channelReadOnly || (!newMessage.trim() && !editingMessage)} title="发送">
             <I name="send" size={21} />
             <span>{editingMessage ? '保存' : '发送'}</span>
           </button>

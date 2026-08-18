@@ -46,3 +46,6 @@
 
 /* --- Video Call --- */
 @import './styles/video-call.css';
+
+/* --- Channel + Threads --- */
+@import './styles/channel-threads.css';

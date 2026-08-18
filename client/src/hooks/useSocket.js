@@ -133,6 +133,7 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
 
       socketRef.current.on('joinedRoom', (data) => {
         h.setMessages(data.messages || []);
+        h.setThreads(data.threads || []);
         h.setMessagesLoading(false);
       });
 
@@ -155,6 +156,12 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
         h.setCurrentRoom(room);
         h.setCurrentRoomId(room.id);
         h.setShowCreateModal(false);
+      });
+
+      socketRef.current.on('channelCreated', (room) => {
+        h.setCurrentRoom(room);
+        h.setCurrentRoomId(room.id);
+        h.setView(null);
       });
 
       socketRef.current.on('friendRequest', (data) => {
@@ -377,6 +384,39 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
         h.setUnreadCounts(counts);
       });
 
+      // ===== 频道（Channel）监听 =====
+      socketRef.current.on('channelUpdated', (channel) => {
+        h.setCurrentRoom(prev => prev?.id === channel.id ? { ...prev, owner: channel.owner, admins: channel.admins, members: channel.members } : prev);
+        h.setRooms(prev => prev.map(r => r.id === channel.id ? { ...r, owner: channel.owner, admins: channel.admins, members: channel.members } : r));
+      });
+      socketRef.current.on('channelSubscribed', ({ roomId, memberCount }) => {
+        h.setRooms(prev => prev.map(r => r.id === roomId ? { ...r, memberCount } : r));
+      });
+      socketRef.current.on('channelUnsubscribed', ({ roomId, memberCount }) => {
+        h.setRooms(prev => prev.map(r => r.id === roomId ? { ...r, memberCount } : r));
+      });
+      socketRef.current.on('channelAdminsUpdated', ({ roomId, admins }) => {
+        h.setCurrentRoom(prev => prev?.id === roomId ? { ...prev, admins } : prev);
+        h.setRooms(prev => prev.map(r => r.id === roomId ? { ...r, admins } : r));
+      });
+      socketRef.current.on('channelError', ({ error }) => {
+        h.showToast(error, 'error');
+      });
+
+      // ===== 群话题（Threads）监听 =====
+      socketRef.current.on('threadCreated', ({ roomId, thread }) => {
+        h.setThreads(prev => {
+          if (prev.find(t => t.id === thread.id)) return prev;
+          return [...prev, thread];
+        });
+      });
+      socketRef.current.on('threadMessage', ({ threadId, message }) => {
+        h.setThreads(prev => prev.map(t => t.id === threadId ? { ...t, messages: [...(t.messages || []), message] } : t));
+      });
+      socketRef.current.on('threadError', ({ error }) => {
+        h.showToast(error, 'error');
+      });
+
       // 接龙错误
       socketRef.current.on('solitaireError', ({ error }) => {
         h.showToast(error, 'error');
@@ -462,6 +502,14 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
         socketRef.current.off('reactionUpdated');
         socketRef.current.off('solitaireUpdated');
         socketRef.current.off('unreadCounts');
+        socketRef.current.off('channelUpdated');
+        socketRef.current.off('channelSubscribed');
+        socketRef.current.off('channelUnsubscribed');
+        socketRef.current.off('channelAdminsUpdated');
+        socketRef.current.off('channelError');
+        socketRef.current.off('threadCreated');
+        socketRef.current.off('threadMessage');
+        socketRef.current.off('threadError');
         socketRef.current.off('solitaireError');
         socketRef.current.off('incomingCall');
         socketRef.current.off('callAccepted');

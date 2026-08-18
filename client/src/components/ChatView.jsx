@@ -154,6 +154,12 @@ export default function ChatView({
   handleInputChange,
   handleKeyDown,
   sendMessage,
+  isChannelAdmin,
+  isChannelSubscribed,
+  subscribeChannel,
+  unsubscribeChannel,
+  openThreads,
+  threadsCount = 0,
 }) {
   // 计算私聊对方是否在线
   const onlineIds = new Set((onlineUsers || []).map(u => u.id));
@@ -161,6 +167,11 @@ export default function ChatView({
   const otherUser = allUsers.find(u => u.username === otherMember);
   const isOtherOnline = otherUser && onlineIds.has(otherUser.id);
   const isPrivateChat = currentRoom?.members?.length === 2;
+  const isChannel = currentRoom?.type === 'channel';
+  const channelAdmin = isChannel && isChannelAdmin();
+  const channelReadOnly = isChannel && !channelAdmin;
+  const subscribed = isChannel && isChannelSubscribed();
+  const isThreadable = currentRoom?.type === 'group' || currentRoom?.type === 'public';
 
   return (
     <div className="chat-shell">
@@ -214,11 +225,29 @@ export default function ChatView({
               <I name="translate" size={15} />
               {autoTranslate && <span className="translate-active-dot" />}
             </button>
+            {isThreadable && (
+              <button onClick={openThreads} title="群话题" className="threads-entry-btn">
+                <I name="chat" size={15} />
+                {threadsCount > 0 && <span className="threads-count-badge">{threadsCount}</span>}
+              </button>
+            )}
             {currentRoom?.members?.length > 1 && (
               <button onClick={() => setShowRoomManage(true)} title="群管理"><I name="settings" size={15} /></button>
             )}
           </div>
         </div>
+        {isChannel && (
+          <div className="channel-subscribe-bar">
+            <span className="channel-badge">📢 频道</span>
+            <span className="channel-count">{currentRoom?.members?.length || 0} 位订阅者</span>
+            <button
+              className={`channel-subscribe-btn ${subscribed ? 'subscribed' : ''}`}
+              onClick={subscribed ? unsubscribeChannel : subscribeChannel}
+            >
+              {subscribed ? '已订阅 · 点击退订' : '+ 订阅'}
+            </button>
+          </div>
+        )}
         {aiSummary && (
           <div className="summary-flash">
             <div className="sflash-top">
@@ -677,6 +706,7 @@ export default function ChatView({
         aiSummaryLoading={aiSummaryLoading}
         startSyncMedia={startSyncMedia}
         sendCanvasCard={sendCanvasCard}
+        channelReadOnly={channelReadOnly}
       />
     </div>
   );

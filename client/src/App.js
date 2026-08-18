@@ -53,6 +53,7 @@ import ProfileModal from './components/modals/ProfileModal';
 import RechargeModal from './components/modals/RechargeModal';
 import AdminModal from './components/modals/AdminModal';
 import RoomManageModal from './components/modals/RoomManageModal';
+import ThreadsPanel from './components/ThreadsPanel';
 import AddFriendModal from './components/modals/AddFriendModal';
 import MomentsPanel from './components/modals/MomentsPanel';
 import ResetPwModal from './components/modals/ResetPwModal';
@@ -218,6 +219,9 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const [showRoomManage, setShowRoomManage] = useState(false);
+  // 群话题 Threads
+  const [threads, setThreads] = useState([]);
+  const [showThreads, setShowThreads] = useState(false);
 
   // ===== Socket 连接与在线用户 =====
   const socketRef = useRef(null);
@@ -243,6 +247,7 @@ function App() {
     unreadCounts, setUnreadCounts,
     handleRoomClick,
     createGroup,
+    createChannel,
     deleteChat,
     openFileTransfer,
   } = roomsHook;
@@ -565,6 +570,8 @@ function App() {
       setMessagesLoading,
       setTranslatedMessages,
       setAllUsers,
+      setThreads,
+      setView,
       currentRoomId,
       peerRef,
       pendingCandidatesRef,
@@ -931,6 +938,48 @@ function App() {
     return currentRoom && user && currentRoom.owner === user.username;
   };
 
+  // ===== 频道（Channel）=====
+  const isChannelAdmin = () => {
+    return currentRoom?.type === 'channel' && (currentRoom.owner === user?.username || (currentRoom.admins || []).includes(user?.username));
+  };
+
+  const isChannelSubscribed = () => {
+    return currentRoom?.type === 'channel' && (currentRoom.members || []).includes(user?.username);
+  };
+
+  const subscribeChannel = () => {
+    if (!currentRoomId || !socketRef.current) return;
+    socketRef.current.emit('subscribeChannel', { roomId: currentRoomId });
+    showToast('已订阅频道', 'success');
+  };
+
+  const unsubscribeChannel = () => {
+    if (!currentRoomId || !socketRef.current) return;
+    socketRef.current.emit('unsubscribeChannel', { roomId: currentRoomId });
+    showToast('已退订频道', 'info');
+  };
+
+  const setChannelAdmins = (admins) => {
+    if (!currentRoomId || !socketRef.current) return;
+    socketRef.current.emit('setChannelAdmins', { roomId: currentRoomId, admins });
+  };
+
+  // ===== 群话题 Threads =====
+  const openThreads = () => {
+    if (!currentRoomId) return;
+    setShowThreads(true);
+  };
+
+  const createThread = (title, content) => {
+    if (!currentRoomId || !socketRef.current) return;
+    socketRef.current.emit('createThread', { roomId: currentRoomId, title, content });
+  };
+
+  const sendThreadMessage = (threadId, content) => {
+    if (!currentRoomId || !socketRef.current) return;
+    socketRef.current.emit('sendThreadMessage', { roomId: currentRoomId, threadId, content });
+  };
+
   const muteRoomMember = (username) => {
     if (!currentRoomId || !socketRef.current) return;
     socketRef.current.emit('muteRoomMember', { roomId: currentRoomId, username });
@@ -1234,6 +1283,9 @@ function App() {
           <button className="sidebar-btn secondary" onClick={openFileTransfer}>
             文件传输
           </button>
+          <button className="sidebar-btn secondary" onClick={createChannel}>
+            新建频道
+          </button>
         </div>
       </div>
 
@@ -1478,6 +1530,12 @@ function App() {
             handleKeyDown={handleKeyDown}
             sendMessage={sendMessage}
             onlineUsers={onlineUsers}
+            isChannelAdmin={isChannelAdmin}
+            isChannelSubscribed={isChannelSubscribed}
+            subscribeChannel={subscribeChannel}
+            unsubscribeChannel={unsubscribeChannel}
+            openThreads={openThreads}
+            threadsCount={currentRoom?.threadCount ?? threads.length}
           />
         ) : bottomTab === 'chats' ? (
           <>
@@ -1578,7 +1636,17 @@ function App() {
 
       <AdminModal showAdminModal={showAdminModal} setShowAdminModal={setShowAdminModal} fetchAdminDashboard={fetchAdminDashboard} adminDashboardLoading={adminDashboardLoading} adminDashboard={adminDashboard} aiStatus={aiStatus} aiStatusLoading={aiStatusLoading} fetchAiStatus={fetchAiStatus} pendingRecharges={pendingRecharges} fetchPendingRecharges={fetchPendingRecharges} confirmRecharge={confirmRecharge} rejectRecharge={rejectRecharge} />
 
-      <RoomManageModal showRoomManage={showRoomManage} setShowRoomManage={setShowRoomManage} currentRoom={currentRoom} allUsers={allUsers} roomAnnouncements={roomAnnouncements} currentRoomId={currentRoomId} isRoomOwner={isRoomOwner} setAnnouncement={setAnnouncement} unmuteRoomMember={unmuteRoomMember} muteRoomMember={muteRoomMember} kickRoomMember={kickRoomMember} user={user} onlineUsers={onlineUsers} />
+      <RoomManageModal showRoomManage={showRoomManage} setShowRoomManage={setShowRoomManage} currentRoom={currentRoom} allUsers={allUsers} roomAnnouncements={roomAnnouncements} currentRoomId={currentRoomId} isRoomOwner={isRoomOwner} setAnnouncement={setAnnouncement} unmuteRoomMember={unmuteRoomMember} muteRoomMember={muteRoomMember} kickRoomMember={kickRoomMember} user={user} onlineUsers={onlineUsers} setChannelAdmins={setChannelAdmins} />
+
+      <ThreadsPanel
+        show={showThreads}
+        setShow={setShowThreads}
+        user={user}
+        threads={threads}
+        createThread={createThread}
+        sendThreadMessage={sendThreadMessage}
+        showToast={showToast}
+      />
 
       <AddFriendModal showSearchModal={showSearchModal} setShowSearchModal={setShowSearchModal} setSearchId={setSearchId} setSearchResult={setSearchResult} searchId={searchId} searchResult={searchResult} searchUser={searchUser} user={user} showToast={showToast} friendRequests={friendRequests} sendFriendRequest={sendFriendRequest} acceptFriendRequest={acceptFriendRequest} rejectFriendRequest={rejectFriendRequest} />
 
