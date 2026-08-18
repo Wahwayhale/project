@@ -19,8 +19,8 @@
                     ▼
 ┌─ Express Server (:3001) ────────────────┐
 │  helmet → compression → cors → rate-limit│
-│  REST API (57 endpoints)                 │
-│  Socket.io (WebSocket-only, 47 events)   │
+│  REST API (100 endpoints)                │
+│  Socket.io (WebSocket-only, 68 events)   │
 │  JSON file persistence (atomic writes)   │
 └─────────────────────────────────────────┘
 ```
@@ -34,8 +34,19 @@
 | AI | Zhipu GLM-4V / Kimi / DeepSeek R1 / 百度千帆 |
 | Storage | JSON files (atomic write: tmp → rename) |
 | Mobile | Capacitor 8, Android WebView, @capacitor/geolocation |
-| Tunnel | ngrok (free tier) |
+| Tunnel | ngrok (free tier, fixed domain) |
 | Process | PM2 (production) |
+
+## Codebase Scale
+
+| Artifact | Size |
+|----------|------|
+| `server/server.js` | ~3,800 lines (single file) |
+| `client/src/App.js` | ~1,600 lines (orchestrator) |
+| Frontend components | 60 files (`components/`) |
+| Custom hooks | 13 files (`hooks/`) |
+| Modular CSS | 24 files (`styles/`) |
+| Frontend source total | ~105 files (js/jsx/css) |
 
 ## Data Flow
 
@@ -47,11 +58,18 @@ User Action → React State → axios/socket.io → Express Route/Socket Handler
 
 ## Key Design Decisions
 
-1. **Single-file React** — App.js holds all UI state; avoids prop drilling complexity for this scale
-2. **JSON persistence** — Map-based Collection class with debounced atomic writes; sufficient for single-server
-3. **WebSocket-only** — No HTTP polling fallback; reduces latency and bandwidth
-4. **Capacitor ngrok OTA** — APK loads Web resources from the fixed ngrok domain; Web changes do not require APK rebuilds
-5. **ngrok tunneling** — One fixed public URL proxies Web, API, Socket.io, OTA metadata, and APK downloads to port 3001
+1. **Modular React** — App.js orchestrates 13 hooks + 60 components; the old
+   single-file (~5,000 line) App.js was split in v3.0.1 for maintainability.
+2. **JSON persistence** — Map-based `Collection` class with debounced atomic
+   writes (tmp → rename); sufficient for a single-server, personal deployment.
+3. **WebSocket-only** — No HTTP polling fallback; reduces latency and bandwidth.
+4. **Capacitor ngrok OTA** — APK loads Web resources from the fixed ngrok
+   domain; Web changes do not require APK rebuilds.
+5. **ngrok tunneling** — One fixed public URL proxies Web, API, Socket.io, OTA
+   metadata, and APK downloads to port 3001.
+6. **Runtime data untracked** — `server/data/` (accounts, messages, recharges,
+   hourly backups) and runtime logs are git-ignored; they are regenerated at
+   runtime and must never be version-controlled to avoid data loss on rollback.
 
 ## Directory Map
 
@@ -59,26 +77,30 @@ User Action → React State → axios/socket.io → Express Route/Socket Handler
 project-master/
 ├── client/                    # React frontend
 │   ├── src/
-│   │   ├── App.js             # Main component (~4500 lines)
-│   │   ├── index.js           # Entry point
-│   │   ├── index.css          # All styles + design tokens
-│   │   ├── components/        # Icon component
+│   │   ├── App.js             # Orchestrator (~1,600 lines)
+│   │   ├── index.js           # Entry + ErrorBoundary
+│   │   ├── index.css          # Global styles + design tokens
+│   │   ├── components/        # 60 components (views/modals/panels/ui/call)
+│   │   ├── hooks/             # 13 custom hooks
+│   │   ├── styles/            # 24 modular CSS files
 │   │   ├── config/            # Icon map
-│   │   └── hooks/             # Custom hooks
-│   ├── public/                # HTML, PWA manifest, OTA config
+│   │   └── utils/             # constants, format, avatar, e2e
+│   ├── public/                # HTML, OTA config, changelog
 │   ├── android/               # Capacitor Android project
-│   ├── releases/              # APK downloads
+│   ├── releases/              # APK downloads (git-ignored)
 │   └── package.json
 ├── server/                    # Express backend
-│   ├── server.js              # Main server (~2688 lines)
+│   ├── server.js              # Main server (~3,800 lines)
 │   ├── db.js                  # JSON persistence layer
-│   ├── data/                  # JSON data files + backups
-│   ├── uploads/               # User uploads
+│   ├── data/                  # Runtime JSON + hourly backups (git-ignored)
+│   ├── uploads/               # User uploads (git-ignored)
 │   ├── .env / .env.web / .env.app
 │   └── package.json
-├── start.bat                  # One-click launcher
+├── start.bat                  # One-click dev launcher
+├── start-prod.bat             # PM2 production launcher
 ├── ecosystem.config.js        # PM2 config
+├── deploy.sh                  # Linux server deploy (legacy naming, see plan)
 ├── huashu-design.md           # Design system
-├── CLAUDE.md                  # Dev conventions
+├── CLAUDE.md / AGENTS.md      # Dev conventions
 └── PRODUCT_SPEC.md / ARCHITECTURE.md / etc.
 ```

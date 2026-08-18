@@ -38,10 +38,10 @@
 
 | 项 | 问题 | 动作 | 状态 |
 |----|------|------|------|
-| 未提交改动 | 28 改 + 40 删 + 19 新增未提交 | 先看 diff → 分小 commit | ⏳ |
-| 文档脱节 | README 说 57 端点/4500 行，实际 ~100/4086 | 重写 README+ARCHITECTURE | ⏳ |
-| 根目录垃圾 | `211` `212` `213` `214` 构建残留 | 删除 | ⏳ |
-| `deploy.sh` 陈旧 | 旧仓库 `Wahwayhale/project.git`、旧名 `wechat-app` | 对齐命名 | ⏳ |
+| 未提交改动 | 28 改 + 40 删 + 19 新增未提交 | 先看 diff → 分小 commit | ⏳ 下一步(C) |
+| 文档脱节 | README 说 57 端点/4500 行，实际 ~100/3800 | 重写 README+ARCHITECTURE | ✅ 已重写 |
+| 根目录垃圾 | `211` `212` `213` `214` 构建残留 | 删除 | ✅ 已删除 |
+| `deploy.sh` 旧命名 | 目录 `wechat-app`、PM2 名 `wechat-backend` 与 `chatroom-server` 不一致 | 待核对（origin 仍指向 project.git，本地不运行，暂不改） | ⏸ 待定 |
 | 依赖健康度 | 无 audit 记录 | `npm audit` 只报告不改 | ⏳ |
 
 ---
@@ -77,3 +77,5 @@
 ## 执行记录
 
 - 2026-08-18：完成 P1.1 + P1.2（数据移出版本控制 + .gitignore）。
+- 2026-08-18：完成 P2 部分 —— 删除根目录垃圾文件（211~214）、重写 README + ARCHITECTURE 对齐真实代码规模（server.js ~3800 行 / REST 100 端点 / Socket 68 事件 / 前端 60 组件 + 13 hooks + 24 css）。
+- 2026-08-18：`deploy.sh` 暂不改动（Linux 服务器脚本，本地不运行且无法验证；命名不一致已记录待核对）。
