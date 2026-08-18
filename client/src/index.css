@@ -49,3 +49,6 @@
 
 /* --- Channel + Threads --- */
 @import './styles/channel-threads.css';
+
+/* --- Transfer --- */
+@import './styles/transfer.css';

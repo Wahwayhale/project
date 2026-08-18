@@ -11,6 +11,8 @@ export default function MeView({
   setShowMoments,
   setShowRechargeModal,
   fetchRechargeHistory,
+  setShowTransferModal,
+  fetchTransferHistory,
   setShowBackupModal,
   phoneInfo,
   fetchPhoneInfo,
@@ -33,6 +35,7 @@ export default function MeView({
       <div className="me-menu">
         <MeMenuItem icon="camera" tone="moments" label="朋友圈" onClick={() => { setShowMoments(true); }} />
         <MeMenuItem icon="wallet" tone="wallet" label="钱包" meta={`¥${(balance || 0).toFixed(2)}`} onClick={() => { setShowRechargeModal(true); fetchRechargeHistory(); }} />
+        <MeMenuItem icon="transfer" tone="wallet" label="转账" onClick={() => { setShowTransferModal(true); fetchTransferHistory(); }} />
         <MeMenuItem icon="backup" tone="backup" label="聊天记录管理" onClick={() => setShowBackupModal(true)} />
         <MeMenuItem icon="phone" tone="phone" label={phoneInfo.phoneBound ? phoneInfo.phone : '绑定手机号'} onClick={() => { fetchPhoneInfo(); setShowPhoneModal(true); }} />
         <MeMenuItem icon="sparkles" tone="primary" label="历史版本公告" onClick={() => setShowChangelogModal(true)} />

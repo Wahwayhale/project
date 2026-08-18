@@ -51,6 +51,7 @@ import CreateGroupModal from './components/modals/CreateGroupModal';
 import PhoneModal from './components/modals/PhoneModal';
 import ProfileModal from './components/modals/ProfileModal';
 import RechargeModal from './components/modals/RechargeModal';
+import TransferModal from './components/modals/TransferModal';
 import AdminModal from './components/modals/AdminModal';
 import RoomManageModal from './components/modals/RoomManageModal';
 import ThreadsPanel from './components/ThreadsPanel';
@@ -465,6 +466,12 @@ function App() {
     sendRedPacket,
     generateRedPacketDistribution,
     claimRedPacket,
+    showTransferModal, setShowTransferModal,
+    transferToUsername, setTransferToUsername,
+    transferAmount, setTransferAmount,
+    transferNote, setTransferNote,
+    transferHistory, setTransferHistory,
+    sendTransfer, fetchTransferHistory,
   } = useWallet({
     token,
     user,
@@ -1332,6 +1339,8 @@ function App() {
             setShowMoments={setShowMoments}
             setShowRechargeModal={setShowRechargeModal}
             fetchRechargeHistory={fetchRechargeHistory}
+            setShowTransferModal={setShowTransferModal}
+            fetchTransferHistory={fetchTransferHistory}
             setShowBackupModal={setShowBackupModal}
             phoneInfo={phoneInfo}
             fetchPhoneInfo={fetchPhoneInfo}
@@ -1633,6 +1642,23 @@ function App() {
 
       {/* 充值弹窗 */}
       <RechargeModal showRechargeModal={showRechargeModal} setShowRechargeModal={setShowRechargeModal} setRechargePayCode={setRechargePayCode} setRechargeAmount={setRechargeAmount} rechargePayCode={rechargePayCode} rechargeAmount={rechargeAmount} requestRecharge={requestRecharge} rechargeHistory={rechargeHistory} />
+
+      {/* 转账弹窗 */}
+      <TransferModal
+        showTransferModal={showTransferModal}
+        setShowTransferModal={setShowTransferModal}
+        user={user}
+        balance={balance}
+        friends={friends}
+        transferToUsername={transferToUsername}
+        setTransferToUsername={setTransferToUsername}
+        transferAmount={transferAmount}
+        setTransferAmount={setTransferAmount}
+        transferNote={transferNote}
+        setTransferNote={setTransferNote}
+        transferHistory={transferHistory}
+        sendTransfer={sendTransfer}
+      />
 
       <AdminModal showAdminModal={showAdminModal} setShowAdminModal={setShowAdminModal} fetchAdminDashboard={fetchAdminDashboard} adminDashboardLoading={adminDashboardLoading} adminDashboard={adminDashboard} aiStatus={aiStatus} aiStatusLoading={aiStatusLoading} fetchAiStatus={fetchAiStatus} pendingRecharges={pendingRecharges} fetchPendingRecharges={fetchPendingRecharges} confirmRecharge={confirmRecharge} rejectRecharge={rejectRecharge} />
 

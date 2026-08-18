@@ -29,6 +29,13 @@ export function useWallet({
   const [redPacketCount, setRedPacketCount] = useState('');
   const [redPacketMessage, setRedPacketMessage] = useState('恭喜发财，大吉大利');
 
+  // ===== 用户间转账 =====
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferToUsername, setTransferToUsername] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
+  const [transferNote, setTransferNote] = useState('');
+  const [transferHistory, setTransferHistory] = useState([]);
+
   // 获取余额
   const fetchBalance = async () => {
     try {
@@ -212,6 +219,49 @@ export function useWallet({
     socketRef.current.emit('claimRedPacket', { roomId: currentRoomId, packetId });
   };
 
+  // ===== 转账 =====
+  const fetchTransferHistory = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/transfer/history`, {
+        headers: { Authorization: token }
+      });
+      setTransferHistory(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('获取转账记录失败:', err);
+    }
+  };
+
+  const sendTransfer = async () => {
+    if (!transferToUsername || !transferToUsername.trim()) {
+      showToast('请输入收款人用户名', 'error');
+      return;
+    }
+    const amountNum = parseFloat(transferAmount);
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      showToast('请输入有效的转账金额', 'error');
+      return;
+    }
+    if (Math.round(amountNum * 100) !== amountNum * 100) {
+      showToast('转账金额最多两位小数', 'error');
+      return;
+    }
+    try {
+      const response = await axios.post(`${API_URL}/api/transfer`,
+        { toUsername: transferToUsername.trim(), amount: amountNum, note: transferNote },
+        { headers: { Authorization: token } }
+      );
+      setBalance(response.data.newBalance);
+      showToast(`已转账 ¥${amountNum.toFixed(2)} 给 ${transferToUsername.trim()}`, 'success');
+      setShowTransferModal(false);
+      setTransferToUsername('');
+      setTransferAmount('');
+      setTransferNote('');
+      fetchTransferHistory();
+    } catch (err) {
+      showToast(err.response?.data?.error || '转账失败', 'error');
+    }
+  };
+
   return {
     // Recharge
     showRechargeModal, setShowRechargeModal,
@@ -240,5 +290,12 @@ export function useWallet({
     sendRedPacket,
     generateRedPacketDistribution,
     claimRedPacket,
+    // Transfer
+    showTransferModal, setShowTransferModal,
+    transferToUsername, setTransferToUsername,
+    transferAmount, setTransferAmount,
+    transferNote, setTransferNote,
+    transferHistory, setTransferHistory,
+    sendTransfer, fetchTransferHistory,
   };
 }

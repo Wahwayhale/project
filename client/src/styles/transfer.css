@@ -1,0 +1,60 @@
+/* ===== 用户间转账 ===== */
+.transfer-balance {
+  padding: 10px 14px;
+  background: var(--bg-color);
+  border-radius: 8px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.transfer-balance strong {
+  color: var(--text-primary, #07c160);
+  font-size: 16px;
+}
+
+.transfer-friends {
+  margin-bottom: 12px;
+}
+.transfer-friends-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.transfer-friends-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.transfer-friend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.transfer-friend:hover {
+  border-color: #07c160;
+}
+.transfer-friend.active {
+  border-color: #07c160;
+  background: rgba(7, 193, 96, 0.1);
+  color: #07c160;
+}
+
+.transfer-confirm-hint {
+  padding: 8px 12px;
+  background: rgba(7, 193, 96, 0.08);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+.transfer-confirm-hint strong {
+  color: #07c160;
+}

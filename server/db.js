@@ -7,7 +7,8 @@ const FILES = {
   friendRequests: 'friendRequests.json',
   friends: 'friends.json',
   rooms: 'rooms.json',
-  recharges: 'recharges.json'
+  recharges: 'recharges.json',
+  transfers: 'transfers.json'
 };
 
 function ensureDir() {
@@ -187,6 +188,7 @@ const SCHEMAS = {
   users: { required: ['id', 'username'] },
   rooms: { required: ['id', 'name', 'type'], arrayFields: ['members', 'messages'] },
   recharges: { required: ['id', 'userId', 'amount'] },
+  transfers: { required: ['id', 'fromUserId', 'toUserId', 'amount'] },
   friends: { valueType: 'array' },
   friendRequests: { valueType: 'array' }
 };
@@ -236,7 +238,8 @@ function init() {
     friendRequests: new Collection('friendRequests').load(),
     friends: new Collection('friends').load(),
     rooms: new Collection('rooms').load(),
-    recharges: new Collection('recharges').load()
+    recharges: new Collection('recharges').load(),
+    transfers: new Collection('transfers').load()
   };
 
   if (!collections.rooms.has('global')) {

@@ -88,6 +88,7 @@ const friendRequests = collections.friendRequests;
 const friends = collections.friends;
 const rooms = collections.rooms;
 const recharges = collections.recharges;
+const transfers = collections.transfers;
 const AUDIT_FILE = path.join(DATA_DIR, 'adminAudit.json');
 let auditLog = [];
 
@@ -147,7 +148,7 @@ process.on('SIGUSR2', () => handleShutdown('SIGUSR2')); // PM2 reload
 
 // ========== 自动备份（每小时） ==========
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
-const BACKUP_FILES = ['users.json', 'friendRequests.json', 'friends.json', 'rooms.json', 'recharges.json'];
+const BACKUP_FILES = ['users.json', 'friendRequests.json', 'friends.json', 'rooms.json', 'recharges.json', 'transfers.json'];
 setInterval(() => {
   try {
     const now = new Date().toISOString().replace(/[:.]/g, '-');
@@ -638,6 +639,96 @@ app.post('/api/admin/recharge/reject', verifyToken, (req, res) => {
 
   addAudit('recharge.reject', user, { username: recharge.username, amount: recharge.amount, rechargeId, reason: recharge.rejectReason });
   res.json({ success: true, recharge });
+});
+
+// ========== 用户间转账 ==========
+// 校验转账金额：正数、最多两位小数
+function isValidTransferAmount(value) {
+  if (typeof value !== 'number' && typeof value !== 'string') return false;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return false;
+  // 最多两位小数
+  return Math.round(n * 100) === n * 100;
+}
+
+app.post('/api/transfer', verifyToken, (req, res) => {
+  const { toUsername, amount, note } = req.body || {};
+  const fromUsername = req.user.username;
+
+  // 校验收款人
+  if (!toUsername || typeof toUsername !== 'string') {
+    return res.status(400).json({ error: '请指定收款人用户名' });
+  }
+  const toUsernameTrimmed = toUsername.trim();
+  if (toUsernameTrimmed === fromUsername) {
+    return res.status(400).json({ error: '不能转账给自己' });
+  }
+  const toUser = users.get(toUsernameTrimmed);
+  if (!toUser) {
+    return res.status(404).json({ error: '收款人不存在' });
+  }
+
+  // 校验金额
+  if (!isValidTransferAmount(amount)) {
+    return res.status(400).json({ error: '转账金额必须为正数且最多两位小数' });
+  }
+  const amountNum = Math.round(Number(amount) * 100) / 100;
+
+  // 校验转出方余额
+  const fromUser = users.get(fromUsername);
+  if (!fromUser) {
+    return res.status(401).json({ error: '转出用户不存在' });
+  }
+  const fromBalance = fromUser.balance || 0;
+  if (fromBalance < amountNum) {
+    return res.status(400).json({ error: `余额不足，当前余额 ¥${fromBalance.toFixed(2)}` });
+  }
+
+  // 原子执行：同一步内扣款 + 加款 + 记录（单进程同步，无并发竞态）
+  const newFromBalance = Math.round((fromBalance - amountNum) * 100) / 100;
+  const newToBalance = Math.round(((toUser.balance || 0) + amountNum) * 100) / 100;
+
+  fromUser.balance = newFromBalance;
+  users.set(fromUsername, fromUser);
+  toUser.balance = newToBalance;
+  users.set(toUsernameTrimmed, toUser);
+  users.save(); // 立即持久化，防止重启丢款
+
+  const transfer = {
+    id: uuidv4(),
+    fromUserId: fromUser.id,
+    fromUsername,
+    toUserId: toUser.id,
+    toUsername: toUsernameTrimmed,
+    amount: amountNum,
+    note: (note && typeof note === 'string' && note.trim()) ? note.trim().slice(0, 100) : '',
+    createdAt: new Date().toISOString()
+  };
+  transfers.set(transfer.id, transfer);
+  transfers.save();
+
+  // 通知双方余额变更
+  const fromSocket = userSockets.get(fromUser.id);
+  if (fromSocket) fromSocket.emit('balanceUpdated', { balance: newFromBalance });
+  const toSocket = userSockets.get(toUser.id);
+  if (toSocket) toSocket.emit('balanceUpdated', { balance: newToBalance });
+
+  addAudit('transfer', req.user, { fromUsername, toUsername: toUsernameTrimmed, amount: amountNum, note: transfer.note });
+
+  console.log(`[TRANSFER] ${fromUsername} → ${toUsernameTrimmed} ¥${amountNum}`);
+  res.json({
+    success: true,
+    transfer,
+    newBalance: newFromBalance
+  });
+});
+
+app.get('/api/transfer/history', verifyToken, (req, res) => {
+  const myId = req.user.id;
+  const records = transfers
+    .filter(t => t.fromUserId === myId || t.toUserId === myId)
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  res.json(records.slice(0, 100));
 });
 
 app.get('/api/friends', verifyToken, (req, res) => {
