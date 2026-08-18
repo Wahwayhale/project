@@ -25,9 +25,16 @@
 - 新增 `server/data/`、`server/codes.log`、`server/server.out.log`、`server/server.err.log`
 - 已执行 ✅
 
-### 1.3 冒烟测试（部分完成）
-- **方案 1（已完成 ✅）**：`server/test/db.test.js` 测 `Collection` 纯查询 API（`size/has/get/find/findAll/map/filter/toArray/forEach/keys/values/entries`），零文件 I/O，5/5 通过；`server/package.json` 已加 `"test": "node --test"`。
-- **方案 2（待做 ⏳）**：原子写入/登录/消息链路集成测试，需先给 `db.js` 的 `DATA_DIR` 加环境变量覆盖（一次代码改动，单独小步 + 验证后执行）。
+### 1.3 冒烟测试（已完成 ✅）
+- **纯查询 API**：`server/test/db.test.js` 测 `Collection` 只读方法（size/has/get/find/findAll/map/filter/toArray/forEach/keys/values/entries），零文件 I/O。
+- **原子写入/备份/损坏恢复**：`server/test/db-atomic.test.js`，通过 `DATA_DIR` 环境变量指向临时目录，8/8 通过。
+- `db.js` 已加 `DATA_DIR` 环境变量覆盖（默认行为不变）+ 导出 `DATA_DIR` 供测试 fail-fast 断言。
+- `server/package.json` 已加 `"test": "node --test"`。
+- **重要发现**：`saveJson` 的写锁会让同一文件的第 2+ 次写入推迟到微任务（`.then`），`flush()` 后并非立即落盘。生产有 200ms 防抖 + 3s autoFlush 兜底，非数据损坏 bug，但值得记录。
+
+### 端到端「登录/发消息」集成测试（暂缓 ⏸）
+- `server.js` 是自执行脚本（`server.listen` 直接启动，无 `require.main` 保护），`require()` 会立即加载真实 .env、监听端口、读写真实 data；且 `AUDIT_FILE`/`BACKUP_DIR`/`codes.log` 多处硬编码 data 路径。
+- 需先将 server.js 重构为「app 创建与 listen 分离 + 数据路径可配置」才能安全测试，属中等规模重构，风险高，暂缓。
 
 ---
 
@@ -76,3 +83,4 @@
 - 2026-08-18：完成 P1.1 + P1.2（数据移出版本控制 + .gitignore）。
 - 2026-08-18：完成 P2 部分 —— 删除根目录垃圾文件（211~214）、重写 README + ARCHITECTURE 对齐真实代码规模（server.js ~3800 行 / REST 100 端点 / Socket 68 事件 / 前端 60 组件 + 13 hooks + 24 css）。
 - 2026-08-18：`deploy.sh` 暂不改动（Linux 服务器脚本，本地不运行且无法验证；命名不一致已记录待核对）。
+- 2026-08-18：完成 P1.3 冒烟测试 —— `db.js` 加 `DATA_DIR` 环境变量覆盖，补原子写入/备份/损坏恢复测试（8/8 通过，临时目录隔离，真实数据零污染）；端到端集成测试因 server.js 为自执行脚本而暂缓。

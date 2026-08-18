@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const FILES = {
   users: 'users.json',
   friendRequests: 'friendRequests.json',
@@ -223,4 +223,4 @@ process.on('exit', () => {
   }
 });
 
-module.exports = { init, flushAll, startAutoFlush, stopAutoFlush, Collection };
+module.exports = { init, flushAll, startAutoFlush, stopAutoFlush, Collection, DATA_DIR };
