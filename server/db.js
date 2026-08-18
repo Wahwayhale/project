@@ -182,6 +182,52 @@ class Collection {
   }
 }
 
+// ===== 数据结构自检（只读诊断：不阻止启动、不改变数据，异常仅告警） =====
+const SCHEMAS = {
+  users: { required: ['id', 'username'] },
+  rooms: { required: ['id', 'name', 'type'], arrayFields: ['members', 'messages'] },
+  recharges: { required: ['id', 'userId', 'amount'] },
+  friends: { valueType: 'array' },
+  friendRequests: { valueType: 'array' }
+};
+
+function validateCollections(collections) {
+  const warnings = [];
+  for (const [name, schema] of Object.entries(SCHEMAS)) {
+    const col = collections[name];
+    if (!col) continue;
+    for (const [key, value] of col.entries()) {
+      if (value === null || value === undefined) {
+        warnings.push(`${name}[${key}] 值为空`);
+        continue;
+      }
+      if (schema.valueType === 'array' && !Array.isArray(value)) {
+        warnings.push(`${name}[${key}] 应为数组，实际为 ${typeof value}`);
+        continue;
+      }
+      if (schema.required) {
+        if (typeof value !== 'object' || Array.isArray(value)) {
+          warnings.push(`${name}[${key}] 应为对象，实际为 ${typeof value}`);
+          continue;
+        }
+        for (const field of schema.required) {
+          if (value[field] === undefined || value[field] === null) {
+            warnings.push(`${name}[${key}] 缺少必需字段 "${field}"`);
+          }
+        }
+        if (schema.arrayFields) {
+          for (const field of schema.arrayFields) {
+            if (value[field] !== undefined && value[field] !== null && !Array.isArray(value[field])) {
+              warnings.push(`${name}[${key}] 字段 "${field}" 应为数组`);
+            }
+          }
+        }
+      }
+    }
+  }
+  return warnings;
+}
+
 function init() {
   ensureDir();
 
@@ -201,6 +247,14 @@ function init() {
       members: [],
       messages: []
     });
+  }
+
+  // 启动自检：只读诊断，发现异常仅告警，不中断启动
+  const warnings = validateCollections(collections);
+  if (warnings.length) {
+    console.warn(`[SCHEMA] 数据自检发现 ${warnings.length} 处异常:`);
+    warnings.slice(0, 20).forEach(w => console.warn(`  - ${w}`));
+    if (warnings.length > 20) console.warn(`  ... 其余 ${warnings.length - 20} 处省略`);
   }
 
   return collections;
@@ -223,4 +277,4 @@ process.on('exit', () => {
   }
 });
 
-module.exports = { init, flushAll, startAutoFlush, stopAutoFlush, Collection, DATA_DIR };
+module.exports = { init, flushAll, startAutoFlush, stopAutoFlush, Collection, validateCollections, DATA_DIR };
