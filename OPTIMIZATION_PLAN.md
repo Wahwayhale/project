@@ -46,7 +46,7 @@
 | 文档脱节 | README 说 57 端点/4500 行，实际 ~100/3800 | 重写 README+ARCHITECTURE | ✅ 已重写 |
 | 根目录垃圾 | `211` `212` `213` `214` 构建残留 | 删除 | ✅ 已删除 |
 | `deploy.sh` 旧命名 | 目录 `wechat-app`、PM2 名 `wechat-backend` 与 `chatroom-server` 不一致 | 待核对（origin 仍指向 project.git，本地不运行，暂不改） | ⏸ 待定 |
-| 依赖健康度 | 无 audit 记录 | `npm audit` 只报告不改 | ⏳ |
+| 依赖健康度 | 13 漏洞（10 high） | `npm audit fix`（非 force）已修 WebSocket DoS（socket.io-parser 4.2.7 / ws 8.21.3），13→4；剩余 4 个（NeteaseCloudMusicApi 的 file-type/ip-address + uuid）需 breaking 升级暂缓 | ✅ |
 
 ---
 
@@ -105,3 +105,4 @@
 - 2026-08-18：`deploy.sh` 暂不改动（Linux 服务器脚本，本地不运行且无法验证；命名不一致已记录待核对）。
 - 2026-08-18：完成 P1.3 冒烟测试 —— `db.js` 加 `DATA_DIR` 环境变量覆盖，补原子写入/备份/损坏恢复测试（8/8 通过，临时目录隔离，真实数据零污染）；端到端集成测试因 server.js 为自执行脚本而暂缓。
 - 2026-08-18：建立健康基线（build ✅ / test ✅ / health ✅ / 首页 200），新增 `verify.bat` 发版检查脚本；决策：暂停高风险重构（server.js 拆分、抽 AI 函数）。
+- 2026-08-18：`npm audit fix`（非 force）修复 WebSocket 公网 DoS 漏洞（socket.io 4.7.2→4.8.3、socket.io-parser→4.2.7、ws→8.21.3），13→4；验证语法/测试 12/12/启动 health 全过。剩余 4 个漏洞均需 breaking 升级（NeteaseCloudMusicApi→3.47.5、uuid→14），涉及音乐功能稳定性，暂缓待坤哥决策。package.json 未变（`^4.7.2` 范围已涵盖修复版）。
