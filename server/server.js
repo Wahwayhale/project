@@ -82,12 +82,13 @@ const JWT_SECRET = 'wechat-secret-key-2024';
 const PORT = process.env.PORT || 3001;
 
 const collections = db.init();
+const DATA_DIR = db.DATA_DIR;
 const users = collections.users;
 const friendRequests = collections.friendRequests;
 const friends = collections.friends;
 const rooms = collections.rooms;
 const recharges = collections.recharges;
-const AUDIT_FILE = path.join(__dirname, 'data', 'adminAudit.json');
+const AUDIT_FILE = path.join(DATA_DIR, 'adminAudit.json');
 let auditLog = [];
 
 try {
@@ -145,7 +146,7 @@ process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 process.on('SIGUSR2', () => handleShutdown('SIGUSR2')); // PM2 reload
 
 // ========== 自动备份（每小时） ==========
-const BACKUP_DIR = path.join(__dirname, 'data', 'backups');
+const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const BACKUP_FILES = ['users.json', 'friendRequests.json', 'friends.json', 'rooms.json', 'recharges.json'];
 setInterval(() => {
   try {
@@ -153,7 +154,7 @@ setInterval(() => {
     const backupDir = path.join(BACKUP_DIR, now);
     fs.mkdirSync(backupDir, { recursive: true });
     for (const filename of BACKUP_FILES) {
-      const src = path.join(__dirname, 'data', filename);
+      const src = path.join(DATA_DIR, filename);
       if (fs.existsSync(src)) {
         fs.copyFileSync(src, path.join(backupDir, filename));
       }
@@ -1502,7 +1503,7 @@ async function sendSms(phone, code) {
     console.log(logLine);
     // 同时写入 codes.log 文件，方便直接打开查看
     try {
-      fs.appendFileSync(path.join(__dirname, 'codes.log'), logLine);
+      fs.appendFileSync(path.join(DATA_DIR, 'codes.log'), logLine);
     } catch (e) { /* ignore */ }
     console.log('========================================\n');
     return;
