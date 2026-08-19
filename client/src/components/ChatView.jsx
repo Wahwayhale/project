@@ -167,6 +167,10 @@ export default function ChatView({
   const otherUser = allUsers.find(u => u.username === otherMember);
   const isOtherOnline = otherUser && onlineIds.has(otherUser.id);
   const isPrivateChat = currentRoom?.members?.length === 2;
+  // 群聊在线成员数：随 userOnline/userOffline 事件驱动实时刷新
+  const onlineMemberCount = (currentRoom?.members || []).filter(m =>
+    (onlineUsers || []).some(u => u.username === m)
+  ).length;
   const isChannel = currentRoom?.type === 'channel';
   const channelAdmin = isChannel && isChannelAdmin();
   const channelReadOnly = isChannel && !channelAdmin;
@@ -191,7 +195,7 @@ export default function ChatView({
                 {isPrivateChat ? (
                   <div className={`online-badge ${isOtherOnline ? '' : 'offline'}`}>{isOtherOnline ? '在线' : '离线'}</div>
                 ) : (
-                  <div className="online-badge">在线</div>
+                  <div className="online-badge">{onlineMemberCount} 人在线</div>
                 )}
                 <span className="chat-header-hint">
                   {currentRoom?.members?.length > 1 ? `${currentRoom.members.length} 位成员` : '私密对话'}

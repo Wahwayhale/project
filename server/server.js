@@ -174,32 +174,6 @@ const userSockets = new Map(); // userId -> socket (最新连接)
 const userConnectionCount = new Map(); // userId -> count
 const chunksStore = new Map();
 
-// ========== 断线缓冲（Grace Period） ==========
-// 移动端切后台/锁屏时 WebSocket 会被系统冻结，服务端 pingTimeout(20s) 一到就判定
-// 连接死亡。若此时立即下线，用户明明在线却会被误报离线（通讯录/在线人数不准）。
-// 因此断开后延迟 OFFLINE_GRACE_MS 再真正下线；缓冲期内重新认证则取消下线。
-const offlineTimers = new Map(); // userId -> setTimeout handle
-const OFFLINE_GRACE_MS = 120000; // 2 分钟，与 io 配置 maxDisconnectionDuration 一致
-
-function scheduleOffline(userId) {
-  if (offlineTimers.has(userId)) clearTimeout(offlineTimers.get(userId));
-  offlineTimers.set(userId, setTimeout(() => {
-    offlineTimers.delete(userId);
-    if (onlineUsers.has(userId)) {
-      onlineUsers.delete(userId);
-      io.emit('userOffline', { id: userId });
-    }
-  }, OFFLINE_GRACE_MS));
-}
-
-function cancelOffline(userId) {
-  const t = offlineTimers.get(userId);
-  if (t) {
-    clearTimeout(t);
-    offlineTimers.delete(userId);
-  }
-}
-
 // 更新用户余额并通知前端
 function updateUserBalance(username, newBalance) {
   const user = users.get(username);
@@ -3233,8 +3207,6 @@ io.on('connection', (socket) => {
       // 追踪连接数，支持多端在线
       const prevCount = userConnectionCount.get(decoded.id) || 0;
       userConnectionCount.set(decoded.id, prevCount + 1);
-      // 断线缓冲期内重连：取消延迟下线，保持在线状态无缝衔接
-      cancelOffline(decoded.id);
       onlineUsers.set(decoded.id, { id: decoded.id, username: decoded.username });
       userSockets.set(decoded.id, socket);
       socket.emit('authenticated', { user: { id: decoded.id, username: decoded.username } });
@@ -4400,9 +4372,10 @@ io.on('connection', (socket) => {
         else userSockets.delete(socket.userId);
       }
       if (count <= 0) {
-        // 所有连接都已断开：进入断线缓冲，缓冲期内重连则取消（避免移动端后台误报离线）
+        // 所有连接都已断开：立即下线并广播（实时生效，无延迟）
         userConnectionCount.delete(socket.userId);
-        scheduleOffline(socket.userId);
+        onlineUsers.delete(socket.userId);
+        io.emit('userOffline', { id: socket.userId });
       } else {
         userConnectionCount.set(socket.userId, count);
       }
