@@ -1363,6 +1363,161 @@ app.post('/api/admin/reload-config', verifyToken, (req, res) => {
   }
 });
 
+// ========== 更新公告（changelog + OTA） ==========
+const CHANGELOG_FILE = path.join(DATA_DIR, 'changelog.json');
+let changelogData = null; // { releases: [], ota: {} }
+
+function normalizeNotes(notes) {
+  if (!Array.isArray(notes)) return [];
+  return notes.map(n => {
+    if (typeof n === 'string') return { type: 'improve', text: n };
+    if (n && typeof n === 'object' && n.text) {
+      return { type: ['new', 'fix', 'improve'].includes(n.type) ? n.type : 'improve', text: String(n.text) };
+    }
+    return null;
+  }).filter(Boolean);
+}
+
+function readJsonSafe(filePath) {
+  try {
+    if (fs.existsSync(filePath)) return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  } catch (e) {
+    console.error(`[CHANGELOG] read ${filePath} failed:`, e.message);
+  }
+  return null;
+}
+
+function saveChangelog() {
+  try {
+    const tmp = CHANGELOG_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(changelogData, null, 2), 'utf-8');
+    fs.renameSync(tmp, CHANGELOG_FILE);
+  } catch (e) {
+    console.error('[CHANGELOG] save failed:', e.message);
+  }
+}
+
+function loadChangelog() {
+  changelogData = readJsonSafe(CHANGELOG_FILE);
+  if (!changelogData || !Array.isArray(changelogData.releases)) {
+    // 首次启动：从静态文件 seed（旧格式自动迁移到新格式）
+    const pubDir = path.join(__dirname, '..', 'client', 'public');
+    const buildDir = path.join(__dirname, '..', 'client', 'build');
+    const staticChangelog = readJsonSafe(path.join(pubDir, 'changelog.json')) || readJsonSafe(path.join(buildDir, 'changelog.json')) || { releases: [] };
+    const staticOta = readJsonSafe(path.join(pubDir, 'ota-version.json')) || readJsonSafe(path.join(buildDir, 'ota-version.json')) || {};
+    const releases = (staticChangelog.releases || []).map((r, i, arr) => ({
+      version: r.version || staticOta.appVersion || '1.0.0',
+      webBuild: r.webBuild || 0,
+      prevWebBuild: r.prevWebBuild ?? (i + 1 < arr.length ? arr[i + 1].webBuild : (staticOta.webBuild || 0) - 1),
+      date: r.date || '',
+      title: r.title || '版本更新',
+      tags: Array.isArray(r.tags) ? r.tags : [],
+      notes: normalizeNotes(r.notes)
+    }));
+    changelogData = { releases, ota: { ...staticOta } };
+    saveChangelog();
+    console.log(`[CHANGELOG] seeded ${releases.length} releases from static files`);
+  }
+  if (!changelogData.ota) changelogData.ota = {};
+}
+
+loadChangelog();
+
+// 公开：公告列表（历史版本公告弹窗）
+app.get('/api/changelog', (req, res) => {
+  res.json({ releases: changelogData.releases || [] });
+});
+
+// 公开：OTA 版本信息（App 登录时检查更新用，字段兼容原 ota-version.json）
+app.get('/api/ota', (req, res) => {
+  res.json(changelogData.ota || {});
+});
+
+// 已读公告状态（按用户同步，跨设备不重复弹窗）
+app.get('/api/me/seen-updates', verifyToken, (req, res) => {
+  const user = users.get(req.user.username);
+  res.json({ seen: Array.isArray(user?.seenUpdates) ? user.seenUpdates : [] });
+});
+
+app.post('/api/me/seen-updates', verifyToken, (req, res) => {
+  const updateId = req.body && req.body.updateId;
+  if (!updateId) return res.status(400).json({ error: 'updateId required' });
+  const user = users.get(req.user.username);
+  if (user) {
+    if (!Array.isArray(user.seenUpdates)) user.seenUpdates = [];
+    if (!user.seenUpdates.includes(updateId)) {
+      user.seenUpdates.push(updateId);
+      if (user.seenUpdates.length > 50) user.seenUpdates = user.seenUpdates.slice(-50);
+      if (typeof users.saveDebounced === 'function') users.saveDebounced();
+    }
+  }
+  res.json({ ok: true });
+});
+
+function requireAdmin(req, res) {
+  const user = Array.from(users.values()).find(u => u.id === req.user.id);
+  if (!user || user.username !== 'admin') {
+    res.status(403).json({ error: '需要管理员权限' });
+    return null;
+  }
+  return user;
+}
+
+// 管理：公告列表
+app.get('/api/admin/changelog', verifyToken, (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  res.json({ releases: changelogData.releases || [] });
+});
+
+// 管理：在线发布新公告（自动 webBuild +1、更新 OTA 弹窗信息）
+app.post('/api/admin/changelog', verifyToken, (req, res) => {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+  const { title, notes, tags } = req.body || {};
+  const normalized = normalizeNotes(notes);
+  if (!title || typeof title !== 'string' || !title.trim() || normalized.length === 0) {
+    return res.status(400).json({ error: '标题和至少一条更新说明必填' });
+  }
+  const prev = changelogData.releases[0];
+  const prevWebBuild = prev?.webBuild || changelogData.ota?.webBuild || 0;
+  const webBuild = prevWebBuild + 1;
+  const release = {
+    version: changelogData.ota?.appVersion || '3.0.0',
+    webBuild,
+    prevWebBuild,
+    date: new Date().toISOString().slice(0, 10),
+    title: title.trim(),
+    tags: Array.isArray(tags) ? tags.filter(t => typeof t === 'string').slice(0, 5) : [],
+    notes: normalized
+  };
+  changelogData.releases.unshift(release);
+  changelogData.ota = {
+    ...changelogData.ota,
+    webBuild,
+    updateId: `web-${webBuild}-${Date.now().toString(36)}`,
+    updateTitle: release.title,
+    updateNotes: normalized.map(n => n.text),
+    showMajorUpdate: true,
+    forceUpdate: false
+  };
+  saveChangelog();
+  addAudit('changelog.publish', admin, { webBuild, title: release.title });
+  res.json({ success: true, release, ota: changelogData.ota });
+});
+
+// 管理：删除公告
+app.delete('/api/admin/changelog/:webBuild', verifyToken, (req, res) => {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+  const wb = Number(req.params.webBuild);
+  const idx = (changelogData.releases || []).findIndex(r => r.webBuild === wb);
+  if (idx === -1) return res.status(404).json({ error: '公告不存在' });
+  const [removed] = changelogData.releases.splice(idx, 1);
+  saveChangelog();
+  addAudit('changelog.delete', admin, { webBuild: wb, title: removed.title });
+  res.json({ success: true });
+});
+
 function biliRequest(path, callback) {
   const url = `https://api.bilibili.com${path}`;
   const options = {

@@ -463,6 +463,8 @@ function App() {
     rejectRecharge,
     fetchAdminDashboard,
     openAdminCenter,
+    fetchAdminChangelog, adminReleases,
+    publishChangelog, deleteChangelog,
     sendRedPacket,
     generateRedPacketDistribution,
     claimRedPacket,
@@ -636,22 +638,70 @@ function App() {
   }, [messages, messagesLoading, messageEndRef]);
 
   // OTA 版本检查：手机端登录不弹下载窗；仅大版本变化时展示一次更新说明。
+  // 数据源：后端 /api/ota（管理员在线发布，实时生效），失败时回退静态 ota-version.json。
+  // 已读状态：后端 /api/me/seen-updates 跨设备同步 + localStorage 本机兜底。
+  const [seenUpdateIds, setSeenUpdateIds] = useState(() => new Set());
   useEffect(() => {
     const checkUpdate = async () => {
       try {
-        const res = await axios.get(`${API_URL}/ota-version.json`, { timeout: 5000 });
-        const info = res.data || {};
+        let info = null;
+        try {
+          const apiRes = await axios.get(`${API_URL}/api/ota`, { timeout: 5000 });
+          if (apiRes.data && Object.keys(apiRes.data).length > 0) info = apiRes.data;
+        } catch (e) { /* API 不可用则用静态文件 */ }
+        if (!info) {
+          const staticRes = await axios.get(`${API_URL}/ota-version.json`, { timeout: 5000 });
+          info = staticRes.data || {};
+        }
         setOtaInfo(info);
         const major = String(info.majorVersion || (info.appVersion || '').split('.')[0] || MAJOR_VERSION);
         const updateId = String(info.updateId || info.updateKey || major);
+        // 拉取服务端已读状态（跨设备），用局部变量避免闭包读到旧 state
+        let seenSet = seenUpdateIds;
+        try {
+          const seenRes = await axios.get(`${API_URL}/api/me/seen-updates`, { timeout: 5000, headers: { Authorization: tokenRef.current } });
+          if (Array.isArray(seenRes.data?.seen)) {
+            seenSet = new Set(seenRes.data.seen);
+            setSeenUpdateIds(seenSet);
+          }
+        } catch (e) { /* 忽略 */ }
         const seenKey = `seenMajorUpdate:${updateId}`;
-        if (info.showMajorUpdate && updateId !== localStorage.getItem(seenKey)) {
+        const localSeen = localStorage.getItem(seenKey);
+        if (info.showMajorUpdate && !localSeen && !seenSet.has(updateId)) {
           setShowMajorUpdateModal(true);
+          // Web 推送通知（浏览器环境；App WebView 无 Notification 则跳过）
+          if (typeof window !== 'undefined' && 'Notification' in window) {
+            if (Notification.permission === 'granted') {
+              try {
+                new Notification(`聊天室更新：${info.updateTitle || '新版本'}`, {
+                  body: (info.updateNotes || [])[0] || '点击查看更新内容',
+                  icon: '/favicon.ico'
+                });
+              } catch (e) { /* 通知被拦截则忽略 */ }
+            } else if (Notification.permission === 'default') {
+              Notification.requestPermission();
+            }
+          }
         }
       } catch (e) { /* 离线忽略 */ }
     };
     if (isAuthenticated) checkUpdate();
-  }, [isAuthenticated]);
+    // eslint-disable-next-line
+  }, [isAuthenticated, user?.id]);
+
+  // 标记公告已读：同步到服务端 + 本机 localStorage
+  const markUpdateSeen = async (info) => {
+    const major = String(info?.majorVersion || (info?.appVersion || '').split('.')[0] || MAJOR_VERSION);
+    const updateId = String(info?.updateId || info?.updateKey || major);
+    localStorage.setItem(`seenMajorUpdate:${updateId}`, updateId);
+    setSeenUpdateIds(prev => new Set(prev).add(updateId));
+    try {
+      await axios.post(`${API_URL}/api/me/seen-updates`, { updateId }, {
+        timeout: 5000,
+        headers: { Authorization: tokenRef.current }
+      });
+    } catch (e) { /* 离线忽略 */ }
+  };
 
   const fetchRooms = async () => {
     try {
@@ -1660,7 +1710,7 @@ function App() {
         sendTransfer={sendTransfer}
       />
 
-      <AdminModal showAdminModal={showAdminModal} setShowAdminModal={setShowAdminModal} fetchAdminDashboard={fetchAdminDashboard} adminDashboardLoading={adminDashboardLoading} adminDashboard={adminDashboard} aiStatus={aiStatus} aiStatusLoading={aiStatusLoading} fetchAiStatus={fetchAiStatus} pendingRecharges={pendingRecharges} fetchPendingRecharges={fetchPendingRecharges} confirmRecharge={confirmRecharge} rejectRecharge={rejectRecharge} />
+      <AdminModal showAdminModal={showAdminModal} setShowAdminModal={setShowAdminModal} fetchAdminDashboard={fetchAdminDashboard} adminDashboardLoading={adminDashboardLoading} adminDashboard={adminDashboard} aiStatus={aiStatus} aiStatusLoading={aiStatusLoading} fetchAiStatus={fetchAiStatus} pendingRecharges={pendingRecharges} fetchPendingRecharges={fetchPendingRecharges} confirmRecharge={confirmRecharge} rejectRecharge={rejectRecharge} adminReleases={adminReleases} fetchAdminChangelog={fetchAdminChangelog} publishChangelog={publishChangelog} deleteChangelog={deleteChangelog} />
 
       <RoomManageModal showRoomManage={showRoomManage} setShowRoomManage={setShowRoomManage} currentRoom={currentRoom} allUsers={allUsers} roomAnnouncements={roomAnnouncements} currentRoomId={currentRoomId} isRoomOwner={isRoomOwner} setAnnouncement={setAnnouncement} unmuteRoomMember={unmuteRoomMember} muteRoomMember={muteRoomMember} kickRoomMember={kickRoomMember} user={user} onlineUsers={onlineUsers} setChannelAdmins={setChannelAdmins} />
 
@@ -1732,7 +1782,7 @@ function App() {
       {/* 聊天记录备份弹窗 */}
       <BackupModal showBackupModal={showBackupModal} setShowBackupModal={setShowBackupModal} exportChat={exportChat} messageStats={messageStats} />
       {/* 大版本更新说明：同一大版本仅展示一次，不触发 APK 下载 */}
-      <MajorUpdateModal showMajorUpdateModal={showMajorUpdateModal} otaInfo={otaInfo} setShowMajorUpdateModal={setShowMajorUpdateModal} appVersion={appVersion} />
+      <MajorUpdateModal showMajorUpdateModal={showMajorUpdateModal} otaInfo={otaInfo} setShowMajorUpdateModal={setShowMajorUpdateModal} appVersion={appVersion} onMarkSeen={markUpdateSeen} />
       {/* 历史版本公告：从「我的」页面入口打开 */}
       <ChangelogModal show={showChangelogModal} onClose={() => setShowChangelogModal(false)} />
 

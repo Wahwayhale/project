@@ -2,6 +2,7 @@
   "appVersion": "3.0.0",
   "majorVersion": "3",
   "webBuild": 237,
+  "prevWebBuild": 236,
   "updateId": "web-237-channel-thread-transfer",
   "nativeBuild": 4,
   "minNativeBuild": 1,
@@ -11,9 +12,9 @@
   "showMajorUpdate": true,
   "updateTitle": "频道、群话题与用户间转账",
   "updateNotes": [
-    "新增频道（广播）房间与群聊话题 Threads。",
-    "新增用户间转账，好友互转余额实时到账。",
-    "群聊头部实时显示在线人数，有人上线/离线立即更新。",
-    "优化聊天主界面与「我」页排版。"
+    { "type": "new", "text": "新增频道（广播）房间与群聊话题 Threads。" },
+    { "type": "new", "text": "新增用户间转账，好友互转余额实时到账。" },
+    { "type": "improve", "text": "群聊头部实时显示在线人数，有人上线/离线立即更新。" },
+    { "type": "improve", "text": "优化聊天主界面与「我」页排版。" }
   ]
 }

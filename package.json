@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "check:release": "node scripts/check-release.js",
+    "check:server": "node --check server/server.js && cd server && npm test"
+  },
   "dependencies": {
     "@ngrok/ngrok": "^1.7.0"
   }

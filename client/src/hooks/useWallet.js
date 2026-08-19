@@ -143,6 +143,47 @@ export function useWallet({
     fetchPendingRecharges();
     fetchAiStatus();
     fetchAdminDashboard();
+    fetchAdminChangelog();
+  };
+
+  // 管理员：公告管理（在线发布 / 列表 / 删除）
+  const [adminReleases, setAdminReleases] = useState([]);
+  const fetchAdminChangelog = async () => {
+    if (user?.username !== 'admin') return;
+    try {
+      const response = await axios.get(`${API_URL}/api/admin/changelog`, {
+        headers: { Authorization: token }
+      });
+      setAdminReleases(Array.isArray(response.data?.releases) ? response.data.releases : []);
+    } catch (err) {
+      showToast(err.response?.data?.error || '公告列表获取失败', 'error');
+    }
+  };
+
+  const publishChangelog = async (payload) => {
+    try {
+      const response = await axios.post(`${API_URL}/api/admin/changelog`, payload, {
+        headers: { Authorization: token }
+      });
+      setAdminReleases(prev => [response.data.release, ...prev]);
+      showToast(`公告已发布（Web ${response.data.release.webBuild}）`, 'success');
+      return response.data;
+    } catch (err) {
+      showToast(err.response?.data?.error || '发布失败', 'error');
+      return null;
+    }
+  };
+
+  const deleteChangelog = async (webBuild) => {
+    try {
+      await axios.delete(`${API_URL}/api/admin/changelog/${webBuild}`, {
+        headers: { Authorization: token }
+      });
+      setAdminReleases(prev => prev.filter(r => r.webBuild !== webBuild));
+      showToast('公告已删除', 'success');
+    } catch (err) {
+      showToast(err.response?.data?.error || '删除失败', 'error');
+    }
   };
 
   // 生成红包随机分配
@@ -287,6 +328,8 @@ export function useWallet({
     rejectRecharge,
     fetchAdminDashboard,
     openAdminCenter,
+    fetchAdminChangelog, adminReleases,
+    publishChangelog, deleteChangelog,
     sendRedPacket,
     generateRedPacketDistribution,
     claimRedPacket,
