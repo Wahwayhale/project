@@ -32,8 +32,12 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
 
     const h = handlersRef.current;
     const connectSocket = () => {
-      if (socketRef.current?.connected) {
+      // 无条件清理旧 socket：无论其是否处于连接/重连中，都先移除监听并断开，
+      // 避免「重连中」的旧连接被丢弃后继续在后台认证，造成服务端连接计数泄漏（幽灵在线）
+      if (socketRef.current) {
+        socketRef.current.removeAllListeners();
         socketRef.current.disconnect();
+        socketRef.current = null;
       }
       const wsUrl = API_URL || window.location.origin;
       console.log('Socket connecting to:', wsUrl);
