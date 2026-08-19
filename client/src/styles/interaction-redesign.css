@@ -527,6 +527,74 @@ textarea {
   border-color: rgba(239, 68, 68, 0.3);
 }
 
+/* 头部「更多」下拉菜单 */
+.header-more-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.header-more-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.header-more-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  min-width: 200px;
+  padding: 6px;
+  background: var(--clean-surface);
+  border: 1px solid var(--clean-border);
+  border-radius: 12px;
+  box-shadow: var(--clean-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: headerMoreIn 0.12s var(--ease);
+}
+
+@keyframes headerMoreIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.header-more-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--clean-tap);
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--clean-text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.header-more-item:hover {
+  background: var(--clean-surface-2);
+  color: var(--clean-text);
+  border: 0;
+  box-shadow: none;
+  transform: none;
+}
+
+.header-more-item.danger-active {
+  color: var(--danger);
+  background: var(--clean-danger-soft);
+}
+
 .message-search-bar {
   min-height: 54px;
   padding: 8px 12px;
@@ -972,6 +1040,17 @@ textarea {
   padding-bottom: 96px;
 }
 
+/* 统一「我」页卡片栅格：去掉旧 margin，由页面 gap 控距（卡片贴 12px 边距，与发现页一致） */
+.me-header,
+.me-menu,
+.me-footer {
+  margin: 0;
+}
+
+.me-version {
+  margin: 2px 0 0;
+}
+
 .me-header,
 .me-menu,
 .me-footer,
@@ -1137,6 +1216,21 @@ textarea {
     width: var(--clean-tap);
     height: var(--clean-tap);
     padding: 0;
+  }
+
+  /* 移动端：菜单保持绝对定位（贴头部右缘，不溢出视口） */
+  .header-more-menu {
+    max-width: calc(100vw - 16px);
+  }
+
+  /* 移动端发送者名字对齐 32px 头像（36 = 头像32 + 左边距4） */
+  .message .sender-name {
+    margin-left: 36px;
+  }
+
+  .message.sent .sender-name {
+    margin-right: 36px;
+    margin-left: 0;
   }
 
   .chat-header-hint {

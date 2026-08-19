@@ -173,6 +173,10 @@ export default function ChatView({
   const subscribed = isChannel && isChannelSubscribed();
   const isThreadable = currentRoom?.type === 'group' || currentRoom?.type === 'public';
 
+  // 头部工具栏「更多」下拉
+  const [showMoreTools, setShowMoreTools] = React.useState(false);
+  const closeMoreTools = () => setShowMoreTools(false);
+
   return (
     <div className="chat-shell">
       <div className="chat-top-stack">
@@ -199,16 +203,6 @@ export default function ChatView({
             <button className="ai-summary-btn-inline" onClick={summarizeChat} disabled={aiSummaryLoading} title="AI摘要">
               {aiSummaryLoading ? '…' : <I name="ai" size={16} />}
             </button>
-            <button onClick={() => setShowImageGen(true)} title="AI图片生成"><I name="image" size={15} /></button>
-            <button onClick={isSharingLocation ? stopSharingLocation : startSharingLocation} title={isSharingLocation ? '停止位置共享' : '共享位置'} className={isSharingLocation ? 'danger-active' : ''}>
-              <I name="location" size={15} />
-            </button>
-            <button onClick={() => { setShowCheckIn(true); fetchCheckIns(); }} title="打卡签到"><I name="checkin" size={15} /></button>
-            <button onClick={() => setShowMusicPanel(true)} title="听歌"><I name="music" size={15} /></button>
-            <button onClick={() => {
-              const otherUser = allUsers.find(u => currentRoom?.members?.includes(u.username) && u.username !== user?.username);
-              if (otherUser) startCall(otherUser.id, 'video');
-            }} title="视频通话"><I name="video" size={15} /></button>
             <button onClick={() => setShowSearch(s => !s)} title="搜索消息">
               {showSearch ? <I name="close" size={15} /> : <I name="search" size={15} />}
             </button>
@@ -234,6 +228,37 @@ export default function ChatView({
             {currentRoom?.members?.length > 1 && (
               <button onClick={() => setShowRoomManage(true)} title="群管理"><I name="settings" size={15} /></button>
             )}
+            <div className="header-more-wrap">
+              <button onClick={() => setShowMoreTools(s => !s)} title="更多功能" className={showMoreTools ? 'danger-active' : ''}>
+                <I name="more" size={15} />
+              </button>
+              {showMoreTools && (
+                <>
+                  <div className="header-more-backdrop" onClick={closeMoreTools} />
+                  <div className="header-more-menu">
+                    <button className="header-more-item" onClick={() => { setShowImageGen(true); closeMoreTools(); }}>
+                      <I name="image" size={16} /> AI图片生成
+                    </button>
+                    <button className={`header-more-item ${isSharingLocation ? 'danger-active' : ''}`} onClick={() => { isSharingLocation ? stopSharingLocation() : startSharingLocation(); closeMoreTools(); }}>
+                      <I name="location" size={16} /> {isSharingLocation ? '停止位置共享' : '共享位置'}
+                    </button>
+                    <button className="header-more-item" onClick={() => { setShowCheckIn(true); fetchCheckIns(); closeMoreTools(); }}>
+                      <I name="checkin" size={16} /> 打卡签到
+                    </button>
+                    <button className="header-more-item" onClick={() => { setShowMusicPanel(true); closeMoreTools(); }}>
+                      <I name="music" size={16} /> 听歌
+                    </button>
+                    <button className="header-more-item" onClick={() => {
+                      const otherUser = allUsers.find(u => currentRoom?.members?.includes(u.username) && u.username !== user?.username);
+                      if (otherUser) startCall(otherUser.id, 'video');
+                      closeMoreTools();
+                    }}>
+                      <I name="video" size={16} /> 视频通话
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
         {isChannel && (
