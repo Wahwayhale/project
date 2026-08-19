@@ -1,19 +1,19 @@
 {
   "appVersion": "3.0.0",
   "majorVersion": "3",
-  "webBuild": 236,
-  "updateId": "web-236-video-call-turn-fix",
+  "webBuild": 237,
+  "updateId": "web-237-channel-thread-transfer",
   "nativeBuild": 4,
   "minNativeBuild": 1,
   "apkUrl": "/releases/ChatRoom-v3.0.0.apk",
   "apkSize": "5.8MB",
   "forceUpdate": false,
   "showMajorUpdate": true,
-  "updateTitle": "视频通话连接修复",
+  "updateTitle": "频道、群话题与用户间转账",
   "updateNotes": [
-    "修复视频通话对方接听后卡在连接中、看不到对方画面的问题：新增 TURN 服务器中继，对称 NAT / 移动网络下也能连通。",
-    "修复 ICE 候选时序问题：被叫接听前收到的候选会被正确缓存，不再丢失。",
-    "修复重复发起通话时旧摄像头/麦克风未释放、旧会话残留的问题。",
-    "改进断线处理：短暂断开不再立即挂断，给 WebRTC 10 秒重连机会；连接超时 30 秒才挂断。"
+    "新增频道（广播）房间与群聊话题 Threads。",
+    "新增用户间转账，好友互转余额实时到账。",
+    "群聊头部实时显示在线人数，有人上线/离线立即更新。",
+    "优化聊天主界面与「我」页排版。"
   ]
 }

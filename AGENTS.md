@@ -81,6 +81,7 @@ client/
 - **原生功能更新**（Android 权限、Capacitor 插件、`capacitor.config.ts` 变更）→ 必须构建新 APK 并推送安装
 - **旧 APK 兼容**：新 Web 功能必须兼容旧版 APK（不能引入旧版不支持的插件调用）。检测 `isCapacitor` 标志，对旧版做降级处理
 - **版本号规则**：纯 Web 更新 → `webBuild +1`。原生更新 → `webBuild +1`、`nativeBuild +1`，并同步 `appVersion`、`capacitor.config.ts`、Android `versionCode/versionName`
+- **大更新必须发布更新公告**：完成一次大更新（新增功能 / 重要修复 / UI 改版）后，同步更新 `client/public/changelog.json`（releases 数组头部插入新条目：version / webBuild / date / title / notes）与 `client/public/ota-version.json`（`webBuild +1`、updateId、updateTitle、updateNotes），并复制到 `client/build/` 使线上生效（生产静态目录为 `client/build/`）
 - **APK 更新推送**：`ota-version.json` 设置 `apkUrl` + `apkSize`。App 只在 `nativeBuild` 或 `minNativeBuild` 高于本机原生构建时弹窗
 
 **判定表**：
