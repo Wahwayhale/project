@@ -1502,6 +1502,9 @@ app.post('/api/admin/changelog', verifyToken, (req, res) => {
   };
   saveChangelog();
   addAudit('changelog.publish', admin, { webBuild, title: release.title });
+  try {
+    io.emit('changelog:updated', { ota: changelogData.ota, releases: changelogData.releases || [] });
+  } catch (e) { console.error('[CHANGELOG] broadcast failed:', e.message); }
   res.json({ success: true, release, ota: changelogData.ota });
 });
 
@@ -1515,6 +1518,9 @@ app.delete('/api/admin/changelog/:webBuild', verifyToken, (req, res) => {
   const [removed] = changelogData.releases.splice(idx, 1);
   saveChangelog();
   addAudit('changelog.delete', admin, { webBuild: wb, title: removed.title });
+  try {
+    io.emit('changelog:updated', { ota: changelogData.ota, releases: changelogData.releases || [] });
+  } catch (e) { console.error('[CHANGELOG] broadcast failed:', e.message); }
   res.json({ success: true });
 });
 

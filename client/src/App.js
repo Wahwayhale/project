@@ -588,6 +588,7 @@ function App() {
       notifyEnabled,
       notifyMuted,
       showToast,
+      onChangelogUpdated: () => checkUpdateRef.current?.(),
     }
   });
 
@@ -641,6 +642,8 @@ function App() {
   // 数据源：后端 /api/ota（管理员在线发布，实时生效），失败时回退静态 ota-version.json。
   // 已读状态：后端 /api/me/seen-updates 跨设备同步 + localStorage 本机兜底。
   const [seenUpdateIds, setSeenUpdateIds] = useState(() => new Set());
+  // 供 socket 实时推送复用 OTA 检查逻辑（避免闭包/重复定义）
+  const checkUpdateRef = useRef(null);
   useEffect(() => {
     const checkUpdate = async () => {
       try {
@@ -685,6 +688,7 @@ function App() {
         }
       } catch (e) { /* 离线忽略 */ }
     };
+    checkUpdateRef.current = checkUpdate;
     if (isAuthenticated) checkUpdate();
     // eslint-disable-next-line
   }, [isAuthenticated, user?.id]);

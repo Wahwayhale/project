@@ -141,6 +141,11 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
         h.setMessagesLoading(false);
       });
 
+      // 公告/版本信息实时更新：管理员发布或删除公告后，立即重新拉取 OTA 信息
+      socketRef.current.on('changelog:updated', () => {
+        h.onChangelogUpdated?.();
+      });
+
       socketRef.current.on('userTyping', ({ username }) => {
         h.setTypingUser(username);
       });
