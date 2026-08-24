@@ -1,6 +1,20 @@
 {
   "releases": [
     {
+      "version": "4.0.0",
+      "webBuild": 239,
+      "prevWebBuild": 237,
+      "date": "2026-08-24",
+      "title": "三端齐发：AI 文档解析 · 沉浸光感 · Windows 桌面端",
+      "tags": ["新功能", "优化", "修复"],
+      "notes": [
+        { "type": "new", "text": "AI 文档解析：对话中上传 PDF/Word/TXT，自动提取文本作为上下文喂给 AI。" },
+        { "type": "new", "text": "沉浸光感设计：全局光晕背景 + 毛玻璃组件 + 动态模糊边界，深浅模式各一套。" },
+        { "type": "new", "text": "Windows 桌面端：Electron 打包 exe，复用 Web + OTA 自动更新。" },
+        { "type": "fix", "text": "修复毛玻璃 --glass-blur 变量未定义导致 backdrop-filter 失效的问题。" }
+      ]
+    },
+    {
       "version": "3.0.0",
       "webBuild": 237,
       "prevWebBuild": 236,

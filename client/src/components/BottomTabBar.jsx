@@ -29,7 +29,10 @@ export default function BottomTabBar({ bottomTab, setBottomTab, friendRequests, 
             aria-label={tab.label}
             aria-current={isActive ? 'page' : undefined}
           >
-            <span className="tab-icon"><I name={tab.icon} size={22} /></span>
+            <span className="tab-icon-wrap">
+              <span className="tab-icon"><I name={tab.icon} size={22} /></span>
+              {isActive && <span className="tab-active-indicator" aria-hidden="true" />}
+            </span>
             <span className="tab-label">{tab.label}</span>
             {showBadge && <span className="tab-badge">{friendRequests.length}</span>}
           </button>

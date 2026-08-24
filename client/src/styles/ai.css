@@ -1,4 +1,4 @@
-/* ==========================================
+﻿/* ==========================================
    AI 全屏视图
    ========================================== */
 .ai-fullview {
@@ -24,7 +24,7 @@
   color: var(--primary);
   cursor: pointer;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: 10px;
   transition: background 0.15s;
 }
 
@@ -43,7 +43,7 @@
   height: 32px;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 10px;
   cursor: pointer;
   font-size: 16px;
   display: flex;
@@ -82,7 +82,7 @@
   color: var(--primary);
   cursor: pointer;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: 10px;
   transition: background 0.15s;
 }
 
@@ -101,7 +101,7 @@
   padding: 4px 12px;
   background: rgba(255, 255, 255, 0.2);
   border: none;
-  border-radius: 6px;
+  border-radius: 10px;
   color: white;
   cursor: pointer;
   font-size: 12px;
@@ -245,5 +245,96 @@
 .ai-status-time {
   color: var(--text-tertiary);
   font-size: 11px;
+}
+
+/* ==========================================
+   AI 文档上传（解析 PDF/Word/TXT 作为一次性 system 上下文）
+   ========================================== */
+.ai-doc-upload-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--border-light);
+}
+
+.ai-doc-file-input {
+  display: none;
+}
+
+.ai-doc-btn {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--primary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--duration-sm) var(--ease), border-color var(--duration-sm) var(--ease);
+}
+
+.ai-doc-btn:hover:not(:disabled) {
+  background: var(--primary-bg);
+  border-color: var(--primary);
+}
+
+.ai-doc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-doc-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-active);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-doc-status--uploading,
+.ai-doc-status--parsing {
+  color: var(--primary);
+  background: var(--primary-bg);
+}
+
+.ai-doc-status--done {
+  color: var(--success);
+  background: var(--success-bg);
+}
+
+.ai-doc-status--error {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.ai-doc-clear {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-sm) var(--ease), background var(--duration-sm) var(--ease);
+}
+
+.ai-doc-clear:hover {
+  color: var(--danger);
+  background: var(--danger-bg);
 }
 

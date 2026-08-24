@@ -333,6 +333,7 @@ function App() {
     aiStatus, setAiStatus,
     aiStatusLoading, setAiStatusLoading,
     aiMessagesEndRef,
+    documentStatus, documentName, documentInputRef,
     smartReplies, setSmartReplies,
     smartRepliesLoading, setSmartRepliesLoading,
     showPolishModal, setShowPolishModal,
@@ -368,6 +369,8 @@ function App() {
     shareGeneratedImage,
     translateMessage,
     describeImage,
+    uploadDocument,
+    clearDocumentContext,
   } = useAI({
     token,
     user,
@@ -851,14 +854,14 @@ function App() {
     setThemePreset(preset);
     localStorage.setItem('themePreset', preset);
     const themes = {
-      mint: { primary: '#42d6a4', primaryGrad: 'linear-gradient(135deg, #42d6a4 0%, #55c7f7 100%)' },
-      green: { primary: '#07c160', primaryGrad: 'linear-gradient(135deg, #07c160, #10b981)' },
-      blue: { primary: '#3b82f6', primaryGrad: 'linear-gradient(135deg, #3b82f6, #6366f1)' },
-      purple: { primary: '#8b5cf6', primaryGrad: 'linear-gradient(135deg, #8b5cf6, #a78bfa)' },
-      peach: { primary: '#ff8fb3', primaryGrad: 'linear-gradient(135deg, #ff8fb3, #ffd166)' },
-      orange: { primary: '#f59e0b', primaryGrad: 'linear-gradient(135deg, #f59e0b, #f97316)' }
+      cyan: { primary: '#0ea5e9', primaryGrad: 'linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%)' },
+      ocean: { primary: '#0284c7', primaryGrad: 'linear-gradient(135deg, #0284c7, #0ea5e9)' },
+      teal: { primary: '#14b8a6', primaryGrad: 'linear-gradient(135deg, #14b8a6, #06b6d4)' },
+      indigo: { primary: '#6366f1', primaryGrad: 'linear-gradient(135deg, #6366f1, #8b5cf6)' },
+      amber: { primary: '#f59e0b', primaryGrad: 'linear-gradient(135deg, #f59e0b, #f97316)' },
+      lime: { primary: '#84cc16', primaryGrad: 'linear-gradient(135deg, #84cc16, #10b981)' }
     };
-    const t = themes[preset] || themes.mint;
+    const t = themes[preset] || themes.cyan;
     document.documentElement.style.setProperty('--primary', t.primary);
     document.documentElement.style.setProperty('--primary-gradient', t.primaryGrad);
   };
@@ -996,7 +999,13 @@ function App() {
   };
 
   const isRoomOwner = () => {
-    return currentRoom && user && currentRoom.owner === user.username;
+    return currentRoom && user && (currentRoom.owner === user.username || currentRoom.createdBy === user.username);
+  };
+
+  const isRoomAdmin = () => {
+    if (!currentRoom || !user) return false;
+    if (isRoomOwner()) return true;
+    return (currentRoom.admins || []).includes(user.username);
   };
 
   // ===== 频道（Channel）=====
@@ -1043,17 +1052,62 @@ function App() {
 
   const muteRoomMember = (username) => {
     if (!currentRoomId || !socketRef.current) return;
-    socketRef.current.emit('muteRoomMember', { roomId: currentRoomId, username });
+    socketRef.current.emit('muteMember', { roomId: currentRoomId, username });
   };
 
   const unmuteRoomMember = (username) => {
     if (!currentRoomId || !socketRef.current) return;
-    socketRef.current.emit('unmuteRoomMember', { roomId: currentRoomId, username });
+    socketRef.current.emit('unmuteMember', { roomId: currentRoomId, username });
   };
 
   const kickRoomMember = (username) => {
     if (!currentRoomId || !socketRef.current) return;
-    socketRef.current.emit('kickRoomMember', { roomId: currentRoomId, username });
+    socketRef.current.emit('kickMember', { roomId: currentRoomId, username });
+  };
+
+  const setGroupAdmin = (username, isAdmin) => {
+    if (!currentRoomId || !socketRef.current) return;
+    socketRef.current.emit('setGroupAdmin', { roomId: currentRoomId, username, isAdmin });
+  };
+
+  const transferOwnership = (username) => {
+    if (!currentRoomId || !socketRef.current) return;
+    if (!window.confirm(`确定将群主转让给 ${username}？转让后你将变为管理员。`)) return;
+    socketRef.current.emit('transferOwnership', { roomId: currentRoomId, username });
+  };
+
+  const setMuteAll = (muteAll) => {
+    if (!currentRoomId || !socketRef.current) return;
+    socketRef.current.emit('setMuteAll', { roomId: currentRoomId, muteAll });
+  };
+
+  const renameGroup = (name) => {
+    if (!currentRoomId || !socketRef.current) return;
+    socketRef.current.emit('renameGroup', { roomId: currentRoomId, name });
+  };
+
+  const setRoomDescription = (description) => {
+    if (!currentRoomId || !socketRef.current) return;
+    socketRef.current.emit('setRoomDescription', { roomId: currentRoomId, description });
+  };
+
+  const inviteMembers = (usernames) => {
+    if (!currentRoomId || !socketRef.current) return;
+    socketRef.current.emit('inviteMembers', { roomId: currentRoomId, usernames });
+  };
+
+  const disbandGroup = () => {
+    if (!currentRoomId || !socketRef.current) return;
+    if (!window.confirm('确定要解散此群聊吗？解散后所有成员将被移除，聊天记录将被删除，此操作不可撤销。')) return;
+    socketRef.current.emit('disbandGroup', { roomId: currentRoomId });
+    setCurrentRoom(null);
+    setCurrentRoomId(null);
+    setShowRoomManage(false);
+  };
+
+  const setWelcomeMessage = (message) => {
+    if (!currentRoomId || !socketRef.current) return;
+    socketRef.current.emit('setWelcomeMessage', { roomId: currentRoomId, message });
   };
 
   // 设置聊天背景
@@ -1422,6 +1476,12 @@ function App() {
             sendAiMessage={sendAiMessage}
             renderMarkdown={renderMarkdown}
             aiMessagesEndRef={aiMessagesEndRef}
+
+            documentStatus={documentStatus}
+            documentName={documentName}
+            documentInputRef={documentInputRef}
+            uploadDocument={uploadDocument}
+            clearDocumentContext={clearDocumentContext}
             setShowRechargeModal={setShowRechargeModal}
             fetchRechargeHistory={fetchRechargeHistory}
             resetAiChat={resetAiChat}
@@ -1716,7 +1776,7 @@ function App() {
 
       <AdminModal showAdminModal={showAdminModal} setShowAdminModal={setShowAdminModal} fetchAdminDashboard={fetchAdminDashboard} adminDashboardLoading={adminDashboardLoading} adminDashboard={adminDashboard} aiStatus={aiStatus} aiStatusLoading={aiStatusLoading} fetchAiStatus={fetchAiStatus} pendingRecharges={pendingRecharges} fetchPendingRecharges={fetchPendingRecharges} confirmRecharge={confirmRecharge} rejectRecharge={rejectRecharge} adminReleases={adminReleases} fetchAdminChangelog={fetchAdminChangelog} publishChangelog={publishChangelog} deleteChangelog={deleteChangelog} />
 
-      <RoomManageModal showRoomManage={showRoomManage} setShowRoomManage={setShowRoomManage} currentRoom={currentRoom} allUsers={allUsers} roomAnnouncements={roomAnnouncements} currentRoomId={currentRoomId} isRoomOwner={isRoomOwner} setAnnouncement={setAnnouncement} unmuteRoomMember={unmuteRoomMember} muteRoomMember={muteRoomMember} kickRoomMember={kickRoomMember} user={user} onlineUsers={onlineUsers} setChannelAdmins={setChannelAdmins} />
+      <RoomManageModal showRoomManage={showRoomManage} setShowRoomManage={setShowRoomManage} currentRoom={currentRoom} allUsers={allUsers} roomAnnouncements={roomAnnouncements} currentRoomId={currentRoomId} isRoomOwner={isRoomOwner} isRoomAdmin={isRoomAdmin} setAnnouncement={setAnnouncement} unmuteRoomMember={unmuteRoomMember} muteRoomMember={muteRoomMember} kickRoomMember={kickRoomMember} setGroupAdmin={setGroupAdmin} transferOwnership={transferOwnership} setMuteAll={setMuteAll} renameGroup={renameGroup} setRoomDescription={setRoomDescription} inviteMembers={inviteMembers} disbandGroup={disbandGroup} setWelcomeMessage={setWelcomeMessage} user={user} onlineUsers={onlineUsers} setChannelAdmins={setChannelAdmins} friends={friends} showToast={showToast} />
 
       <ThreadsPanel
         show={showThreads}
@@ -1730,7 +1790,7 @@ function App() {
 
       <AddFriendModal showSearchModal={showSearchModal} setShowSearchModal={setShowSearchModal} setSearchId={setSearchId} setSearchResult={setSearchResult} searchId={searchId} searchResult={searchResult} searchUser={searchUser} user={user} showToast={showToast} friendRequests={friendRequests} sendFriendRequest={sendFriendRequest} acceptFriendRequest={acceptFriendRequest} rejectFriendRequest={rejectFriendRequest} />
 
-      <CreateGroupModal showCreateModal={showCreateModal} setShowCreateModal={setShowCreateModal} friends={friends} createGroup={createGroup} />
+      <CreateGroupModal showCreateModal={showCreateModal} setShowCreateModal={setShowCreateModal} friends={friends} socketRef={socketRef} user={user} showToast={showToast} />
 
       {uploadProgress && (
         <div className="upload-progress">

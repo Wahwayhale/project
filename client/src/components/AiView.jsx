@@ -22,6 +22,12 @@ export default function AiView({
   sendAiMessage,
   renderMarkdown,
   aiMessagesEndRef,
+
+  documentStatus,
+  documentName,
+  documentInputRef,
+  uploadDocument,
+  clearDocumentContext,
   setShowRechargeModal,
   fetchRechargeHistory,
   resetAiChat,
@@ -84,6 +90,40 @@ export default function AiView({
         <div ref={aiMessagesEndRef} />
       </div>
       <div className="ai-input-area">
+        <div className="ai-doc-upload-bar">
+          <input
+            ref={documentInputRef}
+            type="file"
+            accept=".pdf,.docx,.doc,.txt"
+            className="ai-doc-file-input"
+            onChange={(e) => {
+              const f = e.target.files && e.target.files[0];
+              if (f) uploadDocument(f);
+              e.target.value = '';
+            }}
+          />
+          <button
+            className="ai-doc-btn"
+            onClick={() => documentInputRef && documentInputRef.current && documentInputRef.current.click()}
+            disabled={aiLoading || documentStatus === 'uploading' || documentStatus === 'parsing'}
+            title="上传文档作为 AI 上下文"
+          >
+            <I name="file-text" size={18} />
+          </button>
+          {documentStatus !== 'idle' && (
+            <div className={`ai-doc-status ai-doc-status--${documentStatus}`}>
+              {documentStatus === 'uploading' && (<><I name="file-text" size={13} /> 上传中…</>)}
+              {documentStatus === 'parsing' && (<><I name="file-text" size={13} /> 解析中…</>)}
+              {documentStatus === 'done' && (<><I name="check" size={13} /> {documentName}</>)}
+              {documentStatus === 'error' && (<><I name="delete" size={13} /> 解析失败</>)}
+            </div>
+          )}
+          {documentStatus === 'done' && (
+            <button className="ai-doc-clear" onClick={clearDocumentContext} title="清除文档上下文">
+              <I name="close" size={13} />
+            </button>
+          )}
+        </div>
         <textarea className="ai-input" placeholder="输入问题，Enter发送，Shift+Enter换行" value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={handleAiKeyPress} disabled={aiLoading} rows={2} />
         <button className="ai-send-button" onClick={sendAiMessage} disabled={!aiInput.trim() || aiLoading}>{aiLoading ? '思考中...' : '发送'}</button>
       </div>

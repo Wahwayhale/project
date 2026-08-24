@@ -1,8 +1,8 @@
-/* ===== 用户间转账 ===== */
+﻿/* ===== 用户间转账 ===== */
 .transfer-balance {
   padding: 10px 14px;
   background: var(--bg-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   margin-bottom: 14px;
   font-size: 14px;
   color: var(--text-secondary);
@@ -50,7 +50,7 @@
 .transfer-confirm-hint {
   padding: 8px 12px;
   background: rgba(7, 193, 96, 0.08);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 13px;
   color: var(--text-secondary);
   margin-bottom: 12px;

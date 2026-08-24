@@ -1,0 +1,15 @@
+{
+  "short_name": "聊天室",
+  "name": "聊天室 — 清爽活力的实时聊天空间",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0ea5e9",
+  "background_color": "#f8fafc"
+}

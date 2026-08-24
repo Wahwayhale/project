@@ -1,4 +1,4 @@
-/* ==========================================
+﻿/* ==========================================
    Responsive Design — 统一响应式
    ========================================== */
 
@@ -71,15 +71,15 @@
     height: 40px;
     font-size: 16px;
     margin-right: 10px;
-    border-radius: 10px;
+    border-radius: 16px;
   }
 
   .main-chat {
     flex: 1;
     min-height: 55vh;
     width: 100% !important;
-    height: calc(100vh - var(--mobile-tab-offset)) !important;
-    min-height: calc(100vh - var(--mobile-tab-offset)) !important;
+    height: calc(100dvh - var(--mobile-tab-offset)) !important;
+    min-height: calc(100dvh - var(--mobile-tab-offset)) !important;
     padding: 10px 10px 0;
     gap: 10px;
   }
@@ -110,8 +110,8 @@
   }
 
   .messages-container {
-    padding: 12px 14px;
-    border-radius: 20px;
+    padding: 70px 14px 12px;
+    border-radius: var(--radius-md);
   }
 
   .message {
@@ -125,7 +125,7 @@
   .message .bubble {
     font-size: 14px;
     padding: 8px 14px;
-    border-radius: 14px;
+    border-radius: var(--radius-md);
   }
 
   .message .media {
@@ -144,7 +144,7 @@
 
   .chat-input-stack {
     padding: 10px 12px 12px;
-    border-radius: 20px 20px 0 0;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
   }
 
   .chat-input-toolbar {
@@ -207,7 +207,7 @@
   .modal {
     width: min(100%, 520px);
     max-height: calc(100vh - 24px);
-    border-radius: 24px 24px 18px 18px;
+    border-radius: var(--radius-lg) var(--radius-lg) var(--radius-md) var(--radius-md);
   }
 
   .modal h3 {
@@ -310,7 +310,7 @@
   .me-page,
   .discover-page,
   .contacts-page {
-    height: calc(100vh - 56px);
+    height: calc(100dvh - var(--mobile-tab-height));
   }
 
   .main-chat,
@@ -337,7 +337,7 @@
   }
 
   .messages-container {
-    border-radius: 20px;
+    border-radius: var(--radius-md);
   }
 
   .chat-empty-desktop {
@@ -412,7 +412,7 @@
   }
 
   .main-chat {
-    padding-bottom: 88px;
+    padding: var(--space-3);
     min-height: 0;
   }
 
@@ -420,14 +420,6 @@
     display: none;
   }
 
-  .bottom-tab-bar {
-    left: 50vw;
-    right: auto;
-    bottom: 12px;
-    transform: translateX(-50%);
-    width: min(480px, calc(100vw - 48px));
-    z-index: 1000;
-  }
 }
 
 /* --- 小屏手机 (≤480px) --- */
@@ -438,8 +430,8 @@
 
   .main-chat {
     min-height: 60vh;
-    height: calc(100vh - 88px) !important;
-    min-height: calc(100vh - 88px) !important;
+    height: calc(100dvh - 88px) !important;
+    min-height: calc(100dvh - 88px) !important;
     padding: 8px 8px 0;
   }
 

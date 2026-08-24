@@ -12,7 +12,6 @@ export default function VoiceRoomView({ showToast, onBack, user }) {
   const socketRef = useRef(null);
   const localStreamRef = useRef(null);
   const roomIdRef = useRef(null);
-  const socketReadyRef = useRef(false);
   const peersRef = useRef({}); // userId -> RTCPeerConnection
   const audioRefs = useRef({}); // userId -> audio element
   const pendingIceRef = useRef({}); // userId -> RTCIceCandidateInit[]
@@ -21,15 +20,8 @@ export default function VoiceRoomView({ showToast, onBack, user }) {
     const wsUrl = API_URL || window.location.origin;
     socketRef.current = io(wsUrl, { transports: ['websocket'] });
     socketRef.current.on('connect', () => {
-      socketReadyRef.current = false;
       socketRef.current.emit('authenticate', localStorage.getItem('token'));
-    });
-    socketRef.current.on('authenticated', () => {
-      socketReadyRef.current = true;
-      emitVoiceJoin();
-    });
-    socketRef.current.on('disconnect', () => {
-      socketReadyRef.current = false;
+      if (roomIdRef.current) socketRef.current.emit('voiceJoin', { roomId: roomIdRef.current });
     });
     socketRef.current.on('voiceParticipantUpdate', ({ participants: p, host }) => {
       setParticipants(p);
@@ -43,7 +35,9 @@ export default function VoiceRoomView({ showToast, onBack, user }) {
       }
     });
     socketRef.current.on('voicePeerJoined', async ({ userId, username }) => {
-      // 新用户通过 voicePeers 创建 offer，已有用户被动等待 offer 即可
+      if (userId && userId !== user?.id && localStreamRef.current) {
+        await createOffer(userId, username);
+      }
     });
     socketRef.current.on('voicePeerLeft', ({ userId }) => {
       closePeer(userId);
@@ -152,11 +146,6 @@ export default function VoiceRoomView({ showToast, onBack, user }) {
     socketRef.current?.emit('voiceOffer', { roomId: roomIdRef.current, to: peerId, offer: pc.localDescription });
   };
 
-  const emitVoiceJoin = () => {
-    if (!socketReadyRef.current || !roomIdRef.current) return;
-    socketRef.current?.emit('voiceJoin', { roomId: roomIdRef.current });
-  };
-
   const joinRoom = async (room) => {
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -181,7 +170,7 @@ export default function VoiceRoomView({ showToast, onBack, user }) {
       roomIdRef.current = room.id;
       setCurrentRoom({ ...room, participants: data.participants || room.participants || {} });
       setParticipants(data.participants || {});
-      emitVoiceJoin();
+      socketRef.current?.emit('voiceJoin', { roomId: room.id });
     } catch (err) {
       localStreamRef.current?.getTracks().forEach(t => t.stop());
       localStreamRef.current = null;

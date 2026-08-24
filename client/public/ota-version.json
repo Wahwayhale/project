@@ -1,20 +1,20 @@
 {
-  "appVersion": "3.0.0",
-  "majorVersion": "3",
-  "webBuild": 237,
-  "prevWebBuild": 236,
-  "updateId": "web-237-channel-thread-transfer",
+  "appVersion": "4.0.0",
+  "majorVersion": "4",
+  "webBuild": 239,
+  "prevWebBuild": 237,
+  "updateId": "web-239-v4-ai-doc-aurora-electron",
   "nativeBuild": 4,
   "minNativeBuild": 1,
-  "apkUrl": "/releases/ChatRoom-v3.0.0.apk",
+  "apkUrl": "/releases/ChatRoom-v4.0.0.apk",
   "apkSize": "5.8MB",
   "forceUpdate": false,
   "showMajorUpdate": true,
-  "updateTitle": "频道、群话题与用户间转账",
+  "updateTitle": "v4.0 三端齐发：AI 文档解析 · 沉浸光感 · Windows 桌面端",
   "updateNotes": [
-    { "type": "new", "text": "新增频道（广播）房间与群聊话题 Threads。" },
-    { "type": "new", "text": "新增用户间转账，好友互转余额实时到账。" },
-    { "type": "improve", "text": "群聊头部实时显示在线人数，有人上线/离线立即更新。" },
-    { "type": "improve", "text": "优化聊天主界面与「我」页排版。" }
+    { "type": "new", "text": "AI 文档解析：对话中上传 PDF/Word/TXT，自动提取文本作为上下文喂给 AI。" },
+    { "type": "new", "text": "沉浸光感设计：全局光晕背景 + 毛玻璃组件 + 动态模糊边界，深浅模式各一套。" },
+    { "type": "new", "text": "Windows 桌面端：Electron 打包 exe，复用 Web + OTA 自动更新。" },
+    { "type": "improve", "text": "修复毛玻璃 --glass-blur 变量未定义导致 backdrop-filter 失效的问题。" }
   ]
 }

@@ -11,24 +11,30 @@
 .me-header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 28px 24px;
-  background: var(--bg-card);
+  gap: var(--space-4);
+  padding: var(--space-6);
+  margin: var(--space-4);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
   cursor: pointer;
-  transition: background 0.15s;
-  border-bottom: 1px solid var(--border);
+  transition: all var(--duration-md) var(--ease);
+  box-shadow: var(--shadow-sm);
 }
 
 .me-header:hover {
-  background: var(--bg-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-light);
 }
 
 .me-avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 8px;
+  width: 68px;
+  height: 68px;
+  border-radius: var(--radius-lg);
   object-fit: cover;
   border: 2px solid var(--border-light);
+  flex-shrink: 0;
 }
 
 .me-info {
@@ -37,21 +43,23 @@
 }
 
 .me-name {
-  font-size: 20px;
+  font-size: var(--text-xl);
   font-weight: 700;
   color: var(--text);
+  letter-spacing: -0.01em;
 }
 
 .me-id {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
   margin-top: 2px;
+  font-variant-numeric: tabular-nums;
 }
 
 .me-bio {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
-  margin-top: 4px;
+  margin-top: var(--space-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -60,27 +68,42 @@
 .me-arrow {
   font-size: 24px;
   color: var(--text-tertiary);
-  font-weight: 300;
+  flex-shrink: 0;
 }
 
 .me-menu {
-  margin-top: 12px;
-  background: var(--bg-card);
-  border-radius: 0;
+  margin: 0 var(--space-4) var(--space-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .me-menu-item {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 16px 20px;
-  cursor: pointer;
-  transition: background 0.15s;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-3) var(--space-4);
+  border: none;
   border-bottom: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--text-base);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--duration-md) var(--ease);
 }
 
 .me-menu-item:hover {
   background: var(--bg-hover);
+}
+
+.me-menu-item:active {
+  transform: scale(0.99);
 }
 
 .me-menu-item:last-child {
@@ -88,99 +111,72 @@
 }
 
 .menu-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: flex;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 18px;
   color: white;
   flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
 }
 
-.me-menu-item span:nth-child(2) {
+.me-menu-item > span:nth-child(2) {
   flex: 1;
-  font-size: 15px;
-  color: var(--text);
+  min-width: 0;
 }
 
 .menu-arrow {
-  font-size: 18px;
   color: var(--text-tertiary);
-  font-weight: 300;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .menu-badge {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--primary);
-  font-weight: 600;
+  font-weight: 700;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .me-footer {
-  margin-top: 12px;
-  background: var(--bg-card);
+  margin: 0 var(--space-4);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .me-version {
-  margin-top: 24px;
+  margin-top: var(--space-6);
   text-align: center;
   color: var(--text-tertiary);
-  font-size: 12px;
-  padding-bottom: 60px;
+  font-size: var(--text-xs);
+  padding-bottom: 80px;
+  font-weight: 500;
 }
 
-/* --- Design Refresh MVP --- */
-.me-header {
-  margin: 12px 12px 10px;
-  border-radius: var(--radius-lg);
-  background: var(--bg-card);
-  box-shadow: none;
-  padding: 16px 18px;
-}
+@media (max-width: 768px) {
+  .me-header {
+    margin: var(--space-3);
+    padding: var(--space-4);
+  }
 
-.me-menu,
-.me-footer {
-  margin: 10px 12px;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: var(--bg-card);
-}
+  .me-avatar {
+    width: 56px;
+    height: 56px;
+  }
 
-.me-page > .me-menu-item {
-  margin: 10px 12px;
-  border-radius: var(--radius-lg);
-  background: var(--bg-card);
-  width: calc(100% - 24px);
-}
+  .me-menu,
+  .me-footer {
+    margin: 0 var(--space-3) var(--space-3);
+  }
 
-.me-menu-item {
-  width: 100%;
-  min-height: 56px;
-  padding: 10px 16px;
-  border: 0;
-  border-bottom: 1px solid var(--border-light);
-  background: transparent;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--text);
-  font-size: 15px;
-  cursor: pointer;
+  .me-name {
+    font-size: var(--text-lg);
+  }
 }
-
-.me-menu-item:hover {
-  background: var(--bg-hover);
-}
-
-.me-menu-item:last-child {
-  border-bottom: 0;
-}
-
-.menu-badge {
-  margin-left: auto;
-  color: var(--primary);
-  font-size: 13px;
-  font-weight: 600;
-}
-

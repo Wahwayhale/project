@@ -67,7 +67,7 @@
   width: 52px;
   height: 15px;
   border-radius: 10px 14px 9px 13px;
-  background: rgba(180, 236, 218, 0.62);
+  background: rgba(191, 234, 255, 0.62);
   transform: rotate(-7deg);
 }
 
@@ -115,14 +115,14 @@
 }
 
 .canvas-color-dot.is-active {
-  outline: 2px solid rgba(66, 214, 164, 0.55);
+  outline: 2px solid rgba(14, 165, 233, 0.55);
   outline-offset: 2px;
 }
 
-.canvas-color-dot.mint { background: #42d6a4; }
-.canvas-color-dot.sky { background: #55c7f7; }
-.canvas-color-dot.peach { background: #ffb38a; }
-.canvas-color-dot.berry { background: #ff8fb3; }
+.canvas-color-dot.mint { background: #0ea5e9; }
+.canvas-color-dot.sky { background: #38bdf8; }
+.canvas-color-dot.peach { background: #f59e0b; }
+.canvas-color-dot.berry { background: #ef4444; }
 .canvas-color-dot.ink { background: #334155; }
 
 .message.sent .canvas-card-shell {

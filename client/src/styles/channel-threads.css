@@ -1,4 +1,4 @@
-/* ==========================================
+﻿/* ==========================================
    频道（Channel）+ 群话题（Threads）样式
    ========================================== */
 
@@ -32,7 +32,7 @@
   margin-left: auto;
   padding: 5px 12px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-10);
   font-size: 13px;
   cursor: pointer;
   background: var(--primary, #4f8cff);
@@ -111,7 +111,7 @@
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--bg-input, rgba(255, 255, 255, 0.04));
   color: var(--text, #e6e9ef);
   font-size: 13px;
@@ -124,7 +124,7 @@
 
 .thread-item {
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: 16px;
   cursor: pointer;
   margin-bottom: 6px;
   transition: background 0.15s;

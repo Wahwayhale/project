@@ -40,3 +40,11 @@ server/server.err.log
 # Cloud deploy artifacts (local only)
 chatroom-cloud.zip
 backups/
+
+# Desktop (Electron) build artifacts
+desktop/node_modules/
+desktop/dist/
+desktop/dist-packager/
+
+# Tooling scratch
+.freebuff/

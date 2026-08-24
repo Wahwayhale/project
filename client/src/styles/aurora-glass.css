@@ -1,0 +1,307 @@
+/* ==========================================
+   Aurora Glass — 沉浸光感设计深化
+   v3.1 · 全局光晕 + 毛玻璃层级 + 动态模糊边界 + 降级兜底
+   仅使用 CSS 变量，追加在 styles 末尾，不改已有规则
+   ========================================== */
+
+/* ----------
+   1. Aurora 光晕色板 & Glass 层级 Token
+   ---------- */
+:root {
+  /* Aurora 光晕色 — 基于主色 / 强调色派生，空间维度逐渐增强/减弱 */
+  --aurora-mint:  rgba(20, 184, 166, 0.18);
+  --aurora-cyan:  rgba(94, 234, 212, 0.16);
+  --aurora-amber: rgba(245, 158, 11, 0.12);
+  --aurora-sky:   rgba(56, 189, 248, 0.14);
+  --aurora-rose:  rgba(244, 114, 182, 0.10);
+  --aurora-base:  linear-gradient(160deg, #f3fffd 0%, #eaf6f4 44%, #eef4ff 100%);
+
+  /* 多层径向渐变：左上薄荷 → 右上天青 → 右下琥珀 → 左下青绿，柔和模糊过渡 */
+  --aurora-bg:
+    radial-gradient(circle at 12% 18%, var(--aurora-mint)  0, transparent 34%),
+    radial-gradient(circle at 86% 14%, var(--aurora-sky)   0, transparent 32%),
+    radial-gradient(circle at 74% 82%, var(--aurora-amber) 0, transparent 30%),
+    radial-gradient(circle at 22% 88%, var(--aurora-cyan)  0, transparent 28%),
+    radial-gradient(circle at 50% 50%, var(--aurora-rose)  0, transparent 40%),
+    var(--aurora-base);
+
+  /* Glassmorphism 模糊层级 — 半径随层级递增 */
+  --glass-blur-tab:     blur(8px)  saturate(1.4);
+  --glass-blur-sidebar: blur(12px) saturate(1.5);
+  --glass-blur-modal:   blur(16px) saturate(1.6);
+  --glass-blur-input:   blur(6px)  saturate(1.3);
+  --glass-blur-card:    blur(10px) saturate(1.4);
+
+  /* 兜底修复：glass-theme.css 引用了未定义的 --glass-blur，此处补齐 */
+  --glass-blur: blur(12px) saturate(1.5);
+
+  /* Glass 半透明背景（浅色） */
+  --glass-bg-tab:     rgba(255, 255, 255, 0.55);
+  --glass-bg-sidebar: rgba(255, 255, 255, 0.48);
+  --glass-bg-modal:   rgba(255, 255, 255, 0.62);
+  --glass-bg-input:   rgba(255, 255, 255, 0.50);
+  --glass-bg-card:    rgba(255, 255, 255, 0.42);
+
+  /* Glass 细边框 + 柔和内阴影 */
+  --glass-border:       rgba(255, 255, 255, 0.55);
+  --glass-border-soft:  rgba(255, 255, 255, 0.30);
+  --glass-shadow-inner: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  --glass-shadow-soft:  0 4px 24px rgba(0, 0, 0, 0.06);
+
+  /* 不支持 backdrop-filter 时的降级纯色（保持半透明感） */
+  --glass-fallback-tab:     rgba(245, 247, 250, 0.92);
+  --glass-fallback-sidebar: rgba(248, 250, 252, 0.95);
+  --glass-fallback-modal:   rgba(255, 255, 255, 0.96);
+  --glass-fallback-input:   rgba(248, 250, 252, 0.95);
+  --glass-fallback-card:    rgba(248, 250, 252, 0.92);
+}
+
+/* ----------
+   2. 深色模式 Aurora & Glass Token
+   ---------- */
+.dark,
+html.dark {
+  --aurora-mint:  rgba(20, 184, 166, 0.22);
+  --aurora-cyan:  rgba(94, 234, 212, 0.18);
+  --aurora-amber: rgba(245, 158, 11, 0.16);
+  --aurora-sky:   rgba(56, 189, 248, 0.18);
+  --aurora-rose:  rgba(244, 114, 182, 0.12);
+  --aurora-base:  linear-gradient(160deg, #0f172a 0%, #1a1a2e 44%, #16213e 100%);
+
+  --aurora-bg:
+    radial-gradient(circle at 12% 18%, var(--aurora-mint)  0, transparent 34%),
+    radial-gradient(circle at 86% 14%, var(--aurora-sky)   0, transparent 32%),
+    radial-gradient(circle at 74% 82%, var(--aurora-amber) 0, transparent 30%),
+    radial-gradient(circle at 22% 88%, var(--aurora-cyan)  0, transparent 28%),
+    radial-gradient(circle at 50% 50%, var(--aurora-rose)  0, transparent 40%),
+    var(--aurora-base);
+
+  --glass-bg-tab:     rgba(15, 23, 42, 0.72);
+  --glass-bg-sidebar: rgba(20, 25, 45, 0.68);
+  --glass-bg-modal:   rgba(15, 23, 42, 0.78);
+  --glass-bg-input:   rgba(26, 32, 53, 0.72);
+  --glass-bg-card:    rgba(30, 41, 59, 0.55);
+
+  --glass-border:       rgba(255, 255, 255, 0.10);
+  --glass-border-soft:  rgba(255, 255, 255, 0.06);
+  --glass-shadow-inner: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --glass-shadow-soft:  0 4px 24px rgba(0, 0, 0, 0.28);
+
+  --glass-fallback-tab:     rgba(15, 23, 42, 0.96);
+  --glass-fallback-sidebar: rgba(20, 25, 45, 0.97);
+  --glass-fallback-modal:   rgba(15, 23, 42, 0.98);
+  --glass-fallback-input:   rgba(26, 32, 53, 0.97);
+  --glass-fallback-card:    rgba(30, 41, 59, 0.95);
+}
+
+/* ----------
+   3. 全局光晕背景（覆盖 glass-theme.css 的简化版，增强 aurora 层次）
+   ---------- */
+body {
+  background: var(--aurora-bg);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* ----------
+   4. 毛玻璃组件扩展 — 模糊半径随层级递增
+   ---------- */
+
+/* Tab 栏 — 8px */
+.bottom-tab-bar {
+  background: var(--glass-bg-tab);
+  backdrop-filter: var(--glass-blur-tab);
+  -webkit-backdrop-filter: var(--glass-blur-tab);
+  border-top: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-inner), var(--glass-shadow-soft);
+}
+
+/* 侧边栏 — 12px */
+.sidebar {
+  background: var(--glass-bg-sidebar);
+  backdrop-filter: var(--glass-blur-sidebar);
+  -webkit-backdrop-filter: var(--glass-blur-sidebar);
+  border-right: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-inner), var(--glass-shadow-soft);
+}
+
+/* 弹窗 — 16px */
+.modal {
+  background: var(--glass-bg-modal);
+  backdrop-filter: var(--glass-blur-modal);
+  -webkit-backdrop-filter: var(--glass-blur-modal);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-inner), var(--glow-lg);
+}
+
+/* 弹窗遮罩 — 轻玻璃化 */
+.modal-overlay {
+  backdrop-filter: blur(4px) saturate(1.2);
+  -webkit-backdrop-filter: blur(4px) saturate(1.2);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+/* 输入容器 — 6px（输入框本身保持现有背景以保证可读性） */
+.search-box,
+.chat-input-area,
+.ai-input-area {
+  backdrop-filter: var(--glass-blur-input);
+  -webkit-backdrop-filter: var(--glass-blur-input);
+}
+
+/* 顶部栏 / 侧边栏头部 — 12px */
+.sidebar-header,
+.chat-header,
+.contacts-header,
+.discover-header,
+.me-header {
+  backdrop-filter: var(--glass-blur-sidebar);
+  -webkit-backdrop-filter: var(--glass-blur-sidebar);
+  box-shadow: var(--glass-shadow-inner);
+}
+
+/* 通用 glass 卡片工具类 */
+.glass-card {
+  background: var(--glass-bg-card);
+  backdrop-filter: var(--glass-blur-card);
+  -webkit-backdrop-filter: var(--glass-blur-card);
+  border: 1px solid var(--glass-border-soft);
+  box-shadow: var(--glass-shadow-inner), var(--glass-shadow-soft);
+  border-radius: var(--radius-lg);
+}
+
+/* ----------
+   5. 动态模糊边界 — mask-image 渐变渐隐，替代硬 box-shadow
+   边缘 2% 渐隐，内容区不受影响（卡片均有内边距）
+   ---------- */
+.message-bubble,
+.ai-status-card,
+.contacts-item,
+.discover-item,
+.glass-card {
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 2%, #000 98%, transparent 100%);
+          mask-image: linear-gradient(180deg, transparent 0, #000 2%, #000 98%, transparent 100%);
+}
+
+/* 横向边缘也柔和过渡（左右 1.5% 渐隐） */
+.glass-card,
+.ai-status-card {
+  -webkit-mask-image:
+    linear-gradient(90deg, transparent 0, #000 1.5%, #000 98.5%, transparent 100%),
+    linear-gradient(180deg, transparent 0, #000 2%, #000 98%, transparent 100%);
+          mask-image:
+    linear-gradient(90deg, transparent 0, #000 1.5%, #000 98.5%, transparent 100%),
+    linear-gradient(180deg, transparent 0, #000 2%, #000 98%, transparent 100%);
+  -webkit-mask-composite: source-in;
+          mask-composite: intersect;
+}
+
+/* ----------
+   6. 触控区兜底 — Tab 按钮 ≥44px
+   ---------- */
+.bottom-tab-bar button,
+.bottom-tab-bar .tab-item,
+.bottom-tab-bar a {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ----------
+   7. 性能兜底 — 不支持 backdrop-filter 时降级为半透明纯色
+   ---------- */
+@supports not ((backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px))) {
+  .bottom-tab-bar {
+    background: var(--glass-fallback-tab);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .sidebar {
+    background: var(--glass-fallback-sidebar);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .modal {
+    background: var(--glass-fallback-modal);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .modal-overlay {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(0, 0, 0, 0.45);
+  }
+  .search-box,
+  .chat-input-area,
+  .ai-input-area,
+  .sidebar-header,
+  .chat-header,
+  .contacts-header,
+  .discover-header,
+  .me-header {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .glass-card {
+    background: var(--glass-fallback-card);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  /* 降级时关闭 mask 渐隐，避免低端机渲染压力 */
+  .message-bubble,
+  .ai-status-card,
+  .contacts-item,
+  .discover-item,
+  .glass-card {
+    -webkit-mask-image: none;
+            mask-image: none;
+  }
+}
+
+/* 用户偏好：减少透明度（部分低端机 / 辅助功能）— 退化为纯色 */
+@media (prefers-reduced-transparency: reduce) {
+  .bottom-tab-bar { background: var(--glass-fallback-tab); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .sidebar        { background: var(--glass-fallback-sidebar); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .modal          { background: var(--glass-fallback-modal); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .glass-card     { background: var(--glass-fallback-card); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+/* ----------
+   8. 响应式 — 移动端降低模糊半径（性能 & iOS fixed 背景兼容）
+   ---------- */
+@media (max-width: 768px) {
+  :root {
+    --glass-blur-tab:     blur(6px)  saturate(1.2);
+    --glass-blur-sidebar: blur(8px)  saturate(1.2);
+    --glass-blur-modal:   blur(10px) saturate(1.3);
+    --glass-blur-input:   blur(4px)  saturate(1.1);
+    --glass-blur-card:    blur(8px)  saturate(1.2);
+  }
+  /* iOS Safari 不支持 background-attachment: fixed，回退为 scroll */
+  body {
+    background-attachment: scroll;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --glass-blur-modal: blur(8px) saturate(1.2);
+    --glass-blur-sidebar: blur(6px) saturate(1.1);
+  }
+  /* 小屏关闭 mask 渐隐，避免内容边缘被切 */
+  .message-bubble,
+  .ai-status-card,
+  .contacts-item,
+  .discover-item,
+  .glass-card {
+    -webkit-mask-image: none;
+            mask-image: none;
+  }
+}
+
+/* 横屏低高度 — 降低模糊半径，避免弹窗遮挡 */
+@media (orientation: landscape) and (max-height: 500px) {
+  :root {
+    --glass-blur-modal:   blur(8px) saturate(1.2);
+    --glass-blur-sidebar: blur(6px) saturate(1.1);
+  }
+}

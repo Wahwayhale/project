@@ -142,7 +142,7 @@ textarea {
 .contacts-header,
 .contacts-search,
 .discover-header,
-.discover-list,
+
 .contacts-section,
 .me-header,
 .me-menu,
@@ -181,7 +181,7 @@ textarea {
   min-width: 0;
   min-height: var(--clean-tap);
   padding: 0;
-  border-radius: 10px;
+  border-radius: 16px;
   cursor: pointer;
 }
 
@@ -215,7 +215,7 @@ textarea {
   margin: 8px 12px 0;
   padding: 6px 8px;
   border: 1px solid var(--clean-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--clean-surface-2);
 }
 
@@ -249,7 +249,7 @@ textarea {
 .mention-search-input {
   min-height: var(--clean-tap);
   border: 1px solid var(--clean-border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--clean-surface);
   color: var(--clean-text);
   box-shadow: none;
@@ -335,7 +335,7 @@ textarea {
   height: 44px;
   margin-right: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: 16px;
   background: var(--primary-gradient);
   box-shadow: none;
 }
@@ -349,13 +349,16 @@ textarea {
 
 .room-item .last-message,
 .contact-desc,
-.feature-desc,
 .me-bio,
 .file-name {
   overflow: hidden;
   color: var(--clean-text-2);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.feature-desc {
+  color: var(--clean-text-2);
 }
 
 .room-side {
@@ -376,7 +379,7 @@ textarea {
   min-width: var(--clean-tap);
   min-height: var(--clean-tap);
   border: 1px solid var(--clean-border);
-  border-radius: 8px;
+  border-radius: var(--radius-10);
   background: var(--clean-surface);
   color: var(--clean-text-2);
   box-shadow: none;
@@ -423,7 +426,7 @@ textarea {
 
 .sidebar-btn {
   min-height: var(--clean-tap);
-  border-radius: 8px;
+  border-radius: var(--radius-10);
 }
 
 .sidebar-btn,
@@ -466,22 +469,27 @@ textarea {
 
 .main-chat {
   min-width: 0;
-  padding: 12px 12px 92px;
-  gap: 12px;
-  background: var(--clean-bg);
+  padding: 0;
+  gap: 0;
+  background: var(--bg);
 }
 
 .chat-shell,
 .chat-top-stack {
-  gap: 10px;
+  gap: 0;
 }
 
 .chat-header {
   min-height: 64px;
-  padding: 10px 14px;
-  border: 1px solid var(--clean-border);
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 1px solid rgba(255,255,255,0.3);
   border-radius: 0;
-  background: var(--clean-surface);
+  background: linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.35) 100%);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  box-shadow: 0 4px 30px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.6);
+  z-index: 20;
 }
 
 .chat-header h3 {
@@ -551,7 +559,7 @@ textarea {
   padding: 6px;
   background: var(--clean-surface);
   border: 1px solid var(--clean-border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--clean-shadow);
   display: flex;
   flex-direction: column;
@@ -572,7 +580,7 @@ textarea {
   min-height: var(--clean-tap);
   padding: 8px 12px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-10);
   background: transparent;
   color: var(--clean-text);
   font-size: 14px;
@@ -604,16 +612,25 @@ textarea {
 }
 
 .chat-thread {
+  flex: 1 1 auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: -64px;
+  position: relative;
+  z-index: 10;
 }
 
 .messages-container {
-  padding: 22px clamp(14px, 2vw, 28px);
-  border: 1px solid var(--clean-border);
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 80px clamp(14px, 2vw, 28px) 16px;
+  border: none;
   border-radius: 0;
-  background: var(--clean-bg);
-  scroll-padding: 22px;
-  scrollbar-gutter: stable;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
 }
 
 .message {
@@ -627,7 +644,7 @@ textarea {
   height: 36px;
   margin: 0 8px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-10);
   box-shadow: none;
 }
 
@@ -644,7 +661,7 @@ textarea {
 .message .bubble {
   padding: 10px 14px;
   border: 1px solid var(--clean-border);
-  border-radius: 10px;
+  border-radius: 16px;
   line-height: 1.58;
   box-shadow: none;
 }
@@ -664,10 +681,10 @@ textarea {
 
 .message.sent .bubble,
 .ai-message.user .ai-bubble {
-  background: #95ec69;
-  color: #102416;
-  border-color: #87dc5c;
-  box-shadow: none;
+  background: var(--primary-gradient);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: var(--shadow-primary);
 }
 
 .message.sent .sender-name,
@@ -677,7 +694,7 @@ textarea {
 .message.sent .file-download,
 .ai-message.user .ai-meta-line,
 .music-message a {
-  color: rgba(16, 36, 22, 0.72);
+  color: var(--text-tertiary);
 }
 
 .message.sent .bubble,
@@ -724,7 +741,7 @@ textarea {
   margin-top: 8px;
   padding: 8px 10px;
   border-top: 1px dashed var(--clean-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--clean-text-2);
   background: var(--clean-surface-2);
   font-size: 13px;
@@ -754,12 +771,12 @@ textarea {
 
 .message .media {
   max-width: min(340px, 58vw);
-  border-radius: 10px;
+  border-radius: 16px;
 }
 
 .file-attachment {
   min-height: 68px;
-  border-radius: 10px;
+  border-radius: 16px;
 }
 
 .audio-message {
@@ -776,7 +793,7 @@ textarea {
   gap: 6px;
   padding: 8px;
   border: 1px solid var(--clean-border);
-  border-radius: 10px;
+  border-radius: 16px;
   background: var(--clean-surface);
   box-shadow: var(--clean-shadow);
 }
@@ -818,7 +835,7 @@ textarea {
 .recording-indicator,
 .smart-replies-bar {
   border: 1px solid var(--clean-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--clean-surface-2);
 }
 
@@ -861,7 +878,7 @@ textarea {
   min-height: 48px;
   max-height: 168px;
   padding: 12px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   line-height: 1.45;
 }
 
@@ -869,7 +886,7 @@ textarea {
   min-width: 88px;
   min-height: 48px;
   padding: 0 18px;
-  border-radius: 8px;
+  border-radius: var(--radius-10);
 }
 
 .send-button:disabled {
@@ -885,7 +902,7 @@ textarea {
   left: 0;
   width: min(360px, calc(100vw - 32px));
   border: 1px solid var(--clean-border);
-  border-radius: 10px;
+  border-radius: 16px;
   background: var(--clean-surface);
   box-shadow: var(--clean-shadow);
 }
@@ -899,7 +916,7 @@ textarea {
 .cancel-edit,
 .cancel-recording {
   min-height: 36px;
-  border-radius: 8px;
+  border-radius: var(--radius-10);
 }
 
 .smart-replies-bar {
@@ -944,7 +961,7 @@ textarea {
   width: min(400px, 100%);
   padding: 36px 32px;
   border: 1px solid var(--clean-border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--clean-surface);
   box-shadow: var(--clean-shadow);
 }
@@ -969,28 +986,31 @@ textarea {
 
 .auth-form .auth-btn {
   min-height: 48px;
-  border-radius: 8px;
+  border-radius: var(--radius-10);
 }
 
 .bottom-tab-bar {
   left: 50vw;
   right: auto;
-  bottom: 14px;
+  bottom: 16px;
   transform: translateX(-50%);
-  width: min(500px, calc(100vw - 32px));
+  width: min(480px, calc(100vw - 32px));
   height: 64px;
-  padding: 6px;
-  border: 1px solid var(--clean-border);
-  border-radius: 14px;
-  background: var(--clean-surface);
-  box-shadow: var(--clean-shadow);
+  padding: 6px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  background: var(--glass-tab);
+  backdrop-filter: var(--blur-xl);
+  -webkit-backdrop-filter: var(--blur-xl);
+  box-shadow: var(--glow-lg);
+  z-index: 1001;
 }
 
 .bottom-tab {
   min-width: 72px;
   min-height: 50px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 16px;
   color: var(--clean-text-2);
 }
 
@@ -1000,8 +1020,8 @@ textarea {
 }
 
 .bottom-tab.active {
-  color: var(--clean-primary);
-  background: var(--clean-primary-soft);
+  color: var(--primary);
+  background: var(--primary-bg);
   border-color: transparent;
   box-shadow: none;
 }
@@ -1073,8 +1093,8 @@ textarea {
 }
 
 .discover-list {
-  border: 1px solid var(--clean-border);
-  border-radius: 0;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
   overflow-y: auto;
 }
 
@@ -1093,11 +1113,11 @@ textarea {
 .forward-item {
   flex: 0 0 auto;
   min-height: 60px;
-  margin-bottom: 0;
-  border: 0;
-  border-bottom: 1px solid var(--clean-border);
-  border-radius: 0;
-  background: var(--clean-surface);
+  margin-bottom: var(--space-1);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  box-shadow: var(--glow-card);
 }
 
 .feature-item:hover,
@@ -1105,21 +1125,22 @@ textarea {
 .me-menu-item:hover,
 .panel-list-item:hover,
 .forward-item:hover {
-  background: var(--clean-surface-2);
-  border-color: var(--clean-border);
-  box-shadow: none;
-  transform: none;
+  background: var(--bg-elevated);
+  border-color: var(--border);
+  box-shadow: var(--glow-sm);
+  transform: translateY(-1px);
 }
 
 .feature-item:last-child,
 .contact-item:last-child,
 .me-menu-item:last-child {
-  border-bottom: 0;
+  border-bottom: 1px solid var(--border-light);
 }
+
 
 .feature-icon,
 .menu-icon {
-  border-radius: 10px;
+  border-radius: 16px;
   box-shadow: none;
 }
 
@@ -1135,7 +1156,7 @@ textarea {
   max-height: min(86dvh, 720px);
   overflow: auto;
   border: 1px solid var(--clean-border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--clean-surface);
   box-shadow: var(--clean-shadow);
 }
@@ -1145,7 +1166,7 @@ textarea {
 .reject-btn,
 .panel-primary-btn {
   min-height: var(--clean-tap);
-  border-radius: 8px;
+  border-radius: var(--radius-10);
 }
 
 .empty-state,
@@ -1155,7 +1176,7 @@ textarea {
 
 @media (min-width: 769px) {
   .main-chat {
-    padding: 12px 12px 92px;
+    padding: 0;
   }
 }
 
@@ -1188,7 +1209,10 @@ textarea {
     gap: 8px;
   }
 
-  .chat-shell,
+  .chat-shell {
+    gap: 0;
+  }
+
   .chat-top-stack {
     gap: 8px;
   }
@@ -1196,6 +1220,10 @@ textarea {
   .chat-header {
     min-height: 58px;
     padding: 8px 10px;
+  }
+
+  .chat-thread {
+    margin-top: -58px;
   }
 
   .chat-header-main {
@@ -1238,7 +1266,7 @@ textarea {
   }
 
   .messages-container {
-    padding: 14px 8px;
+    padding: 74px 8px 14px;
   }
 
   .message {
@@ -1318,6 +1346,12 @@ textarea {
     width: auto;
     height: 62px;
     transform: none;
+    border-radius: var(--radius-xl);
+    background: var(--glass-tab);
+    backdrop-filter: var(--blur-xl);
+    -webkit-backdrop-filter: var(--blur-xl);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--glow-lg);
   }
 
   .bottom-tab {

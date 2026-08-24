@@ -1209,9 +1209,12 @@ function chargeAICall(user, isAdmin) {
 const aiConversations = new Map(); // userId -> [{role, content}, ...]
 
 app.post('/api/ai/chat', verifyToken, async (req, res) => {
-  const { message, model, reset } = req.body || {};
+  const { message, model, reset, systemContext } = req.body || {};
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: '消息不能为空' });
+  }
+  if (systemContext !== undefined && typeof systemContext !== 'string') {
+    return res.status(400).json({ error: 'systemContext 必须为字符串' });
   }
   
   const useModel = model || 'glm-4-flash';
@@ -1246,7 +1249,17 @@ app.post('/api/ai/chat', verifyToken, async (req, res) => {
     });
   }
 
-  const result = await callSelectedAIModel(history, useModel);
+  // 构造本次调用上下文：若传入文档 systemContext，临时注入一条 system message，不污染持久会话
+  let callMessages = history;
+  if (systemContext && systemContext.trim()) {
+    const docSystem = {
+      role: 'system',
+      content: `以下是用户上传的文档内容，请据此回答用户接下来的问题：\n\n${systemContext.trim()}`
+    };
+    callMessages = [history[0], docSystem, ...history.slice(1)];
+  }
+
+  const result = await callSelectedAIModel(callMessages, useModel);
 
   if (!result.ok) {
     return res.status(500).json({
@@ -1717,7 +1730,8 @@ async function extractDocumentText(buffer, ext) {
     const result = await parser.getText();
     return (result.text || '').trim();
   }
-  if (ext === '.docx') {
+  if (ext === '.docx' || ext === '.doc') {
+    // mammoth 原生仅支持 .docx；.doc 会自然抛错并由调用方返回具体错误
     const mammoth = require('mammoth');
     const result = await mammoth.extractRawText({ buffer });
     return (result.value || '').trim();
@@ -1765,6 +1779,44 @@ app.post('/api/upload/simple', verifyToken, simpleUpload.single('file'), async (
   }
 
   res.json(response);
+});
+
+// ========== AI 文档解析端点（PDF/Word/TXT → 纯文本，供前端作为 system 上下文喂给 AI） ==========
+// 仅做本地文档解析，不调用 AI 模型，因此不扣费（admin 与普通用户一致）。
+// 复用现有 upload 中间件（diskStorage，500MB 上限），解析后删除临时文件。
+const AI_DOC_PARSE_EXTENSIONS = ['.pdf', '.docx', '.doc', '.txt'];
+
+app.post('/api/ai/parse-document', verifyToken, upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, error: '未收到文件' });
+  }
+  const originalName = req.file.originalname || '';
+  const ext = path.extname(originalName).toLowerCase();
+  if (!AI_DOC_PARSE_EXTENSIONS.includes(ext)) {
+    try { fs.unlinkSync(req.file.path); } catch (_) {}
+    return res.status(400).json({
+      success: false,
+      error: `不支持的文件类型: ${ext || '无扩展名'}，仅支持 pdf/docx/doc/txt`
+    });
+  }
+  try {
+    const buffer = fs.readFileSync(req.file.path);
+    const text = await extractDocumentText(buffer, ext);
+    if (!text) {
+      return res.status(422).json({ success: false, error: '文档解析结果为空，可能是扫描件或格式异常' });
+    }
+    const truncated = text.slice(0, 50000);
+    res.json({
+      success: true,
+      data: { text: truncated, filename: originalName, size: req.file.size }
+    });
+  } catch (e) {
+    console.error('[AI-PARSE-DOC] 解析失败:', e.message);
+    res.status(500).json({ success: false, error: `文档解析失败: ${e.message || '未知错误'}` });
+  } finally {
+    // 解析完成后删除临时文件，避免 uploads 堆积
+    try { fs.unlinkSync(req.file.path); } catch (_) {}
+  }
 });
 
 // ========== 手机号绑定（验证码流程） ==========
@@ -3461,6 +3513,10 @@ io.on('connection', (socket) => {
       socket.emit('sendError', { error: '你已被禁言，无法发送消息' });
       return;
     }
+    if (room.muteAll && room.owner !== socket.username && !(room.admins || []).includes(socket.username)) {
+      socket.emit('sendError', { error: '全员禁言中，仅群主和管理员可发言' });
+      return;
+    }
     const message = {
       id: uuidv4(),
       content,
@@ -3837,12 +3893,15 @@ io.on('connection', (socket) => {
   socket.on('setAnnouncement', ({ roomId, announcement }) => {
     const room = rooms.get(roomId);
     if (!room) return;
-    if (room.createdBy !== socket.username) {
-      socket.emit('announcementError', { error: '只有群主可以设置公告' });
+    const isOwner = room.owner === socket.username || room.createdBy === socket.username;
+    const isAdmin = (room.admins || []).includes(socket.username);
+    if (!isOwner && !isAdmin) {
+      socket.emit('announcementError', { error: '只有群主或管理员可以设置公告' });
       return;
     }
     room.announcement = announcement;
     rooms.set(roomId, room);
+    rooms.save();
     io.to(roomId).emit('announcementUpdated', { roomId, announcement });
   });
 
@@ -3850,14 +3909,22 @@ io.on('connection', (socket) => {
   socket.on('kickMember', ({ roomId, username }) => {
     const room = rooms.get(roomId);
     if (!room) return;
-    if (room.createdBy !== socket.username) {
-      socket.emit('kickError', { error: '只有群主可以踢人' });
+    const isOwner = room.owner === socket.username || room.createdBy === socket.username;
+    const isAdmin = (room.admins || []).includes(socket.username);
+    if (!isOwner && !isAdmin) {
+      socket.emit('kickError', { error: '只有群主或管理员可以踢人' });
+      return;
+    }
+    if (isOwner && username === (room.owner || room.createdBy)) {
+      socket.emit('kickError', { error: '不能踢出群主' });
       return;
     }
     room.members = room.members.filter(m => m !== username);
+    if (room.admins) room.admins = room.admins.filter(a => a !== username);
+    if (room.mutedMembers) room.mutedMembers = room.mutedMembers.filter(m => m !== username);
     rooms.set(roomId, room);
+    rooms.save();
     io.to(roomId).emit('memberKicked', { roomId, username });
-    // 通知被踢用户
     const userSocket = [...onlineUsers.values()].find(s => s.username === username);
     if (userSocket) {
       io.to(userSocket.id).emit('youWereKicked', { roomId, roomName: room.name });
@@ -3868,14 +3935,17 @@ io.on('connection', (socket) => {
   socket.on('muteMember', ({ roomId, username }) => {
     const room = rooms.get(roomId);
     if (!room) return;
-    if (room.createdBy !== socket.username) {
-      socket.emit('muteError', { error: '只有群主可以禁言' });
+    const isOwner = room.owner === socket.username || room.createdBy === socket.username;
+    const isAdmin = (room.admins || []).includes(socket.username);
+    if (!isOwner && !isAdmin) {
+      socket.emit('muteError', { error: '只有群主或管理员可以禁言' });
       return;
     }
     if (!room.mutedMembers) room.mutedMembers = [];
     if (!room.mutedMembers.includes(username)) {
       room.mutedMembers.push(username);
       rooms.set(roomId, room);
+      rooms.save();
       io.to(roomId).emit('memberMuted', { roomId, username });
     }
   });
@@ -3884,12 +3954,159 @@ io.on('connection', (socket) => {
   socket.on('unmuteMember', ({ roomId, username }) => {
     const room = rooms.get(roomId);
     if (!room) return;
-    if (room.createdBy !== socket.username) return;
+    const isOwner = room.owner === socket.username || room.createdBy === socket.username;
+    const isAdmin = (room.admins || []).includes(socket.username);
+    if (!isOwner && !isAdmin) return;
     if (room.mutedMembers) {
       room.mutedMembers = room.mutedMembers.filter(m => m !== username);
       rooms.set(roomId, room);
+      rooms.save();
       io.to(roomId).emit('memberUnmuted', { roomId, username });
     }
+  });
+
+  // 设置/取消管理员（仅群主）
+  socket.on('setGroupAdmin', ({ roomId, username, isAdmin }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const isOwner = room.owner === socket.username || room.createdBy === socket.username;
+    if (!isOwner) {
+      socket.emit('adminError', { error: '只有群主可以设置管理员' });
+      return;
+    }
+    if (!room.admins) room.admins = [];
+    if (isAdmin) {
+      if (!room.admins.includes(username)) room.admins.push(username);
+    } else {
+      room.admins = room.admins.filter(a => a !== username);
+    }
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('groupAdminUpdated', { roomId, username, isAdmin });
+  });
+
+  // 转让群主（仅群主）
+  socket.on('transferOwnership', ({ roomId, username }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const isOwner = room.owner === socket.username || room.createdBy === socket.username;
+    if (!isOwner) {
+      socket.emit('transferError', { error: '只有群主可以转让群主' });
+      return;
+    }
+    if (!room.members.includes(username)) {
+      socket.emit('transferError', { error: '该用户不是群成员' });
+      return;
+    }
+    room.owner = username;
+    room.createdBy = username;
+    if (room.admins) room.admins = room.admins.filter(a => a !== username);
+    if (!room.admins) room.admins = [];
+    if (!room.admins.includes(socket.username)) room.admins.push(socket.username);
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('ownershipTransferred', { roomId, newOwner: username, oldOwner: socket.username });
+  });
+
+  // 全员禁言/解除
+  socket.on('setMuteAll', ({ roomId, muteAll }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const isOwner = room.owner === socket.username || room.createdBy === socket.username;
+    const isAdmin = (room.admins || []).includes(socket.username);
+    if (!isOwner && !isAdmin) {
+      socket.emit('muteError', { error: '只有群主或管理员可以全员禁言' });
+      return;
+    }
+    room.muteAll = muteAll;
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('muteAllUpdated', { roomId, muteAll });
+  });
+
+  // 修改群名
+  socket.on('renameGroup', ({ roomId, name }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const isOwner = room.owner === socket.username || room.createdBy === socket.username;
+    const isAdmin = (room.admins || []).includes(socket.username);
+    if (!isOwner && !isAdmin) {
+      socket.emit('renameError', { error: '只有群主或管理员可以修改群名' });
+      return;
+    }
+    room.name = name.trim();
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('groupRenamed', { roomId, name: room.name });
+  });
+
+  // 设置群描述
+  socket.on('setRoomDescription', ({ roomId, description }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const isOwner = room.owner === socket.username || room.createdBy === socket.username;
+    const isAdmin = (room.admins || []).includes(socket.username);
+    if (!isOwner && !isAdmin) return;
+    room.description = description;
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('roomDescriptionUpdated', { roomId, description });
+  });
+
+  // 邀请成员入群
+  socket.on('inviteMembers', ({ roomId, usernames }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const isOwner = room.owner === socket.username || room.createdBy === socket.username;
+    const isAdmin = (room.admins || []).includes(socket.username);
+    if (!isOwner && !isAdmin) {
+      socket.emit('inviteError', { error: '只有群主或管理员可以邀请成员' });
+      return;
+    }
+    const max = room.maxMembers || 500;
+    const added = [];
+    for (const username of usernames) {
+      if (room.members.includes(username)) continue;
+      if (room.members.length >= max) break;
+      room.members.push(username);
+      added.push(username);
+    }
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('membersInvited', { roomId, added });
+    for (const username of added) {
+      const userSocket = [...onlineUsers.values()].find(s => s.username === username);
+      if (userSocket) {
+        io.to(userSocket.id).emit('invitedToGroup', { roomId, roomName: room.name });
+      }
+    }
+  });
+
+  // 解散群聊（仅群主）
+  socket.on('disbandGroup', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const isOwner = room.owner === socket.username || room.createdBy === socket.username;
+    if (!isOwner) {
+      socket.emit('disbandError', { error: '只有群主可以解散群聊' });
+      return;
+    }
+    io.to(roomId).emit('groupDisbanded', { roomId, roomName: room.name });
+    rooms.delete(roomId);
+    rooms.save();
+  });
+
+  // 设置欢迎语
+  socket.on('setWelcomeMessage', ({ roomId, message }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const isOwner = room.owner === socket.username || room.createdBy === socket.username;
+    const isAdmin = (room.admins || []).includes(socket.username);
+    if (!isOwner && !isAdmin) return;
+    room.welcomeMessage = message;
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('welcomeMessageUpdated', { roomId, message });
   });
 
   // 发布朋友圈
@@ -3962,17 +4179,26 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('userStopTyping', { username: socket.username });
   });
 
-  socket.on('createGroup', ({ name, members }) => {
+  socket.on('createGroup', ({ name, members, description }) => {
     const room = {
       id: uuidv4(),
       name,
       type: 'group',
+      owner: socket.username,
+      admins: [],
       members: [...members, socket.username],
       messages: [],
       createdBy: socket.username,
-      createdAt: new Date()
+      createdAt: new Date(),
+      description: description || '',
+      announcement: '',
+      mutedMembers: [],
+      muteAll: false,
+      maxMembers: 500,
+      welcomeMessage: ''
     };
     rooms.set(room.id, room);
+    rooms.save();
     io.emit('roomCreated', room);
     socket.emit('groupCreated', room);
   });

@@ -1,97 +1,165 @@
-/* CSS Variables — Design Tokens */
+/* CSS Variables — Design Tokens
+   暖薄荷主色 · 中性阴影 · 克制渐变
+*/
 :root {
-  /* 主色调 - Liquid Glass 主题 */
-  --primary: #31c48d;
-  --primary-light: #67e8b2;
-  --primary-dark: #1f9d73;
-  --primary-gradient: linear-gradient(135deg, rgba(74, 222, 181, 0.92) 0%, rgba(96, 165, 250, 0.88) 100%);
-  --primary-bg: rgba(87, 225, 183, 0.16);
+  /* 主色调 — 暖薄荷 */
+  --primary: #14B8A6;
+  --primary-light: #5EEAD4;
+  --primary-dark: #0F766E;
+  --primary-gradient: linear-gradient(135deg, #14B8A6 0%, #2DD4BF 100%);
+  --primary-bg: rgba(20, 184, 166, 0.10);
+
+  /* 强调色 */
+  --accent: #F59E0B;
+  --accent-light: #FCD34D;
+  --accent-dark: #D97706;
+  --accent-bg: rgba(245, 158, 11, 0.10);
 
   /* 语义色 */
-  --success: #31c48d;
-  --warning: #ffb84d;
-  --danger: #ff6b81;
-  --info: #60a5fa;
+  --success: #22C55E;
+  --success-bg: rgba(34, 197, 94, 0.10);
+  --warning: #F59E0B;
+  --warning-bg: rgba(245, 158, 11, 0.10);
+  --danger: #EF4444;
+  --danger-bg: rgba(239, 68, 68, 0.10);
+  --info: #14B8A6;
+  --info-bg: rgba(20, 184, 166, 0.10);
 
-  /* 中性色 */
-  --bg: #eaf6f4;
-  --bg-card: rgba(255, 255, 255, 0.5);
-  --bg-hover: rgba(255, 255, 255, 0.68);
-  --bg-active: rgba(255, 255, 255, 0.82);
-  --border: rgba(255, 255, 255, 0.42);
-  --border-light: rgba(255, 255, 255, 0.24);
+  /* 中性色 — 浅色模式 */
+  --bg: #F4F5F7;
+  --bg-elevated: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-hover: #F8FAFC;
+  --bg-active: #F1F5F9;
+  --bg-secondary: #FAFBFC;
+  --border: #E4E7EC;
+  --border-light: #F0F2F5;
 
-  /* 文字 — 加深主色确保高对比度 */
-  --text: #0a1c23;
-  --text-secondary: #2f4b55;
-  --text-tertiary: #4e6b75;
-  --text-white: #ffffff;
+  /* 文字 */
+  --text: #1E293B;
+  --text-secondary: #64748B;
+  --text-tertiary: #94A3B8;
+  --text-white: #FFFFFF;
+  --text-muted: #CBD5E1;
 
-  /* 阴影 */
-  --shadow-sm: 0 10px 24px rgba(34, 60, 80, 0.08);
-  --shadow-md: 0 18px 40px rgba(34, 60, 80, 0.12);
-  --shadow-lg: 0 28px 60px rgba(34, 60, 80, 0.16);
-  --shadow-xl: 0 36px 80px rgba(34, 60, 80, 0.18);
+  /* 阴影 — 中性灰，不做彩色倾向 */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.10);
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.04);
+  --shadow-elevated: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --shadow-primary: 0 4px 14px rgba(20, 184, 166, 0.28);
 
   /* 圆角 */
+  --radius-xs: 6px;
   --radius-sm: 8px;
+  --radius-10: 10px;
   --radius-md: 12px;
-  --radius-lg: 18px;
-  --radius-xl: 24px;
-  --radius-2xl: 16px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
   --radius-full: 9999px;
-  --radius-header: 22px;
-  --radius-modal: 26px;
-  --radius-app: 30px;
+  --radius-app: 24px;
 
   /* 动效 */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --duration-xs: 100ms;
   --duration-sm: 150ms;
   --duration-md: 200ms;
   --duration-lg: 300ms;
+  --duration-xl: 500ms;
 
-  /* 间距 */
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 12px;
-  --space-lg: 16px;
-  --space-xl: 20px;
-  --space-2xl: 24px;
+  /* 间距 — 8px 基线 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
 
   /* 字号 */
-  --text-xs: 10px;
+  --text-xs: 11px;
   --text-sm: 12px;
   --text-base: 14px;
   --text-md: 15px;
   --text-lg: 16px;
-  --text-xl: 20px;
-  --text-2xl: 24px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+  --text-3xl: 28px;
+  --text-4xl: 36px;
 
   /* 布局 */
-  --sidebar-width: 344px;
-  --header-height: 68px;
-  --mobile-tab-offset: 92px;
+  --sidebar-width: 340px;
+  --header-height: 70px;
+  --mobile-tab-height: 72px;
+  --mobile-tab-offset: 88px;
 
-  /* Glass 专属 */
-  --glass-blur: blur(22px);
-  --glass-panel: linear-gradient(180deg, rgba(255, 255, 255, 0.54) 0%, rgba(255, 255, 255, 0.22) 100%);
-  --glass-stroke: inset 0 1px 0 rgba(255, 255, 255, 0.62), inset 0 -1px 0 rgba(255, 255, 255, 0.16);
+  /* 毛玻璃 — 仅顶部栏和底部 Tab 使用 */
+  --glass-header: linear-gradient(180deg, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.40) 100%);
+  --glass-tab: linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(255,255,255,0.55) 100%);
 
-  /* Glass 透明度变量 */
-  --glass-white-18: rgba(255, 255, 255, 0.18);
-  --glass-white-22: rgba(255, 255, 255, 0.22);
-  --glass-white-34: rgba(255, 255, 255, 0.34);
-  --glass-white-48: rgba(255, 255, 255, 0.48);
-  --glass-white-56: rgba(255, 255, 255, 0.56);
+  /* 渐变 — 仅按钮和发送气泡保留 */
+  --gradient-btn: linear-gradient(135deg, #14B8A6 0%, #2DD4BF 100%);
+  --gradient-btn-hover: linear-gradient(135deg, #2DD4BF 0%, #5EEAD4 100%);
+  --gradient-bubble-sent: linear-gradient(135deg, #14B8A6 0%, #2DD4BF 100%);
 
-  /* Glass 辅助变量 */
-  --glass-focus: rgba(103, 232, 178, 0.85);
-  --glass-overlay: rgba(127, 161, 170, 0.2);
+  /* 模糊层级 */
+  --blur-sm: blur(8px);
+  --blur-md: blur(16px);
+  --blur-lg: blur(24px);
+  --blur-xl: blur(32px);
 
-  /* 领域语义变量 */
+  /* 光晕 — 保留用于按钮和强调 */
+  --glow-sm: 0 0 18px rgba(20, 184, 166, 0.18);
+  --glow-md: 0 0 28px rgba(20, 184, 166, 0.22);
+  --glow-lg: 0 0 40px rgba(20, 184, 166, 0.26);
+  --glow-btn: 0 0 20px rgba(20, 184, 166, 0.32);
+  --glow-card: 0 0 12px rgba(0, 0, 0, 0.03);
+
+  /* 领域语义 */
   --bili-pink: #fb7299;
   --bili-pink-light: #ff8fc7;
-  --danger-glass: #ff6b81;
-  --danger-light: #ff8aa1;
+}
+
+/* 深色模式 */
+.dark {
+  --bg: #0F172A;
+  --bg-elevated: #1E293B;
+  --bg-card: #1E293B;
+  --bg-hover: #334155;
+  --bg-active: #3B4F6B;
+  --border: #334155;
+  --border-light: #1E293B;
+
+  --text: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-tertiary: #64748B;
+  --text-muted: #475569;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.22);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.26);
+  --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.30);
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.18);
+  --shadow-elevated: 0 4px 16px rgba(0, 0, 0, 0.22);
+
+  --glass-header: linear-gradient(180deg, rgba(15,23,42,0.62) 0%, rgba(15,23,42,0.40) 100%);
+  --glass-tab: linear-gradient(180deg, rgba(30,41,59,0.82) 0%, rgba(30,41,59,0.60) 100%);
+
+  --gradient-btn: linear-gradient(135deg, #14B8A6 0%, #2DD4BF 100%);
+  --gradient-btn-hover: linear-gradient(135deg, #2DD4BF 0%, #5EEAD4 100%);
+  --gradient-bubble-sent: linear-gradient(135deg, #14B8A6 0%, #2DD4BF 100%);
+
+  --glow-sm: 0 0 18px rgba(20, 184, 166, 0.22);
+  --glow-md: 0 0 28px rgba(20, 184, 166, 0.26);
+  --glow-lg: 0 0 40px rgba(20, 184, 166, 0.30);
+  --glow-btn: 0 0 20px rgba(20, 184, 166, 0.36);
+  --glow-card: 0 0 12px rgba(0, 0, 0, 0.14);
 }

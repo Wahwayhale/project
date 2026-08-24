@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { I } from './Icon';
 
 /* ── 果冻宠物 CSS ── */
 const STYLES = `
@@ -111,7 +112,8 @@ const STYLES = `
   pointer-events: auto;
   backdrop-filter: blur(8px);
 }
-.tamagotchi-stat { display: flex; align-items: center; gap: 2px; }
+.tamagotchi-stat { display: flex; align-items: center; gap: 3px; }
+.tamagotchi-stat svg { width: 10px; height: 10px; }
 .tamagotchi-feed-btn {
   font-size: 10px;
   padding: 2px 10px;
@@ -160,7 +162,7 @@ const LEVEL_NAMES = ['', '幼崽', '少年', '青年', '成年', '精英', '传�
 
 function getMoodColor(mood, hunger) {
   if (hunger < 15 || mood < 15) return { bg: 'rgba(160,160,170,0.45)', shadow: '0 2px 12px rgba(0,0,0,0.08)' };
-  if (mood > 70) return { bg: 'rgba(66,214,164,0.55)', shadow: '0 4px 20px rgba(66,214,164,0.35)' };
+  if (mood > 70) return { bg: 'rgba(14,165,233,0.55)', shadow: '0 4px 20px rgba(14,165,233,0.35)' };
   if (mood > 40) return { bg: 'rgba(120,200,240,0.50)', shadow: '0 4px 16px rgba(120,200,240,0.30)' };
   return { bg: 'rgba(180,190,210,0.40)', shadow: '0 2px 10px rgba(0,0,0,0.06)' };
 }
@@ -278,7 +280,7 @@ export default function TamagotchiPet({ socketRef, roomId, user, showToast }) {
     if (feeding) return;
     setFeeding(true);
     socketRef?.current?.emit('petFeed', { roomId });
-    showPop('🍎 饱食+20');
+    showPop('饱食 +20');
     setTimeout(() => setFeeding(false), 600);
   }, [socketRef, roomId, feeding, showPop]);
 
@@ -286,7 +288,7 @@ export default function TamagotchiPet({ socketRef, roomId, user, showToast }) {
     // 拖拽过就不触发抚摸
     if (dragRef.current.active) return;
     socketRef?.current?.emit('petPet', { roomId });
-    showPop('✨ 心情+1');
+    showPop('心情 +1');
   }, [socketRef, roomId, showPop]);
 
   if (!roomId) return null;
@@ -329,14 +331,14 @@ export default function TamagotchiPet({ socketRef, roomId, user, showToast }) {
           </div>
           <div className={`tamagotchi-mouth${isSleeping ? ' sleep' : isHappy ? '' : ' sad'}`} />
         </div>
-        {isSleeping && <span className="tamagotchi-zzz">💤</span>}
+        {isSleeping && <span className="tamagotchi-zzz"><I name="moon" size={12} /></span>}
         {popText && <span className="tamagotchi-pop">{popText}</span>}
         {feeding && <span style={{ position: 'absolute', inset: 0, animation: 'feed-burst 0.4s ease', borderRadius: '50%', background: 'rgba(255,255,255,0.3)', pointerEvents: 'none' }} />}
       </div>
       <div className="tamagotchi-stats">
-        <span className="tamagotchi-stat">❤️{mood}</span>
-        <span className="tamagotchi-stat">🍎{hunger}</span>
-        <span className="tamagotchi-stat">⭐{levelName}</span>
+        <span className="tamagotchi-stat"><I name="heart" size={10} />{mood}</span>
+        <span className="tamagotchi-stat"><I name="apple" size={10} />{hunger}</span>
+        <span className="tamagotchi-stat"><I name="star" size={10} />{levelName}</span>
       </div>
       <button className="tamagotchi-feed-btn" onClick={feed}>投喂</button>
     </div>

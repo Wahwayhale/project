@@ -267,7 +267,7 @@ export default function ChatView({
         </div>
         {isChannel && (
           <div className="channel-subscribe-bar">
-            <span className="channel-badge">📢 频道</span>
+            <span className="channel-badge"><I name="hash" size={12} /> 频道</span>
             <span className="channel-count">{currentRoom?.members?.length || 0} 位订阅者</span>
             <button
               className={`channel-subscribe-btn ${subscribed ? 'subscribed' : ''}`}
@@ -428,7 +428,7 @@ export default function ChatView({
                     <div className="file-download">下载</div>
                   </a>
                   {msg.documentSummary && (
-                    <div className="document-summary">📄 {msg.documentSummary}</div>
+                    <div className="document-summary"><I name="file" size={12} /> {msg.documentSummary}</div>
                   )}
                 </>
               )}

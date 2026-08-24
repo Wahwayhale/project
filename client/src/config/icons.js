@@ -6,7 +6,7 @@ import {
   Paperclip, SmilePlus, Hash, Gift, Vote, Dice1, Hand, Swords, Crown, Volume2, Bell,
   BellOff, FileText, Download, Upload, Trash2, Copy, ExternalLink, RotateCcw, Clock,
   Calendar, Zap, ListOrdered, FileUp, LogOut, Info, Sun, Moon, Flame, Droplets, Wind,
-  Play, Pause, Headphones, Brush, CloudRain, ListTodo, ArrowLeftRight
+  Play, Pause, Headphones, Brush, CloudRain, ListTodo, ArrowLeftRight, Heart, Apple
 } from 'lucide-react';
 
 export var iconProps = { size: 24, strokeWidth: 1.2, absoluteStrokeWidth: true };
@@ -31,10 +31,10 @@ export var iconMap = {
   attach: Paperclip, emoji: SmilePlus, hash: Hash, gift: Gift,
   vote: Vote, dice: Dice1, hand: Hand, swords: Swords, crown: Crown,
   sound: Volume2, bell: Bell, bellOff: BellOff,
-  file: FileText, download: Download, upload: Upload, delete: Trash2,
+  file: FileText, 'file-text': FileText, download: Download, upload: Upload, delete: Trash2,
   copy: Copy, link: ExternalLink, reset: RotateCcw, clock: Clock, calendar: Calendar,
   stop: Square, quick: Zap, solitaire: ListOrdered, export: FileUp, logout: LogOut,
   info: Info, sun: Sun, moon: Moon,
   play: Play, pause: Pause, headphones: Headphones, brush: Brush, rain: CloudRain, todo: ListTodo,
-  transfer: ArrowLeftRight,
+  transfer: ArrowLeftRight, heart: Heart, apple: Apple,
 };

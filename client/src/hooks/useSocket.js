@@ -329,6 +329,74 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
         h.setRooms(prev => prev.map(r => r.id === roomId ? { ...r, mutedMembers: (r.mutedMembers || []).filter(m => m !== username) } : r));
       });
 
+      // 管理员变更
+      socketRef.current.on('groupAdminUpdated', ({ roomId, username, isAdmin }) => {
+        h.setCurrentRoom(prev => {
+          if (prev?.id !== roomId) return prev;
+          const admins = isAdmin ? [...new Set([...(prev.admins || []), username])] : (prev.admins || []).filter(a => a !== username);
+          return { ...prev, admins };
+        });
+        h.setRooms(prev => prev.map(r => {
+          if (r.id !== roomId) return r;
+          const admins = isAdmin ? [...new Set([...(r.admins || []), username])] : (r.admins || []).filter(a => a !== username);
+          return { ...r, admins };
+        }));
+        h.showToast(`${username} ${isAdmin ? '已设为管理员' : '已取消管理员'}`, 'info');
+      });
+
+      // 群主转让
+      socketRef.current.on('ownershipTransferred', ({ roomId, newOwner, oldOwner }) => {
+        h.setCurrentRoom(prev => prev?.id === roomId ? { ...prev, owner: newOwner, createdBy: newOwner } : prev);
+        h.setRooms(prev => prev.map(r => r.id === roomId ? { ...r, owner: newOwner, createdBy: newOwner } : r));
+        h.showToast(`群主已转让给 ${newOwner}`, 'info');
+      });
+
+      // 全员禁言
+      socketRef.current.on('muteAllUpdated', ({ roomId, muteAll }) => {
+        h.setCurrentRoom(prev => prev?.id === roomId ? { ...prev, muteAll } : prev);
+        h.setRooms(prev => prev.map(r => r.id === roomId ? { ...r, muteAll } : r));
+        h.showToast(muteAll ? '已开启全员禁言' : '已解除全员禁言', 'info');
+      });
+
+      // 群名修改
+      socketRef.current.on('groupRenamed', ({ roomId, name }) => {
+        h.setCurrentRoom(prev => prev?.id === roomId ? { ...prev, name } : prev);
+        h.setRooms(prev => prev.map(r => r.id === roomId ? { ...r, name } : r));
+      });
+
+      // 群描述更新
+      socketRef.current.on('roomDescriptionUpdated', ({ roomId, description }) => {
+        h.setCurrentRoom(prev => prev?.id === roomId ? { ...prev, description } : prev);
+        h.setRooms(prev => prev.map(r => r.id === roomId ? { ...r, description } : r));
+      });
+
+      // 成员邀请
+      socketRef.current.on('membersInvited', ({ roomId, added }) => {
+        h.setCurrentRoom(prev => prev?.id === roomId ? { ...prev, members: [...new Set([...(prev.members || []), ...added])] } : prev);
+        h.setRooms(prev => prev.map(r => r.id === roomId ? { ...r, members: [...new Set([...(r.members || []), ...added])] } : r));
+      });
+
+      socketRef.current.on('invitedToGroup', ({ roomId, roomName }) => {
+        h.showToast(`你被邀请加入群聊「${roomName}」`, 'success');
+      });
+
+      // 群解散
+      socketRef.current.on('groupDisbanded', ({ roomId, roomName }) => {
+        h.showToast(`群聊「${roomName}」已解散`, 'error');
+        h.setRooms(prev => prev.filter(r => r.id !== roomId));
+        if (h.currentRoomId === roomId) {
+          h.setCurrentRoomId(null);
+          h.setCurrentRoom(null);
+          h.setMessages([]);
+        }
+      });
+
+      // 欢迎语更新
+      socketRef.current.on('welcomeMessageUpdated', ({ roomId, message }) => {
+        h.setCurrentRoom(prev => prev?.id === roomId ? { ...prev, welcomeMessage: message } : prev);
+        h.setRooms(prev => prev.map(r => r.id === roomId ? { ...r, welcomeMessage: message } : r));
+      });
+
       // 朋友圈
       socketRef.current.on('newMoment', (moment) => {
         h.setMoments(prev => [moment, ...prev]);

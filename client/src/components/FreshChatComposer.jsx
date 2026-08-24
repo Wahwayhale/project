@@ -274,9 +274,12 @@ export default function FreshChatComposer({
     <div className="chat-input-area fresh-chat-composer">
       <div className={`fresh-bento-drawer ${drawerOpen ? 'is-open' : ''}`}>
         <div className="fresh-bento-head">
+          <button className="fresh-bento-back" type="button" onClick={() => setDrawerOpen(false)} title="返回">
+            <I name="arrowLeft" size={18} />
+          </button>
           <div className="fresh-bento-copy">
-            <strong>小工具抽屉</strong>
-            <span>灵感、娱乐和办公都收在这朵云里</span>
+            <strong>功能面板</strong>
+            <span>选择工具后返回聊天</span>
           </div>
           <button className="fresh-soft-icon" type="button" onClick={() => setDrawerOpen(false)} title="关闭功能面板">
             <I name="close" size={18} />
@@ -303,7 +306,7 @@ export default function FreshChatComposer({
       <div className="fresh-composer-island">
         {channelReadOnly && (
           <div className="channel-readonly-tip">
-            <span>🔒</span>
+            <I name="security" size={14} />
             <span>你已订阅此频道，仅频道主和管理员可发言</span>
           </div>
         )}

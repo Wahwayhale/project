@@ -1,0 +1,33 @@
+{
+  "name": "chatroom-desktop",
+  "version": "4.0.0",
+  "description": "ChatRoom Windows desktop wrapper (Electron). Loads the Web app from ngrok/localhost:3001 and reuses Web OTA updates.",
+  "author": "ChatRoom",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis",
+    "packager": "electron-packager . ChatRoom --platform=win32 --arch=x64 --overwrite --out=dist-packager --prune"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^23.6.0",
+    "electron-packager": "^17.1.2"
+  },
+  "build": {
+    "appId": "com.chatroom.desktop",
+    "productName": "ChatRoom",
+    "files": [
+      "main.js",
+      "preload.js"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "ChatRoom-Setup-${version}.${ext}"
+    }
+  }
+}

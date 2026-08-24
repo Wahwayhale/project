@@ -19,7 +19,13 @@ class ErrorBoundary extends React.Component {
     if (this.state.hasError) {
       return (
         <div style={{ padding: 40, maxWidth: 650, margin: '40px auto', fontFamily: '-apple-system,BlinkMacSystemFont,sans-serif', background: '#fff', borderRadius: 16, boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
-          <div style={{ fontSize: 48, marginBottom: 12, color: '#ef4444' }}>⚠</div>
+          <div style={{ marginBottom: 12, color: '#ef4444' }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
           <h2 style={{ color: '#ef4444', marginBottom: 16 }}>页面渲染错误</h2>
           <div style={{ background: '#fee2e2', padding: 16, borderRadius: 8, marginBottom: 16, fontSize: 14, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto' }}>
             {this.state.error?.toString()}

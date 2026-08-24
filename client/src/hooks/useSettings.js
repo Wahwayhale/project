@@ -5,7 +5,7 @@ export function useSettings() {
   localStorage.removeItem('darkMode');
   const [darkMode, setDarkMode] = useState(false);
   const [fontSize, setFontSize] = useState(() => parseInt(localStorage.getItem('chatFontSize') || '15'));
-  const [themePreset, setThemePreset] = useState(() => localStorage.getItem('themePreset') || 'mint');
+  const [themePreset, setThemePreset] = useState(() => localStorage.getItem('themePreset') || 'cyan');
   const [chatBackgrounds, setChatBackgrounds] = useState(() => {
     try { return JSON.parse(localStorage.getItem('chatBackgrounds') || '{}'); } catch { return {}; }
   });

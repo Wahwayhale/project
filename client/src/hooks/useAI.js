@@ -32,6 +32,12 @@ export function useAI({
   const [aiStatusLoading, setAiStatusLoading] = useState(false);
   const aiMessagesEndRef = useRef(null);
 
+  // ===== AI 文档解析（上传 PDF/Word/TXT → 纯文本，作为一次性 system 上下文喂给 AI） =====
+  const [documentContext, setDocumentContext] = useState('');
+  const [documentStatus, setDocumentStatus] = useState('idle'); // idle | uploading | parsing | done | error
+  const [documentName, setDocumentName] = useState('');
+  const documentInputRef = useRef(null);
+
   // ===== AI 增强功能 =====
   const [smartReplies, setSmartReplies] = useState([]);
   const [smartRepliesLoading, setSmartRepliesLoading] = useState(false);
@@ -67,13 +73,15 @@ export function useAI({
   const sendAiMessage = async () => {
     const text = aiInput.trim();
     if (!text || aiLoading) return;
+    const ctx = documentContext; // 捕获本次文档上下文（一次性注入）
     setAiMessages(prev => [...prev, { role: 'user', content: text }]);
     setAiInput('');
     setAiLoading(true);
     try {
       const res = await axios.post(`${API_URL}/api/ai/chat`, {
         message: text,
-        model: aiModel
+        model: aiModel,
+        ...(ctx ? { systemContext: ctx } : {})
       }, { headers: { Authorization: token } });
       setAiMessages(prev => [...prev, {
         role: 'assistant',
@@ -101,6 +109,12 @@ export function useAI({
       }]);
     } finally {
       setAiLoading(false);
+      // 文档上下文一次性使用，发送后清除
+      if (ctx) {
+        setDocumentContext('');
+        setDocumentName('');
+        setDocumentStatus('idle');
+      }
     }
   };
 
@@ -144,6 +158,47 @@ export function useAI({
       e.preventDefault();
       sendAiMessage();
     }
+  };
+
+  // ===== AI 文档上传与解析 =====
+  // 流程：选文件 → 上传中 → 解析中 → 完成/失败；解析文本作为一次性 system 上下文随下一条消息发送
+  const uploadDocument = async (file) => {
+    if (!file || documentStatus === 'uploading' || documentStatus === 'parsing') return;
+    setDocumentStatus('uploading');
+    setDocumentName(file.name || '');
+    setDocumentContext('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await axios.post(`${API_URL}/api/ai/parse-document`, formData, {
+        headers: { Authorization: token },
+        onUploadProgress: (progressEvent) => {
+          // 文件已交给浏览器，进入后端解析阶段
+          if (progressEvent.total && progressEvent.loaded >= progressEvent.total) {
+            setDocumentStatus('parsing');
+          }
+        }
+      });
+      const parsedText = res.data?.data?.text || '';
+      if (!parsedText) {
+        setDocumentStatus('error');
+        showToast('文档解析结果为空', 'error');
+        return;
+      }
+      setDocumentContext(parsedText);
+      setDocumentStatus('done');
+      showToast(`文档解析完成（${(parsedText.length / 1000).toFixed(1)}k 字符）`, 'success');
+    } catch (err) {
+      setDocumentStatus('error');
+      const msg = err.response?.data?.error || err.message || '文档解析失败';
+      showToast(msg, 'error');
+    }
+  };
+
+  const clearDocumentContext = () => {
+    setDocumentContext('');
+    setDocumentName('');
+    setDocumentStatus('idle');
   };
 
   // ===== AI 增强功能函数 =====
@@ -286,6 +341,8 @@ export function useAI({
     aiStatus, setAiStatus,
     aiStatusLoading, setAiStatusLoading,
     aiMessagesEndRef,
+    // AI document parsing
+    documentStatus, documentName, documentInputRef,
     // AI enhanced features
     smartReplies, setSmartReplies,
     smartRepliesLoading, setSmartRepliesLoading,
@@ -327,5 +384,7 @@ export function useAI({
     shareGeneratedImage,
     translateMessage,
     describeImage,
+    uploadDocument,
+    clearDocumentContext,
   };
 }
