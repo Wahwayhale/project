@@ -1,20 +1,21 @@
 {
-  "appVersion": "4.0.0",
+  "appVersion": "4.1.0",
   "majorVersion": "4",
-  "webBuild": 239,
-  "prevWebBuild": 237,
-  "updateId": "web-239-v4-ai-doc-aurora-electron",
-  "nativeBuild": 4,
+  "webBuild": 240,
+  "prevWebBuild": 239,
+  "updateId": "web-240-v4-1-legacy-undercover-treehole-daily-push",
+  "nativeBuild": 5,
   "minNativeBuild": 1,
-  "apkUrl": "/releases/ChatRoom-v4.0.0.apk",
-  "apkSize": "5.8MB",
+  "apkUrl": "/releases/ChatRoom-v4.1.0.apk",
+  "apkSize": "7.5MB",
   "forceUpdate": false,
-  "showMajorUpdate": true,
-  "updateTitle": "v4.0 三端齐发：AI 文档解析 · 沉浸光感 · Windows 桌面端",
+  "showMajorUpdate": false,
+  "updateTitle": "v4.1 赛博遗产 · 谁是卧底 · 匿名树洞 · AI 日报",
   "updateNotes": [
-    { "type": "new", "text": "AI 文档解析：对话中上传 PDF/Word/TXT，自动提取文本作为上下文喂给 AI。" },
-    { "type": "new", "text": "沉浸光感设计：全局光晕背景 + 毛玻璃组件 + 动态模糊边界，深浅模式各一套。" },
-    { "type": "new", "text": "Windows 桌面端：Electron 打包 exe，复用 Web + OTA 自动更新。" },
-    { "type": "improve", "text": "修复毛玻璃 --glass-blur 变量未定义导致 backdrop-filter 失效的问题。" }
+    { "type": "new", "text": "赛博遗产：离线时 AI 分身用你的语气自动回复私聊。" },
+    { "type": "new", "text": "谁是卧底：群聊内发起，报名-描述-投票完整流程。" },
+    { "type": "new", "text": "匿名树洞：发言自动匿名，24 小时后自动焚毁。" },
+    { "type": "new", "text": "AI 日报频道：每天定时生成天气+热搜+群聊回顾日报。" },
+    { "type": "new", "text": "FCM 消息推送：App 离线也能收到消息通知（需新版 APK）。" }
   ]
 }

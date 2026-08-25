@@ -110,6 +110,19 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
             } else {
               next = [...prev, message];
             }
+          } else if (message.isAnonymous) {
+            // 树洞匿名消息：服务端不下发真实身份，用 内容+房间 匹配自己刚发出的临时消息
+            const tempIdx = prev.findIndex(m =>
+              m.id?.startsWith('temp-') &&
+              m.roomId === message.roomId &&
+              m.content === message.content
+            );
+            if (tempIdx !== -1) {
+              next = [...prev];
+              next[tempIdx] = { ...message, localSelf: true };
+            } else {
+              next = [...prev, message];
+            }
           } else {
             next = [...prev, message];
           }
@@ -171,6 +184,14 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
         h.setCurrentRoom(room);
         h.setCurrentRoomId(room.id);
         h.setView(null);
+      });
+
+      socketRef.current.on('treeholeCreated', (room) => {
+        h.setCurrentRoom(room);
+        h.setCurrentRoomId(room.id);
+        h.setMessages([]);
+        h.setView(null);
+        h.setBottomTab('chats');
       });
 
       socketRef.current.on('friendRequest', (data) => {

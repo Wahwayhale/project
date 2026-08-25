@@ -89,6 +89,8 @@ const friends = collections.friends;
 const rooms = collections.rooms;
 const recharges = collections.recharges;
 const transfers = collections.transfers;
+const dailyReport = collections.dailyReport;
+const pushTokens = collections.pushTokens;
 const AUDIT_FILE = path.join(DATA_DIR, 'adminAudit.json');
 let auditLog = [];
 
@@ -148,7 +150,7 @@ process.on('SIGUSR2', () => handleShutdown('SIGUSR2')); // PM2 reload
 
 // ========== 自动备份（每小时） ==========
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
-const BACKUP_FILES = ['users.json', 'friendRequests.json', 'friends.json', 'rooms.json', 'recharges.json', 'transfers.json'];
+const BACKUP_FILES = ['users.json', 'friendRequests.json', 'friends.json', 'rooms.json', 'recharges.json', 'transfers.json', 'pushTokens.json'];
 setInterval(() => {
   try {
     const now = new Date().toISOString().replace(/[:.]/g, '-');
@@ -194,8 +196,55 @@ function isRoomMember(room, username) {
 }
 
 function canAccessRoom(room, username) {
-  return room && (room.type === 'public' || isRoomMember(room, username));
+  return room && (room.type === 'public' || room.type === 'treehole' || isRoomMember(room, username));
 }
+
+// ========== 匿名树洞房 ==========
+const TREEHOLE_TTL = 24 * 60 * 60 * 1000;   // 消息保留 24 小时
+const TREEHOLE_ROOM_TTL = 72 * 60 * 60 * 1000; // 房间无消息 72 小时后回收
+const crypto = require('crypto');
+
+// 树洞匿名身份：同一用户在同一房间恒定（基于 hash，不落盘真实身份）
+function getTreeholeAnon(roomId, userId) {
+  const h = crypto.createHash('sha256').update(`${roomId}:${userId}`).digest('hex');
+  const tag = (parseInt(h.slice(0, 4), 16) % 9000 + 1000).toString(); // 1000-9999 稳定编号
+  const ANON_NAMES = ['夜风', '星尘', '孤岛', '月光', '深海', '萤火', '浮云', '细雨', '微风', '落叶'];
+  const name = `${ANON_NAMES[parseInt(h.slice(4, 6), 16) % ANON_NAMES.length]}·${tag}`;
+  return {
+    id: 'anon-' + h.slice(0, 8),
+    name,
+    avatar: `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${h.slice(0, 12)}`
+  };
+}
+
+// 树洞定时焚毁：清理过期消息 + 回收沉寂房间
+setInterval(() => {
+  try {
+    const now = Date.now();
+    let purged = 0, removedRooms = 0;
+    rooms.forEach((room, roomId) => {
+      if (room.type !== 'treehole') return;
+      const before = (room.messages || []).length;
+      room.messages = (room.messages || []).filter(m => now - new Date(m.timestamp).getTime() < TREEHOLE_TTL);
+      const lastMsg = room.messages[room.messages.length - 1];
+      const lastAt = lastMsg ? new Date(lastMsg.timestamp).getTime() : new Date(room.createdAt || 0).getTime();
+      if (now - lastAt > TREEHOLE_ROOM_TTL) {
+        rooms.delete(roomId);
+        removedRooms++;
+        io.emit('chatDeleted', { roomId });
+        return;
+      }
+      if (room.messages.length !== before) {
+        rooms.set(roomId, room);
+        purged += before - room.messages.length;
+      }
+    });
+    if (purged > 0 || removedRooms > 0) {
+      rooms.save();
+      console.log(`[TREEHOLE] purged ${purged} msgs, removed ${removedRooms} rooms`);
+    }
+  } catch (e) { console.error('[TREEHOLE] cleanup error:', e.message); }
+}, 30 * 60 * 1000).unref();
 
 // 频道（channel）相关判断
 function isChannelRoom(room) {
@@ -1610,7 +1659,7 @@ app.get('/api/bilibili/proxy-image', (req, res) => {
 
 app.get('/api/rooms', verifyToken, (req, res) => {
   const roomList = Array.from(rooms.values())
-    .filter(room => room.type === 'public' || room.type === 'channel' || isRoomMember(room, req.user.username))
+    .filter(room => room.type === 'public' || room.type === 'channel' || room.type === 'treehole' || isRoomMember(room, req.user.username))
     .map(room => ({
       id: room.id,
       name: room.name,
@@ -1647,7 +1696,7 @@ app.get('/api/rooms/:roomId/messages', verifyToken, (req, res) => {
     return res.status(404).json({ error: 'Room not found' });
   }
   // 私有房间只允许成员访问
-  if (room.type !== 'public' && room.type !== 'channel' && !isRoomMember(room, req.user.username)) {
+  if (room.type !== 'public' && room.type !== 'channel' && room.type !== 'treehole' && !isRoomMember(room, req.user.username)) {
     return res.status(403).json({ error: '无权访问该房间' });
   }
   const page = parseInt(req.query.page) || 1;
@@ -2415,6 +2464,356 @@ app.get('/api/qrcode', (req, res) => {
   });
 });
 
+// ========== AI 日报频道 ==========
+function fetchHttpsJson(url, headers = {}, timeout = 8000) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0', ...headers }, timeout }, (response) => {
+      let data = '';
+      response.on('data', chunk => data += chunk);
+      response.on('end', () => {
+        try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+      });
+    });
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    req.on('error', reject);
+  });
+}
+
+async function fetchDailyWeather(city) {
+  try {
+    const json = await fetchHttpsJson(`https://wttr.in/${encodeURIComponent(city)}?format=j1&lang=zh`);
+    const now = json.current_condition?.[0] || {};
+    const today = json.weather?.[0] || {};
+    return `${city}：${now.lang_zh?.[0]?.value || ''} ${now.temp_C}°C（${today.mintempC}~${today.maxtempC}°C），体感 ${now.FeelsLikeC}°C，湿度 ${now.humidity}%`;
+  } catch { return null; }
+}
+
+async function fetchDailyNews() {
+  try {
+    const json = await fetchHttpsJson('https://news-at.zhihu.com/api/4/news/latest');
+    return (json.stories || []).slice(0, 5).map(s => s.title);
+  } catch { return null; }
+}
+
+async function fetchDailyQuote() {
+  try {
+    const json = await fetchHttpsJson('https://v1.hitokoto.cn/?c=a&c=b&c=d&c=i&c=k');
+    return { quote: json.hitokoto, from: json.from || '' };
+  } catch { return null; }
+}
+
+function getDailyReportConfig() {
+  return dailyReport.get('config') || { enabled: false, roomId: null, hour: 8, minute: 0, city: '北京', lastRun: null };
+}
+
+function saveDailyReportConfig(config) {
+  dailyReport.set('config', config);
+  dailyReport.save();
+}
+
+async function generateDailyReportPost(test = false) {
+  const config = getDailyReportConfig();
+  const targetRoom = rooms.get(config.roomId);
+  if (!targetRoom) return { ok: false, error: '日报房间不存在' };
+  // 并行抓取素材
+  const [weather, news, quote] = await Promise.all([fetchDailyWeather(config.city), fetchDailyNews(), fetchDailyQuote()]);
+  // 房间昨日聊天摘要
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  const yesterdayStart = new Date(dayStart.getTime() - 24 * 60 * 60 * 1000);
+  const chatMsgs = (targetRoom.messages || []).filter(m =>
+    m.type === 'text' && m.content && !m.recalled && !m.isBot &&
+    new Date(m.timestamp) >= yesterdayStart && new Date(m.timestamp) < dayStart
+  ).slice(-60);
+  const chatLog = chatMsgs.map(m => `${m.sender?.username || '匿名'}: ${m.content}`).join('\n');
+  // AI 生成日报
+  const todayStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  const prompt = `你是聊天室的 AI 日报编辑。请根据素材生成一份今日日报，纯文本（不用 markdown 标记），结构如下：
+【AI 日报】${todayStr}
+一、天气：${weather || '暂无数据'}（一句话穿衣/出行建议）
+二、热搜速览：${news ? news.join('；') : '暂无数据'}（挑 3 条一句话点评，语气轻松）
+三、群聊回顾：${chatLog ? `以下是昨日聊天记录，总结 2-3 句有趣的看点：\n${chatLog}` : '昨天群里很安静，一句话调侃一下'}
+四、今日一句：${quote ? `"${quote.quote}" —— ${quote.from}` : '自己写一句正能量金句'}
+结尾加一句简短的早安问候。整体控制在 300 字内，语气像朋友，不要 AI 腔。`;
+  const result = await callSelectedAIModel([{ role: 'user', content: prompt }], 'glm-4-flash');
+  const content = result.ok && result.reply ? result.reply.trim() : null;
+  if (!content) return { ok: false, error: 'AI 生成失败：' + (result.error || '未知错误') };
+  const msg = {
+    id: uuidv4(), type: 'dailyReport', content,
+    sender: { id: 'ai-daily', username: 'AI 日报', avatar: null },
+    roomId: config.roomId, timestamp: new Date(), readBy: [], isBot: true,
+    isDailyReport: true
+  };
+  targetRoom.messages.push(msg);
+  if (targetRoom.messages.length > 3000) targetRoom.messages = targetRoom.messages.slice(-3000);
+  rooms.set(config.roomId, targetRoom);
+  io.to(config.roomId).emit('newMessage', msg);
+  if (!test) {
+    config.lastRun = new Date().toISOString().slice(0, 10);
+    saveDailyReportConfig(config);
+  }
+  console.log(`[DAILY-REPORT] posted to ${config.roomId}${test ? ' (test)' : ''}`);
+  return { ok: true };
+}
+
+// 管理端：获取/配置日报
+app.get('/api/admin/daily-report', verifyToken, (req, res) => {
+  if (req.user.username !== 'admin') return res.status(403).json({ error: '仅管理员' });
+  const config = getDailyReportConfig();
+  res.json({ ...config, roomName: rooms.get(config.roomId)?.name || null });
+});
+
+app.post('/api/admin/daily-report', verifyToken, async (req, res) => {
+  if (req.user.username !== 'admin') return res.status(403).json({ error: '仅管理员' });
+  const { enabled, roomId, hour, minute, city, test } = req.body || {};
+  const config = getDailyReportConfig();
+  if (typeof enabled === 'boolean') config.enabled = enabled;
+  if (roomId) config.roomId = roomId;
+  if (Number.isInteger(hour) && hour >= 0 && hour <= 23) config.hour = hour;
+  if (Number.isInteger(minute) && minute >= 0 && minute <= 59) config.minute = minute;
+  if (city) config.city = String(city).slice(0, 20);
+  // 启用时房间不存在 → 自动创建「AI 日报」频道
+  if (config.enabled && !rooms.get(config.roomId)) {
+    const room = {
+      id: uuidv4(), name: 'AI 日报', type: 'channel',
+      owner: 'admin', admins: ['admin'], members: ['admin'],
+      description: '每天一份 AI 生成的新鲜日报', messages: [], threads: [],
+      createdBy: 'admin', createdAt: new Date()
+    };
+    rooms.set(room.id, room);
+    rooms.save();
+    io.emit('roomCreated', room);
+    config.roomId = room.id;
+  }
+  saveDailyReportConfig(config);
+  if (test) {
+    const result = await generateDailyReportPost(true);
+    return res.json({ ...config, roomName: rooms.get(config.roomId)?.name || null, testResult: result });
+  }
+  res.json({ ...config, roomName: rooms.get(config.roomId)?.name || null });
+});
+
+// 日报调度：每分钟检查是否到点
+setInterval(async () => {
+  try {
+    const config = getDailyReportConfig();
+    if (!config.enabled || !config.roomId) return;
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    if (config.lastRun === today) return;
+    if (now.getHours() === config.hour && now.getMinutes() === config.minute) {
+      await generateDailyReportPost(false);
+    }
+  } catch (e) { console.error('[DAILY-REPORT] scheduler error:', e.message); }
+}, 60 * 1000).unref();
+
+// ========== FCM 推送（Firebase Cloud Messaging v1） ==========
+// .env 配置：FCM_PROJECT_ID / FCM_CLIENT_EMAIL / FCM_PRIVATE_KEY（service account）
+// 可选 FCM_PROXY=http://127.0.0.1:7897：Google 域名直连超时时走本地代理
+// 未配置时推送静默跳过，不影响其他功能
+const querystring = require('querystring');
+let fcmAccessToken = { token: null, expiresAt: 0 };
+
+let fcmHttpAgent = null;
+try {
+  const fcmProxy = process.env.FCM_PROXY || process.env.HTTPS_PROXY || process.env.https_proxy;
+  if (fcmProxy) {
+    fcmHttpAgent = new (require('https-proxy-agent'))(fcmProxy);
+    console.log('[FCM] using proxy:', fcmProxy);
+  }
+} catch (e) { console.warn('[FCM] proxy agent init failed, direct connection:', e.message); }
+
+function getFcmPrivateKey() {
+  const raw = process.env.FCM_PRIVATE_KEY || '';
+  // 支持 \n 转义（.env 单行写法）
+  return raw.includes('\\n') ? raw.replace(/\\n/g, '\n') : raw;
+}
+
+function buildFcmJwt() {
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: process.env.FCM_CLIENT_EMAIL,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600
+  };
+  const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+  const unsigned = `${b64(header)}.${b64(payload)}`;
+  const signer = crypto.createSign('RSA-SHA256');
+  signer.update(unsigned);
+  const signature = signer.sign(getFcmPrivateKey(), 'base64url');
+  return `${unsigned}.${signature}`;
+}
+
+function getFcmAccessToken() {
+  return new Promise((resolve, reject) => {
+    if (!process.env.FCM_PROJECT_ID || !process.env.FCM_CLIENT_EMAIL || !getFcmPrivateKey()) {
+      return reject(new Error('FCM 未配置'));
+    }
+    if (fcmAccessToken.token && Date.now() < fcmAccessToken.expiresAt - 60000) {
+      return resolve(fcmAccessToken.token);
+    }
+    const postData = querystring.stringify({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: buildFcmJwt()
+    });
+    const req = https.request({
+      hostname: 'oauth2.googleapis.com', path: '/token', method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(postData) },
+      timeout: 8000,
+      agent: fcmHttpAgent || undefined
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          if (!json.access_token) return reject(new Error('token 响应异常'));
+          fcmAccessToken = { token: json.access_token, expiresAt: Date.now() + (json.expires_in || 3600) * 1000 };
+          resolve(json.access_token);
+        } catch (e) { reject(e); }
+      });
+    });
+    req.on('timeout', () => { req.destroy(); reject(new Error('token 超时')); });
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
+}
+
+function sendFcmPush(token, title, body, data = {}) {
+  return new Promise(async (resolve) => {
+    try {
+      const accessToken = await getFcmAccessToken();
+      const message = {
+        message: {
+          token,
+          notification: { title: title.substring(0, 60), body: (body || '').substring(0, 120) },
+          data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
+          android: { priority: 'high' }
+        }
+      };
+      const postData = JSON.stringify(message);
+      const req = https.request({
+        hostname: 'fcm.googleapis.com',
+        path: `/v1/projects/${process.env.FCM_PROJECT_ID}/messages:send`,
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData)
+        },
+        timeout: 10000,
+        agent: fcmHttpAgent || undefined
+      }, (res) => {
+        let raw = '';
+        res.on('data', chunk => raw += chunk);
+        res.on('end', () => {
+          if (res.statusCode === 200) return resolve({ ok: true });
+          // 无效 token（已卸载/过期）→ 移除
+          if (res.statusCode === 404 || res.statusCode === 400) {
+            removePushToken(token);
+          }
+          resolve({ ok: false, status: res.statusCode });
+        });
+      });
+      req.on('timeout', () => { req.destroy(); resolve({ ok: false }); });
+      req.on('error', () => resolve({ ok: false }));
+      req.write(postData);
+      req.end();
+    } catch (e) {
+      resolve({ ok: false, error: e.message });
+    }
+  });
+}
+
+function removePushToken(token) {
+  pushTokens.forEach((tokens, username) => {
+    const filtered = tokens.filter(t => t !== token);
+    if (filtered.length !== tokens.length) {
+      if (filtered.length === 0) pushTokens.delete(username);
+      else pushTokens.set(username, filtered);
+    }
+  });
+}
+
+// 给一批用户推送（只推离线且有 token 的）
+const pushRateLimit = new Map(); // `${username}:${roomId}` -> last push ts（群聊限频 5 分钟）
+async function pushToUsers(usernames, title, body, data, rateLimitKey = null) {
+  for (const username of new Set(usernames)) {
+    try {
+      const userObj = users.get(username);
+      if (!userObj) continue;
+      // 在线用户不推送
+      if ((userConnectionCount.get(userObj.id) || 0) > 0) continue;
+      const tokens = pushTokens.get(username);
+      if (!tokens || tokens.length === 0) continue;
+      if (rateLimitKey) {
+        const key = `${username}:${rateLimitKey}`;
+        const last = pushRateLimit.get(key) || 0;
+        if (Date.now() - last < 5 * 60 * 1000) continue;
+        pushRateLimit.set(key, Date.now());
+      }
+      for (const token of tokens.slice(0, 3)) {
+        await sendFcmPush(token, title, body, data);
+      }
+    } catch (e) { /* 单个用户失败不影响其他 */ }
+  }
+}
+
+// sendMessage 钩子：通知离线成员
+function notifyOfflineMembers(room, message, senderUsername) {
+  if (room.type === 'treehole') return; // 树洞房不推送（匿名保护）
+  const isDM = room.type === 'group' && (room.members || []).length === 2;
+  const preview = message.type === 'text' && message.content
+    ? message.content
+    : `[${({ image: '图片', video: '视频', audio: '语音', file: '文件', redPacket: '红包' })[message.type] || '新消息'}]`;
+  const title = isDM ? senderUsername : `${senderUsername} · ${room.name}`;
+  // 私聊：对方离线立即推；群聊：离线成员限频推送
+  if (isDM) {
+    const other = room.members.find(m => m !== senderUsername);
+    if (other) pushToUsers([other], title, preview, { roomId: room.id, roomName: room.name });
+  } else {
+    const recipients = (room.members || []).filter(m => m !== senderUsername);
+    pushToUsers(recipients, title, preview, { roomId: room.id, roomName: room.name }, room.id);
+  }
+}
+
+// 设备 token 注册
+app.post('/api/push/register', verifyToken, (req, res) => {
+  const { token, platform } = req.body || {};
+  if (!token || typeof token !== 'string' || token.length > 512) {
+    return res.status(400).json({ error: '无效的 token' });
+  }
+  const tokens = pushTokens.get(req.user.username) || [];
+  if (!tokens.includes(token)) {
+    tokens.push(token);
+  }
+  // 每用户最多保留 5 台设备
+  pushTokens.set(req.user.username, tokens.slice(-5));
+  pushTokens.save();
+  res.json({ success: true });
+});
+
+app.post('/api/push/unregister', verifyToken, (req, res) => {
+  const { token } = req.body || {};
+  if (token) {
+    const tokens = (pushTokens.get(req.user.username) || []).filter(t => t !== token);
+    if (tokens.length === 0) pushTokens.delete(req.user.username);
+    else pushTokens.set(req.user.username, tokens);
+    pushTokens.save();
+  }
+  res.json({ success: true });
+});
+
+// 管理端推送测试
+app.post('/api/push/test', verifyToken, async (req, res) => {
+  if (req.user.username !== 'admin') return res.status(403).json({ error: '仅管理员' });
+  const result = await sendFcmPush(String(req.body?.token || ''), '测试推送', '如果你看到这条通知，说明 FCM 配置成功！', { test: '1' });
+  res.json(result);
+});
+
 // 1.6 一言随机语录
 app.get('/api/quote/random', verifyToken, (req, res) => {
   https.get('https://v1.hitokoto.cn/?c=a&c=b&c=c&c=d&c=e&c=f&c=g&c=h&c=i&c=j&c=k&c=l', {
@@ -2643,6 +3042,180 @@ app.get('/api/stats/yearly', verifyToken, (req, res) => {
   });
 });
 
+// ========== 谁是卧底 ==========
+const undercoverGames = new Map(); // roomId -> { phase: lobby|speaking|voting|ended, players, votes, wordPair, round, host, startedAt }
+
+const UNDERCOVER_WORDS = [
+  ['苹果', '梨'], ['可乐', '雪碧'], ['奶茶', '咖啡'], ['火锅', '麻辣烫'], ['饺子', '馄饨'],
+  ['蚊子', '苍蝇'], ['口红', '唇膏'], ['洗发水', '沐浴露'], ['牙刷', '牙膏'], ['雨伞', '雨衣'],
+  ['地铁', '公交车'], ['飞机', '高铁'], ['出租车', '网约车'], ['自行车', '电动车'], ['红绿灯', '斑马线'],
+  ['微信', 'QQ'], ['淘宝', '拼多多'], ['抖音', '快手'], ['微博', '朋友圈'], ['B站', '爱奇艺'],
+  ['篮球', '排球'], ['足球', '橄榄球'], ['乒乓球', '羽毛球'], ['跑步', '跳绳'], ['游泳', '潜水'],
+  ['医生', '护士'], ['老师', '教授'], ['警察', '保安'], ['厨师', '服务员'], ['演员', '明星'],
+  ['太阳', '月亮'], ['星星', '萤火虫'], ['彩虹', '极光'], ['地震', '海啸'], ['晴天', '阴天'],
+  ['猫', '老虎'], ['狗', '狼'], ['仓鼠', '兔子'], ['企鹅', '北极熊'], ['鲨鱼', '鲸鱼'],
+  ['玫瑰', '月季'], ['荷花', '睡莲'], ['仙人掌', '多肉'], ['柳树', '杨树'], ['竹子', '芦苇'],
+  ['筷子', '勺子'], ['碗', '盘子'], ['杯子', '瓶子'], ['沙发', '躺椅'], ['床', '榻榻米'],
+  ['手机', '平板'], ['电脑', '笔记本'], ['键盘', '钢琴'], ['耳机', '音箱'], ['相机', '摄像机'],
+  ['镜子', '玻璃'], ['钻石', '水晶'], ['黄金', '黄铜'], ['丝绸', '棉布'], ['皮鞋', '运动鞋'],
+  ['口红', '腮红'], ['香水', '花露水'], ['面膜', '面霜'], ['发卡', '发箍'], ['戒指', '耳环']
+];
+
+function getUndercoverStateFor(game, username) {
+  const me = game.players.find(p => p.username === username);
+  return {
+    roomId: game.roomId,
+    phase: game.phase,
+    round: game.round,
+    host: game.host,
+    players: game.players.map(p => ({
+      username: p.username,
+      avatar: p.avatar,
+      alive: p.alive,
+      voted: !!game.votes[p.username],
+      isSpy: game.phase === 'ended' ? p.isSpy : undefined
+    })),
+    votes: game.phase === 'ended' ? game.votes : {},
+    myWord: me ? me.word : null,
+    amIAlive: me ? me.alive : false,
+    amIInGame: !!me,
+    wordPair: game.phase === 'ended' ? game.wordPair : null,
+    winner: game.winner || null,
+    startedAt: game.startedAt
+  };
+}
+
+function sendUndercoverState(roomId, socket) {
+  const game = undercoverGames.get(roomId);
+  if (!game) {
+    socket.emit('undercover:state', { roomId, phase: 'none' });
+    return;
+  }
+  socket.emit('undercover:state', getUndercoverStateFor(game, socket.username));
+}
+
+function broadcastUndercoverState(roomId) {
+  const game = undercoverGames.get(roomId);
+  if (!game) return;
+  // 每个玩家拿到的状态不同（只有自己知道自己的词），逐 socket 下发
+  const socketsInRoom = io.sockets.adapter.rooms.get(roomId);
+  if (!socketsInRoom) return;
+  for (const socketId of socketsInRoom) {
+    const s = io.sockets.sockets.get(socketId);
+    if (s && s.username) sendUndercoverState(roomId, s);
+  }
+}
+
+// 游戏事件以系统消息形式进房间留痕
+function pushUndercoverEvent(roomId, text) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+  const msg = {
+    id: uuidv4(), type: 'undercoverEvent', content: text,
+    sender: { id: 'undercover-host', username: '谁是卧底', avatar: null },
+    roomId, timestamp: new Date(), readBy: [], isBot: true
+  };
+  room.messages.push(msg);
+  if (room.messages.length > 3000) room.messages = room.messages.slice(-3000);
+  rooms.set(roomId, room);
+  io.to(roomId).emit('newMessage', msg);
+}
+
+function startUndercoverGame(roomId) {
+  const game = undercoverGames.get(roomId);
+  if (!game) return;
+  const pair = UNDERCOVER_WORDS[Math.floor(Math.random() * UNDERCOVER_WORDS.length)];
+  const [civilianWord, spyWord] = pair;
+  // 洗牌决定卧底（4人以下1卧底，5人以上2卧底）
+  const indices = game.players.map((_, i) => i);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  const spyCount = game.players.length >= 5 ? 2 : 1;
+  const spyIdx = new Set(indices.slice(0, spyCount));
+  game.players.forEach((p, i) => {
+    p.isSpy = spyIdx.has(i);
+    p.word = p.isSpy ? spyWord : civilianWord;
+    p.alive = true;
+  });
+  game.wordPair = pair;
+  game.votes = {};
+  game.round = 1;
+  game.phase = 'speaking';
+  game.startedAt = new Date();
+  pushUndercoverEvent(roomId, `游戏开始！共 ${game.players.length} 人，卧底 ${spyCount} 名。每人一句话描述自己的词，然后进入投票（直接在聊天区发言描述）`);
+  broadcastUndercoverState(roomId);
+}
+
+function settleUndercoverVote(roomId) {
+  const game = undercoverGames.get(roomId);
+  if (!game || game.phase !== 'voting') return;
+  // 统计票数
+  const tally = {};
+  Object.values(game.votes).forEach(target => { tally[target] = (tally[target] || 0) + 1; });
+  let maxVotes = 0;
+  Object.values(tally).forEach(v => { maxVotes = Math.max(maxVotes, v); });
+  const top = Object.keys(tally).filter(u => tally[u] === maxVotes);
+  if (top.length > 1) {
+    // 平票：无人出局，直接下一轮
+    pushUndercoverEvent(roomId, `投票平票（${top.map(u => `${u} ${maxVotes}票`).join(' / ')}），无人出局，进入第 ${game.round + 1} 轮`);
+    game.round += 1;
+    game.votes = {};
+    game.phase = 'speaking';
+    broadcastUndercoverState(roomId);
+    return;
+  }
+  const outUsername = top[0];
+  const outPlayer = game.players.find(p => p.username === outUsername);
+  outPlayer.alive = false;
+  pushUndercoverEvent(roomId, `${outUsername} 被投出局（${maxVotes}票），${outPlayer.isSpy ? '他是卧底！' : '他是平民…'}`);
+  if (checkUndercoverEnd(roomId)) return;
+  game.round += 1;
+  game.votes = {};
+  game.phase = 'speaking';
+  broadcastUndercoverState(roomId);
+}
+
+function checkUndercoverEnd(roomId) {
+  const game = undercoverGames.get(roomId);
+  if (!game || (game.phase !== 'speaking' && game.phase !== 'voting')) return false;
+  const alive = game.players.filter(p => p.alive);
+  const aliveSpies = alive.filter(p => p.isSpy);
+  const spiesTotal = game.players.filter(p => p.isSpy).length;
+  let winner = null;
+  if (aliveSpies.length === 0) winner = 'civilian';
+  else if (alive.length <= 2 + (spiesTotal - 1)) winner = 'spy'; // 卧底存活到只剩 2 人（1卧底）即胜
+  if (!winner) return false;
+  game.phase = 'ended';
+  game.winner = winner;
+  const spyNames = game.players.filter(p => p.isSpy).map(p => p.username).join('、');
+  const wordText = `平民词「${game.wordPair[0]}」/ 卧底词「${game.wordPair[1]}」`;
+  pushUndercoverEvent(roomId, winner === 'civilian'
+    ? `游戏结束！平民获胜，卧底 ${spyNames} 全部出局。${wordText}`
+    : `游戏结束！卧底 ${spyNames} 获胜。${wordText}`);
+  broadcastUndercoverState(roomId);
+  return true;
+}
+
+// 房主（第一个加入者）发起游戏报名
+function ensureUndercoverLobby(roomId, username) {
+  if (undercoverGames.has(roomId)) return undercoverGames.get(roomId);
+  const game = {
+    roomId,
+    phase: 'lobby',
+    host: username,
+    players: [],
+    votes: {},
+    wordPair: null,
+    round: 0,
+    winner: null,
+    startedAt: null
+  };
+  undercoverGames.set(roomId, game);
+  return game;
+}
+
 // ========== Bot 系统 ==========
 const bots = new Map(); // botId -> { id, name, ownerId, ownerName, prompt, commands, enabled, createdAt }
 const botTimers = new Map(); // botId -> interval timer
@@ -2751,17 +3324,64 @@ app.get('/api/ai/twin/config', verifyToken, (req, res) => {
 });
 
 app.post('/api/ai/twin/config', verifyToken, (req, res) => {
-  const { enabled, personality } = req.body || {};
-  const existing = twinProfiles.get(req.user.username) || { enabled: false, personality: 'default', styleAnalysis: null };
+  const { enabled, personality, autoReply } = req.body || {};
+  const existing = twinProfiles.get(req.user.username) || { enabled: false, personality: 'default', styleAnalysis: null, autoReply: false };
   const config = {
     ...existing,
     enabled: typeof enabled === 'boolean' ? enabled : existing.enabled,
     personality: personality || existing.personality,
+    autoReply: typeof autoReply === 'boolean' ? autoReply : (existing.autoReply || false),
     updatedAt: new Date()
   };
   twinProfiles.set(req.user.username, config);
   res.json(config);
 });
+
+// ========== 赛博遗产：离线 AI 代聊 ==========
+const twinAutoReplyAt = new Map(); // roomId -> 上次代聊时间戳（限频 5 分钟）
+
+function triggerTwinAutoReply(username, roomId, triggerMessage) {
+  const config = twinProfiles.get(username);
+  if (!config || !config.enabled || !config.autoReply) return;
+  const room = rooms.get(roomId);
+  if (!room) return;
+  const userObj = users.get(username);
+  const recentMessages = [];
+  room.messages.slice(-30).forEach(msg => {
+    if (msg.type === 'text' && msg.content && !msg.recalled) {
+      recentMessages.push(`${msg.sender?.username || '匿名'}: ${msg.content}`);
+    }
+  });
+  const personalityMap = {
+    default: '你是一个普通人，用自然随意的方式聊天',
+    formal: '你说话正式得体，像职场精英',
+    humorous: '你风趣幽默，喜欢开玩笑和用梗',
+    warm: '你温暖友善，关心他人，回复体贴',
+    cool: '你话少但精准，高冷风格',
+    enthusiastic: '你热情洋溢，充满正能量'
+  };
+  const styleHint = config.styleAnalysis
+    ? `\n用户的说话风格：${config.styleAnalysis.style || ''}，语气：${config.styleAnalysis.tone || '自然'}，常用口头禅：${(config.styleAnalysis.catchphrases || []).join('、')}`
+    : '';
+  const messages = [
+    { role: 'system', content: `你是 ${username} 的数字分身（赛博遗产模式）。主人现在离线，你代替主人回复私聊消息。${personalityMap[config.personality] || personalityMap.default}。${styleHint}\n规则：1. 不要暴露自己是AI 2. 回复要简短自然 3. 不要用markdown 4. 像真人聊天一样 5. 如果对方问的事情你不确定，自然地带过` },
+    { role: 'user', content: recentMessages.length > 0 ? `最近的聊天记录：\n${recentMessages.join('\n')}\n\n有人对你说：${triggerMessage}\n请以主人的身份回复：` : `有人对你说：${triggerMessage}\n请以主人的身份回复：` }
+  ];
+  callSelectedAIModel(messages, 'glm-4-flash').then(result => {
+    if (!result.ok || !result.reply) return;
+    const replyRoom = rooms.get(roomId);
+    if (!replyRoom) return;
+    const msg = {
+      id: uuidv4(), type: 'text', content: result.reply.trim(),
+      sender: { id: userObj?.id || username, username, avatar: userObj?.avatar },
+      roomId, timestamp: new Date(), readBy: [], isTwin: true
+    };
+    replyRoom.messages.push(msg);
+    rooms.set(roomId, replyRoom);
+    io.to(roomId).emit('newMessage', msg);
+    console.log(`[TWIN] 赛博遗产代聊: ${username} -> ${roomId}`);
+  }).catch(e => console.error('Twin auto-reply error:', e.message));
+}
 
 app.post('/api/ai/twin/analyze', verifyToken, async (req, res) => {
   const username = req.user.username;
@@ -3457,7 +4077,7 @@ io.on('connection', (socket) => {
       return;
     }
     // 私有房间只允许成员加入
-    if (room.type !== 'public' && room.type !== 'channel' && !isRoomMember(room, socket.username)) {
+    if (room.type !== 'public' && room.type !== 'channel' && room.type !== 'treehole' && !isRoomMember(room, socket.username)) {
       socket.emit('roomError', { error: '你不是该房间的成员' });
       return;
     }
@@ -3506,8 +4126,8 @@ io.on('connection', (socket) => {
       socket.emit('sendError', { error: '仅频道主和管理员可在频道发言' });
       return;
     }
-    // 验证发送者是房间成员
-    if (!isRoomMember(room, socket.username)) return;
+    // 验证发送者是房间成员（树洞房公开，无需成员身份）
+    if (room.type !== 'treehole' && !isRoomMember(room, socket.username)) return;
     // 禁言检查
     if (room.mutedMembers && room.mutedMembers.includes(socket.username)) {
       socket.emit('sendError', { error: '你已被禁言，无法发送消息' });
@@ -3539,6 +4159,13 @@ io.on('connection', (socket) => {
       edited: false,
       pinned: false
     };
+    // 树洞房：匿名化发送者（真实身份不落盘、不下发）
+    if (room.type === 'treehole') {
+      const anon = getTreeholeAnon(roomId, socket.userId);
+      message.sender = { id: anon.id, username: anon.name, avatar: anon.avatar };
+      message.isAnonymous = true;
+      message.mentions = [];
+    }
     room.messages.push(message);
     if (room.messages.length > 3000) {
       room.messages = room.messages.slice(-3000);
@@ -3607,6 +4234,29 @@ io.on('connection', (socket) => {
         }).catch(() => {});
       }
     } catch(e) { console.error('Auto-translate error:', e.message); }
+
+    // 赛博遗产：私聊对方离线且开启代聊 → 分身自动回复（限频 5 分钟/房间）
+    try {
+      if (room.type === 'group' && (room.members || []).length === 2 && message.type === 'text' && message.content) {
+        const otherUsername = room.members.find(m => m !== socket.username);
+        const otherUserObj = otherUsername ? users.get(otherUsername) : null;
+        const otherOnline = otherUserObj && (userConnectionCount.get(otherUserObj.id) || 0) > 0;
+        const otherTwin = otherUsername ? twinProfiles.get(otherUsername) : null;
+        if (otherUserObj && otherTwin?.enabled && otherTwin?.autoReply && !otherOnline) {
+          const now = Date.now();
+          const lastAt = twinAutoReplyAt.get(roomId) || 0;
+          if (now - lastAt > 5 * 60 * 1000) {
+            twinAutoReplyAt.set(roomId, now);
+            triggerTwinAutoReply(otherUsername, roomId, message.content);
+          }
+        }
+      }
+    } catch (e) { console.error('Legacy auto-reply hook error:', e.message); }
+
+    // FCM 推送：离线成员收消息通知
+    try {
+      notifyOfflineMembers(room, message, socket.username);
+    } catch (e) { console.error('Push hook error:', e.message); }
   });
 
   // 消息转发
@@ -4228,6 +4878,137 @@ io.on('connection', (socket) => {
     socket.join(room.id);
     io.emit('roomCreated', room);
     socket.emit('channelCreated', room);
+  });
+
+  // ===== 匿名树洞房 =====
+  socket.on('createTreehole', ({ name }) => {
+    const holeName = (name || '').trim();
+    if (!holeName) {
+      socket.emit('treeholeError', { error: '请输入树洞名称' });
+      return;
+    }
+    const room = {
+      id: uuidv4(),
+      name: holeName,
+      type: 'treehole',
+      owner: null,
+      admins: [],
+      members: [],
+      description: '匿名树洞：发言自动匿名，消息 24 小时后自动焚毁',
+      messages: [],
+      createdBy: 'treehole',
+      createdAt: new Date()
+    };
+    rooms.set(room.id, room);
+    rooms.save();
+    socket.join(room.id);
+    io.emit('roomCreated', room);
+    socket.emit('treeholeCreated', room);
+  });
+
+  // ===== 谁是卧底 =====
+  socket.on('undercover:create', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    if (undercoverGames.has(roomId)) {
+      socket.emit('undercover:error', { error: '本房间已有进行中的游戏' });
+      return;
+    }
+    const game = ensureUndercoverLobby(roomId, socket.username);
+    game.players.push({ username: socket.username, avatar: users.get(socket.username)?.avatar, alive: true, word: null, isSpy: false });
+    pushUndercoverEvent(roomId, `${socket.username} 发起了「谁是卧底」！点击游戏面板报名加入（至少 3 人开局）`);
+    broadcastUndercoverState(roomId);
+  });
+
+  socket.on('undercover:join', ({ roomId }) => {
+    const game = undercoverGames.get(roomId);
+    if (!game || game.phase !== 'lobby') {
+      socket.emit('undercover:error', { error: '当前没有等待中的游戏' });
+      return;
+    }
+    if (!game.players.find(p => p.username === socket.username)) {
+      if (game.players.length >= 12) {
+        socket.emit('undercover:error', { error: '玩家已满（12人）' });
+        return;
+      }
+      game.players.push({ username: socket.username, avatar: users.get(socket.username)?.avatar, alive: true, word: null, isSpy: false });
+      broadcastUndercoverState(roomId);
+      pushUndercoverEvent(roomId, `${socket.username} 加入了游戏（${game.players.length} 人）`);
+    }
+  });
+
+  socket.on('undercover:leave', ({ roomId }) => {
+    const game = undercoverGames.get(roomId);
+    if (!game) return;
+    game.players = game.players.filter(p => p.username !== socket.username);
+    if (game.phase === 'lobby' && game.players.length === 0) {
+      undercoverGames.delete(roomId);
+    } else if (game.phase === 'playing') {
+      checkUndercoverEnd(roomId);
+    }
+    broadcastUndercoverState(roomId);
+    pushUndercoverEvent(roomId, `${socket.username} 离开了游戏`);
+  });
+
+  socket.on('undercover:start', ({ roomId }) => {
+    const game = undercoverGames.get(roomId);
+    if (!game || game.phase !== 'lobby') return;
+    if (game.players.length < 3) {
+      socket.emit('undercover:error', { error: '至少需要 3 名玩家' });
+      return;
+    }
+    startUndercoverGame(roomId);
+  });
+
+  socket.on('undercover:beginVote', ({ roomId }) => {
+    const game = undercoverGames.get(roomId);
+    if (!game || game.phase !== 'speaking') return;
+    const me = game.players.find(p => p.username === socket.username && p.alive);
+    if (!me) {
+      socket.emit('undercover:error', { error: '只有存活玩家可以发起投票' });
+      return;
+    }
+    game.phase = 'voting';
+    game.votes = {};
+    pushUndercoverEvent(roomId, `第 ${game.round} 轮描述结束，进入投票！点击存活玩家头像投票`);
+    broadcastUndercoverState(roomId);
+  });
+
+  socket.on('undercover:vote', ({ roomId, target }) => {
+    const game = undercoverGames.get(roomId);
+    if (!game || game.phase !== 'voting') return;
+    const voter = game.players.find(p => p.username === socket.username && p.alive);
+    const targetPlayer = game.players.find(p => p.username === target && p.alive);
+    if (!voter) return;
+    if (!targetPlayer || target === socket.username) {
+      socket.emit('undercover:error', { error: '投票目标无效（不能投自己）' });
+      return;
+    }
+    game.votes[socket.username] = target;
+    broadcastUndercoverState(roomId);
+    // 所有存活玩家都投完 → 结算
+    const alivePlayers = game.players.filter(p => p.alive);
+    const allVoted = alivePlayers.every(p => game.votes[p.username]);
+    if (allVoted) {
+      setTimeout(() => settleUndercoverVote(roomId), 1200);
+    }
+  });
+
+  socket.on('undercover:state', ({ roomId }) => {
+    sendUndercoverState(roomId, socket);
+  });
+
+  socket.on('undercover:restart', ({ roomId }) => {
+    const game = undercoverGames.get(roomId);
+    if (!game) return;
+    if (game.phase !== 'ended') return;
+    game.phase = 'lobby';
+    game.players = game.players.map(p => ({ ...p, alive: true, word: null, isSpy: false }));
+    game.votes = {};
+    game.round = 0;
+    game.wordPair = null;
+    broadcastUndercoverState(roomId);
+    pushUndercoverEvent(roomId, '新一局开始报名，等待房主开局');
   });
 
   socket.on('subscribeChannel', ({ roomId }) => {

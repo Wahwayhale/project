@@ -9,6 +9,7 @@
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
     "@capacitor/geolocation": "^8.2.0",
+    "@capacitor/push-notifications": "^8.1.2",
     "@mediapipe/tasks-vision": "^0.10.35",
     "axios": "^1.6.0",
     "lucide-react": "^1.17.0",
@@ -19,7 +20,7 @@
   },
   "scripts": {
     "start": "craco start",
-    "build": "craco build",
+    "build": "cross-env CI=false craco build",
     "postbuild": "node -e \"const f=require('fs');const o='public/ota-version.json';let v='3.0.0';if(f.existsSync(o)){const info=JSON.parse(f.readFileSync(o,'utf8'));v=info.appVersion||info.version||v;f.copyFileSync(o,'build/ota-version.json');console.log('[postbuild] ota-version copied')};const a='android/app/build/outputs/apk/debug/app-debug.apk';if(f.existsSync(a)){const d='releases';f.mkdirSync(d,{recursive:true});f.copyFileSync(a,d+'/ChatRoom-v'+v+'.apk');console.log('[postbuild] APK copied to releases/ChatRoom-v'+v+'.apk')}else{console.log('[postbuild] No APK found, skipping')}\"",
     "deploy": "gh-pages -d build"
   },

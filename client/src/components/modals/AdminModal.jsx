@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { I } from '../Icon';
+import { API_URL } from '../../utils/constants';
 
 const NOTE_PREFIXES = {
   '新功能': 'N:',
@@ -7,11 +8,47 @@ const NOTE_PREFIXES = {
   '优化': 'I:'
 };
 
-export default function AdminModal({ showAdminModal, setShowAdminModal, fetchAdminDashboard, adminDashboardLoading, adminDashboard, aiStatus, aiStatusLoading, fetchAiStatus, pendingRecharges, fetchPendingRecharges, confirmRecharge, rejectRecharge, adminReleases, fetchAdminChangelog, publishChangelog, deleteChangelog }) {
+export default function AdminModal({ showAdminModal, setShowAdminModal, fetchAdminDashboard, adminDashboardLoading, adminDashboard, aiStatus, aiStatusLoading, fetchAiStatus, pendingRecharges, fetchPendingRecharges, confirmRecharge, rejectRecharge, adminReleases, fetchAdminChangelog, publishChangelog, deleteChangelog, showToast }) {
   const [pubTitle, setPubTitle] = useState('');
   const [pubTags, setPubTags] = useState([]);
   const [pubNotes, setPubNotes] = useState('');
   const [publishing, setPublishing] = useState(false);
+
+  // AI 日报配置
+  const [drConfig, setDrConfig] = useState(null);
+  const [drSaving, setDrSaving] = useState(false);
+  const [drTesting, setDrTesting] = useState(false);
+
+  useEffect(() => {
+    if (!showAdminModal) return;
+    fetch(`${API_URL}/api/admin/daily-report`, { headers: { Authorization: localStorage.getItem('token') } })
+      .then(r => r.json())
+      .then(d => { if (d && !d.error) setDrConfig(d); })
+      .catch(() => {});
+  }, [showAdminModal]);
+
+  const saveDailyReport = async (patch, test = false) => {
+    setDrSaving(true);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/daily-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: localStorage.getItem('token') },
+        body: JSON.stringify({ ...patch, ...(test ? { test: true } : {}) })
+      });
+      const data = await res.json();
+      if (data.error) {
+        showToast?.(data.error, 'error');
+      } else {
+        setDrConfig(data);
+        if (test) {
+          showToast?.(data.testResult?.ok ? '测试日报已生成并发送' : `生成失败：${data.testResult?.error || '未知错误'}`, data.testResult?.ok ? 'success' : 'error');
+        } else {
+          showToast?.('日报配置已保存', 'success');
+        }
+      }
+    } catch { showToast?.('操作失败', 'error'); }
+    setDrSaving(false);
+  };
 
   if (!showAdminModal) return null;
 
@@ -101,6 +138,54 @@ export default function AdminModal({ showAdminModal, setShowAdminModal, fetchAdm
             <div className="ai-status-empty">点击刷新查看 AI 通道状态</div>
           )}
         </div>
+        <div className="admin-section-head">
+          <span>AI 日报频道</span>
+          {drConfig && (
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              {drConfig.enabled ? `已开启 · ${drConfig.roomName || '未指定房间'}` : '未开启'}
+              {drConfig.lastRun ? ` · 上次发布 ${drConfig.lastRun}` : ''}
+            </span>
+          )}
+        </div>
+        {drConfig ? (
+          <div className="daily-report-admin">
+            <div className="dra-row">
+              <div className={`toggle-switch ${drConfig.enabled ? 'active' : ''}`} onClick={() => saveDailyReport({ enabled: !drConfig.enabled })}>
+                <div className="toggle-knob" />
+              </div>
+              <span className="dra-label">{drConfig.enabled ? '每天定时自动发布日报' : '点击开关启用（自动创建「AI 日报」频道）'}</span>
+            </div>
+            <div className="dra-row">
+              <span className="dra-label">发布时间</span>
+              <div className="dra-time-picker">
+                <select value={drConfig.hour} onChange={e => setDrConfig({ ...drConfig, hour: parseInt(e.target.value) })}>
+                  {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, '0')}</option>)}
+                </select>
+                <span>:</span>
+                <select value={drConfig.minute} onChange={e => setDrConfig({ ...drConfig, minute: parseInt(e.target.value) })}>
+                  {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => <option key={m} value={m}>{String(m).padStart(2, '0')}</option>)}
+                </select>
+              </div>
+              <span className="dra-label">天气城市</span>
+              <input
+                className="dra-city-input"
+                value={drConfig.city || ''}
+                onChange={e => setDrConfig({ ...drConfig, city: e.target.value })}
+                placeholder="北京"
+              />
+            </div>
+            <div className="dra-row dra-actions">
+              <button className="mini-text-btn" disabled={drSaving} onClick={() => saveDailyReport({ hour: drConfig.hour, minute: drConfig.minute, city: drConfig.city })}>
+                保存设置
+              </button>
+              <button className="mini-text-btn" disabled={drSaving || drTesting} onClick={async () => { setDrTesting(true); await saveDailyReport({ hour: drConfig.hour, minute: drConfig.minute, city: drConfig.city }, true); setDrTesting(false); }}>
+                {drTesting ? '生成中...' : '立即试发一期'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>加载日报配置中...</div>
+        )}
         <div className="admin-section-head">
           <span>待确认充值</span>
           <button className="mini-text-btn" onClick={fetchPendingRecharges}>刷新</button>

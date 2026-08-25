@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "817704109398",
+    "project_id": "chatroom-app-push",
+    "storage_bucket": "chatroom-app-push.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:817704109398:android:1d14b13bc7f7e4d00682f7",
+        "android_client_info": {
+          "package_name": "com.wechatapp.project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB7fEFJ6ui7H-lla6_AikIozdtUPFZa8C8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

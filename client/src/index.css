@@ -55,3 +55,6 @@
 
 /* --- Aurora Glass — 沉浸光感设计深化 --- */
 @import './styles/aurora-glass.css';
+
+/* --- 新功能：赛博遗产 / 谁是卧底 / 匿名树洞 / AI 日报 --- */
+@import './styles/new-features.css';

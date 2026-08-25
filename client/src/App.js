@@ -29,6 +29,7 @@ import ContactsView from './components/ContactsView';
 import DiscoverView from './components/DiscoverView';
 import MeView from './components/MeView';
 import DigitalTwinView from './components/DigitalTwinView';
+import { registerPush } from './services/pushService';
 import IntelligenceView from './components/IntelligenceView';
 import SocialGraphView from './components/SocialGraphView';
 import EncryptedChat from './components/EncryptedChat';
@@ -606,6 +607,8 @@ function App() {
       fetchPopularVideos();
       fetchAiModels();
       fetchPhoneInfo();
+      // FCM 推送注册（原生 App；Web/旧 APK 自动降级跳过）
+      registerPush();
     }
     return () => {
       // 清理位置共享
@@ -622,6 +625,21 @@ function App() {
       }
     };
   }, [isAuthenticated, user]);
+
+  // 点击推送通知 → 跳转到对应房间
+  useEffect(() => {
+    const handler = ({ detail }) => {
+      if (!detail?.roomId) return;
+      const target = rooms.find(r => r.id === detail.roomId);
+      if (target) {
+        setView(null);
+        setBottomTab('chats');
+        handleRoomClick?.(target);
+      }
+    };
+    window.addEventListener('push:openRoom', handler);
+    return () => window.removeEventListener('push:openRoom', handler);
+  }, [rooms]);
 
   useEffect(() => {
     if (currentRoomId && socketRef.current) {
@@ -1437,6 +1455,8 @@ function App() {
             wrappedLoading={wrappedLoading}
             fetchWrapped={fetchWrapped}
             setShowBackupModal={setShowBackupModal}
+            socketRef={socketRef}
+            showToast={showToast}
           />
         ) : bottomTab === 'me' ? (
           /* ===== 我的页面 ===== */
@@ -1774,7 +1794,7 @@ function App() {
         sendTransfer={sendTransfer}
       />
 
-      <AdminModal showAdminModal={showAdminModal} setShowAdminModal={setShowAdminModal} fetchAdminDashboard={fetchAdminDashboard} adminDashboardLoading={adminDashboardLoading} adminDashboard={adminDashboard} aiStatus={aiStatus} aiStatusLoading={aiStatusLoading} fetchAiStatus={fetchAiStatus} pendingRecharges={pendingRecharges} fetchPendingRecharges={fetchPendingRecharges} confirmRecharge={confirmRecharge} rejectRecharge={rejectRecharge} adminReleases={adminReleases} fetchAdminChangelog={fetchAdminChangelog} publishChangelog={publishChangelog} deleteChangelog={deleteChangelog} />
+      <AdminModal showAdminModal={showAdminModal} setShowAdminModal={setShowAdminModal} fetchAdminDashboard={fetchAdminDashboard} adminDashboardLoading={adminDashboardLoading} adminDashboard={adminDashboard} aiStatus={aiStatus} aiStatusLoading={aiStatusLoading} fetchAiStatus={fetchAiStatus} pendingRecharges={pendingRecharges} fetchPendingRecharges={fetchPendingRecharges} confirmRecharge={confirmRecharge} rejectRecharge={rejectRecharge} adminReleases={adminReleases} fetchAdminChangelog={fetchAdminChangelog} publishChangelog={publishChangelog} deleteChangelog={deleteChangelog} showToast={showToast} />
 
       <RoomManageModal showRoomManage={showRoomManage} setShowRoomManage={setShowRoomManage} currentRoom={currentRoom} allUsers={allUsers} roomAnnouncements={roomAnnouncements} currentRoomId={currentRoomId} isRoomOwner={isRoomOwner} isRoomAdmin={isRoomAdmin} setAnnouncement={setAnnouncement} unmuteRoomMember={unmuteRoomMember} muteRoomMember={muteRoomMember} kickRoomMember={kickRoomMember} setGroupAdmin={setGroupAdmin} transferOwnership={transferOwnership} setMuteAll={setMuteAll} renameGroup={renameGroup} setRoomDescription={setRoomDescription} inviteMembers={inviteMembers} disbandGroup={disbandGroup} setWelcomeMessage={setWelcomeMessage} user={user} onlineUsers={onlineUsers} setChannelAdmins={setChannelAdmins} friends={friends} showToast={showToast} />
 

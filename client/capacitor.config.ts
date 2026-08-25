@@ -9,7 +9,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.wechatapp.project',
   appName: '聊天室',
-  version: '3.0.0',
+  version: '4.1.0',
   webDir: 'build',
   bundledWebRuntime: false,
   server: {

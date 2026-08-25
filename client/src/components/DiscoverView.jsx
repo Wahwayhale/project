@@ -20,6 +20,8 @@ export default function DiscoverView({
   setShowBackupModal,
   setTwinView,
   setIntelligenceView,
+  socketRef,
+  showToast,
 }) {
   const sections = [
     {
@@ -47,6 +49,14 @@ export default function DiscoverView({
       items: [
         { icon: 'camera', tone: 'moments', title: '朋友圈', desc: '和朋友分享生活点滴', onClick: () => { setShowMoments(true); } },
         { icon: 'game', tone: 'game', title: '小游戏', desc: '猜拳游戏', onClick: () => { setShowGameModal(true); } },
+        { icon: 'moon', tone: 'ai', title: '匿名树洞', desc: '匿名倾诉，24 小时后自动焚毁', onClick: () => {
+          const name = window.prompt('给你的树洞起个名字：', '深夜树洞');
+          if (name && name.trim()) {
+            socketRef?.current?.emit('createTreehole', { name: name.trim() });
+          } else if (name !== null && !name.trim()) {
+            showToast('树洞名称不能为空', 'error');
+          }
+        } },
         { icon: 'search', tone: 'weather', title: '天气查询', desc: '查询城市天气，分享到聊天', onClick: () => setShowWeatherPanel(true) },
         { icon: 'location', tone: 'map', title: '地图', desc: 'GPS定位、查看地图、分享位置', onClick: () => setShowMapPanel(true) },
       ],

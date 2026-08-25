@@ -8,7 +8,9 @@ const FILES = {
   friends: 'friends.json',
   rooms: 'rooms.json',
   recharges: 'recharges.json',
-  transfers: 'transfers.json'
+  transfers: 'transfers.json',
+  dailyReport: 'dailyReport.json',
+  pushTokens: 'pushTokens.json'
 };
 
 function ensureDir() {
@@ -239,7 +241,9 @@ function init() {
     friends: new Collection('friends').load(),
     rooms: new Collection('rooms').load(),
     recharges: new Collection('recharges').load(),
-    transfers: new Collection('transfers').load()
+    transfers: new Collection('transfers').load(),
+    dailyReport: new Collection('dailyReport').load(),
+    pushTokens: new Collection('pushTokens').load()
   };
 
   if (!collections.rooms.has('global')) {

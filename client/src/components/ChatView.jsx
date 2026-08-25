@@ -3,6 +3,7 @@ import { I } from './Icon';
 import FreshChatComposer from './FreshChatComposer';
 import SyncMediaRoom from './SyncMediaRoom';
 import TamagotchiPet from './TamagotchiPet';
+import UndercoverGame from './UndercoverGame';
 import CanvasCollaborativeCard from './CanvasCollaborativeCard';
 import AvatarImg from './ui/AvatarImg';
 import CodeSandbox from './CodeSandbox';
@@ -265,6 +266,12 @@ export default function ChatView({
             </div>
           </div>
         </div>
+        {currentRoom?.type === 'treehole' && (
+          <div className="treehole-bar">
+            <span className="treehole-badge"><I name="moon" size={12} /> 匿名树洞</span>
+            <span className="treehole-tip">发言自动匿名 · 消息 24 小时后自动焚毁</span>
+          </div>
+        )}
         {isChannel && (
           <div className="channel-subscribe-bar">
             <span className="channel-badge"><I name="hash" size={12} /> 频道</span>
@@ -322,7 +329,7 @@ export default function ChatView({
           const isSearchMatch = searchQuery && !msg.recalled && msg.content?.toLowerCase().includes(searchQuery.toLowerCase());
           const isPinned = pinnedMessages[currentRoomId]?.includes(msg.id);
           const isStarred = starredMessages.has(msg.id);
-          const isMine = msg.sender?.username === user?.username;
+          const isMine = msg.sender?.username === user?.username || msg.localSelf === true;
           const readInfo = isMine ? getReadInfo(msg) : '';
 
           // 渲染引用回复
@@ -384,6 +391,21 @@ export default function ChatView({
           const contentToRender = msg.recalled ? null : (
             <>
               {msg.replyTo && renderReply(messages.find(m => m.id === msg.replyTo))}
+              {msg.type === 'undercoverEvent' && (
+                <div className="ucg-event-card">
+                  <span className="ucg-event-icon"><I name="crown" size={14} /></span>
+                  <span>{msg.content}</span>
+                </div>
+              )}
+              {msg.type === 'dailyReport' && (
+                <div className="daily-report-card">
+                  <div className="daily-report-head">
+                    <span className="daily-report-logo"><I name="news" size={15} /> AI 日报</span>
+                    <span className="daily-report-date">{new Date(msg.timestamp).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', weekday: 'short' })}</span>
+                  </div>
+                  <div className="daily-report-body">{msg.content}</div>
+                </div>
+              )}
               {msg.type === 'text' && (
                 <div className="message-text">
                   {renderMessageContent(msg.content)}
@@ -555,11 +577,17 @@ export default function ChatView({
             <AvatarImg className="avatar" src={getAvatarUrl(msg.sender?.avatar || user?.avatar)} alt="" />
             <div className="message-content">
               {isPinned && <div className="pinned-badge"><I name="pin" size={12} /> 置顶</div>}
-              {msg.sender?.username !== user?.username && !msg.recalled && (
+              {!isMine && !msg.recalled && (
                 <div className="sender-name">{msg.sender?.username}</div>
               )}
               {msg.forwardedFrom && !msg.recalled && (
                 <div className="forwarded-badge"><I name="forward" size={12} /> 转发自 {msg.forwardedFrom}</div>
+              )}
+              {msg.isTwin && (
+                <div className="twin-badge"><I name="bot" size={12} /> AI 分身代答</div>
+              )}
+              {msg.isAnonymous && (
+                <div className="anon-badge"><I name="moon" size={12} /> 匿名树洞</div>
               )}
               <div className={`bubble ${msg.recalled ? 'recalled' : ''}`}>
                 {msg.recalled ? (
@@ -661,6 +689,7 @@ export default function ChatView({
         </div>
       </div>
       <TamagotchiPet socketRef={socketRef} roomId={currentRoomId} user={user} showToast={showToast} />
+      <UndercoverGame socketRef={socketRef} roomId={currentRoomId} user={user} showToast={showToast} />
       <FreshChatComposer
         currentRoom={currentRoom}
         currentRoomId={currentRoomId}

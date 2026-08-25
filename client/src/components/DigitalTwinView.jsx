@@ -38,6 +38,19 @@ export default function DigitalTwinView({ showToast, onBack }) {
     } catch { showToast('操作失败', 'error'); }
   };
 
+  const toggleLegacy = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/ai/twin/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: localStorage.getItem('token') },
+        body: JSON.stringify({ autoReply: !config.autoReply, enabled: true })
+      });
+      const data = await res.json();
+      setConfig(data);
+      showToast(data.autoReply ? '赛博遗产已开启：离线时 AI 替你回复私聊' : '赛博遗产已关闭', 'success');
+    } catch { showToast('操作失败', 'error'); }
+  };
+
   const setPersonality = async (p) => {
     try {
       const res = await fetch(`${API_URL}/api/ai/twin/config`, {
@@ -114,6 +127,24 @@ export default function DigitalTwinView({ showToast, onBack }) {
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>开启后分身可代替你回复消息</div>
               </div>
               <div className={`toggle-switch ${config.enabled ? 'active' : ''}`} onClick={toggleTwin}>
+                <div className="toggle-knob" />
+              </div>
+            </div>
+          </div>
+
+          <div className="twin-legacy-section legacy-glow" style={{ background: 'var(--bg-card)', borderRadius: 12, padding: '16px', marginBottom: 12, position: 'relative', overflow: 'hidden' }}>
+            <div className="legacy-badge-corner"><I name="sparkles" size={13} /> 赛博遗产</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <I name="moon" size={14} /> 离线代聊
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.5 }}>
+                  你离线时，AI 分身用你的语气自动回复私聊<br />
+                  每个对话 5 分钟最多代聊一次，对方可见「分身代答」标记
+                </div>
+              </div>
+              <div className={`toggle-switch ${config.autoReply ? 'active' : ''}`} onClick={toggleLegacy}>
                 <div className="toggle-knob" />
               </div>
             </div>
