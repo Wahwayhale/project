@@ -58,6 +58,8 @@ import RoomManageModal from './components/modals/RoomManageModal';
 import ThreadsPanel from './components/ThreadsPanel';
 import AddFriendModal from './components/modals/AddFriendModal';
 import MomentsPanel from './components/modals/MomentsPanel';
+import UrgentAlertBanner from './components/ui/UrgentAlertBanner';
+import BriefingModal from './components/modals/BriefingModal';
 import ResetPwModal from './components/modals/ResetPwModal';
 import ImageGenModal from './components/modals/ImageGenModal';
 import BotModal from './components/modals/BotModal';
@@ -73,8 +75,8 @@ import WeatherPanel from './components/panels/WeatherPanel';
 import MapPanel from './components/panels/MapPanel';
 import CallOverlay from './components/call/CallOverlay';
 import CallIncoming from './components/call/CallIncoming';
-// axios 全局配置
-axios.defaults.timeout = 15000;
+// axios 全局配置（默认 60s 超时）
+axios.defaults.timeout = 60000;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 // Capacitor App 使用 ngrok 时，跳过 ngrok 浏览器安全警告页
 if (isCapacitor) {
@@ -134,10 +136,8 @@ function App() {
   const [view, setView] = useState('chats');
 
   // 快捷回复
-  const [quickReplies] = useState(['好的', '收到', '没问题', '稍等', '哈哈哈', '嗯嗯', '谢谢', '再见']);
-  
-  
-  
+  const quickReplies = ['好的', '收到', '没问题', '稍等', '哈哈哈', '嗯嗯', '谢谢', '再见'];
+
   // 聊天记录导出
   const [exportingChat, setExportingChat] = useState(false);
 
@@ -159,7 +159,7 @@ function App() {
   // 语音录制
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const mediaRecorderRef = useRef(null);
   const recordingTimerRef = useRef(null);
   
   // Toast 通知系统
@@ -167,14 +167,13 @@ function App() {
 
   // 设置系统
   const {
-    darkMode, toggleDarkMode, fontSize, setFontSize,
+    darkMode, toggleDarkMode,
     themePreset, setThemePreset,
-    chatBackgrounds, setChatBackgrounds,
-    mutedRooms, setMutedRooms,
     starredMessages, toggleStarMessage,
     pinnedMessages, setPinnedMessages,
     roomAnnouncements, setRoomAnnouncements,
     pinnedChats, togglePinChat,
+    mutedRooms, setMutedRooms,
   } = useSettings();
 
   // === 聊天室功能 ===
@@ -188,9 +187,6 @@ function App() {
   const [showBackupModal, setShowBackupModal] = useState(false);
   // 历史版本公告
   const [showChangelogModal, setShowChangelogModal] = useState(false);
-  // 聊天背景选择
-  const [showBgPicker, setShowBgPicker] = useState(false);
-
   // ===== 新功能状态 =====
   // 图片查看器
   const [imageViewer, setImageViewer] = useState(null); // { url, urls[] } or null
@@ -225,10 +221,59 @@ function App() {
   const [threads, setThreads] = useState([]);
   const [showThreads, setShowThreads] = useState(false);
 
+  // 强提醒与 AI 离线简报
+  const [urgentAlert, setUrgentAlert] = useState(null);
+  const [urgentContacts, setUrgentContacts] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('urgentContacts') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [briefings, setBriefings] = useState([]);
+  const [showBriefingModal, setShowBriefingModal] = useState(false);
+  const [showFoldedGroups, setShowFoldedGroups] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('urgentContacts', JSON.stringify(urgentContacts));
+  }, [urgentContacts]);
+
+  // 获取 AI 离线代答简报
+  useEffect(() => {
+    if (user && token) {
+      axios.get(`${API_URL}/api/briefings`, { headers: { Authorization: token } })
+        .then((res) => {
+          if (res.data?.briefings?.length > 0) {
+            setBriefings(res.data.briefings);
+            setShowBriefingModal(true);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user, token]);
+
+  const toggleUrgentContact = (username) => {
+    setUrgentContacts((prev) => {
+      const next = prev.includes(username) ? prev.filter((u) => u !== username) : [...prev, username];
+      showToast(next.includes(username) ? `已开启对 ${username} 的全屏强提醒` : `已关闭对 ${username} 的强提醒`, 'info');
+      return next;
+    });
+  };
+
+  const clearBriefings = async () => {
+    try {
+      await axios.delete(`${API_URL}/api/briefings`, { headers: { Authorization: token } });
+      setBriefings([]);
+    } catch {}
+  };
+
   // ===== Socket 连接与在线用户 =====
   const socketRef = useRef(null);
   const friendsRef = useRef([]);
   const peerRef = useRef(null);
+  // tokenRef：供异步回调（OTA 检查等）读取最新 token，避免闭包读到旧值
+  const tokenRef = useRef(token);
+  useEffect(() => { tokenRef.current = token; }, [token]);
 
   // ===== 聊天室管理 =====
   const roomsHook = useRooms({
@@ -310,7 +355,7 @@ function App() {
     forwardMsg, setForwardMsg, showForwardModal, setShowForwardModal,
     fileInputRef,
     sendMessage, handleKeyDown, handleInputChange,
-    handleFileSelect,
+    handleFileSelect, uploadFile,
     recallMessage, deleteMessage,
     startEditMessage, cancelEdit,
     startReply, cancelReply,
@@ -334,7 +379,7 @@ function App() {
     aiStatus, setAiStatus,
     aiStatusLoading, setAiStatusLoading,
     aiMessagesEndRef,
-    documentStatus, documentName, documentInputRef,
+    documentStatus, documentName, documentMeta, documentInputRef,
     smartReplies, setSmartReplies,
     smartRepliesLoading, setSmartRepliesLoading,
     showPolishModal, setShowPolishModal,
@@ -402,10 +447,6 @@ function App() {
     showNewsPanel, setShowNewsPanel,
     newsStories, setNewsStories,
     newsLoading, setNewsLoading,
-    dailyQuote, setDailyQuote,
-    showEventModal, setShowEventModal,
-    eventTitle, setEventTitle,
-    eventTime, setEventTime,
     showWeatherPanel, setShowWeatherPanel,
     weatherCity, setWeatherCity,
     weatherData, setWeatherData,
@@ -420,17 +461,13 @@ function App() {
     bilibiliLoading, setBilibiliLoading,
     selectedBiliVideo, setSelectedBiliVideo,
     popularVideos, setPopularVideos,
-    notifyEnabled, setNotifyEnabled,
-    notifyMuted, setNotifyMuted,
-    notifyRef,
-    videoObserverRef,
+    notifyEnabled,
+    notifyMuted,
     observeVideo,
     searchMusic, playSong, shareSongToChat, togglePlay,
     searchGif, sendGif,
     fetchNews, shareNews,
     fetchQuote,
-    createEvent,
-    enableNotifications,
     searchWeather, shareWeather,
     searchMap, getMyLocation, shareMap,
     fetchPopularVideos,
@@ -585,6 +622,7 @@ function App() {
       setAllUsers,
       setThreads,
       setView,
+      setUser,
       currentRoomId,
       peerRef,
       pendingCandidatesRef,
@@ -593,6 +631,11 @@ function App() {
       notifyMuted,
       showToast,
       onChangelogUpdated: () => checkUpdateRef.current?.(),
+      onUrgentMessage: (message) => {
+        if (message.sender && urgentContacts.includes(message.sender.username)) {
+          setUrgentAlert(message);
+        }
+      },
     }
   });
 
@@ -736,43 +779,6 @@ function App() {
     } catch (err) { console.error('Failed to fetch rooms', err); setRooms([]); setDiag(d => d + 'Rooms:FAIL | '); }
   };
 
-
-  // 编辑消息
-
-  // 取消编辑
-
-  // 置顶/取消置顶
-
-  // 免打扰切换
-  const toggleMuteRoom = (roomId) => {
-    setMutedRooms(prev => {
-      const next = new Set(prev);
-      if (next.has(roomId)) {
-        next.delete(roomId);
-        showToast('已开启通知', 'success');
-      } else {
-        next.add(roomId);
-        showToast('已开启免打扰', 'info');
-      }
-      return next;
-    });
-  };
-
-  // 撤回消息
-
-  // 删除消息
-
-  // 插入表情
-
-
-
-  // 图片压缩（Canvas 缩放，目标 < 1MB）
-
-
-
-
-
-
   // 获取手机号信息
   const fetchPhoneInfo = async () => {
     try {
@@ -871,17 +877,25 @@ function App() {
   const changeTheme = (preset) => {
     setThemePreset(preset);
     localStorage.setItem('themePreset', preset);
+    // 每个主题包含主色及派生变量，确保 hover/bg/shadow 等一致
     const themes = {
-      cyan: { primary: '#0ea5e9', primaryGrad: 'linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%)' },
-      ocean: { primary: '#0284c7', primaryGrad: 'linear-gradient(135deg, #0284c7, #0ea5e9)' },
-      teal: { primary: '#14b8a6', primaryGrad: 'linear-gradient(135deg, #14b8a6, #06b6d4)' },
-      indigo: { primary: '#6366f1', primaryGrad: 'linear-gradient(135deg, #6366f1, #8b5cf6)' },
-      amber: { primary: '#f59e0b', primaryGrad: 'linear-gradient(135deg, #f59e0b, #f97316)' },
-      lime: { primary: '#84cc16', primaryGrad: 'linear-gradient(135deg, #84cc16, #10b981)' }
+      teal:   { primary: '#14B8A6', light: '#5EEAD4', dark: '#0F766E', bg: 'rgba(20,184,166,0.10)',  grad: 'linear-gradient(135deg, #14B8A6 0%, #2DD4BF 100%)' },
+      cyan:   { primary: '#0ea5e9', light: '#38bdf8', dark: '#0369a1', bg: 'rgba(14,165,233,0.10)',  grad: 'linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%)' },
+      ocean:  { primary: '#0284c7', light: '#38bdf8', dark: '#075985', bg: 'rgba(2,132,199,0.10)',   grad: 'linear-gradient(135deg, #0284c7, #0ea5e9)' },
+      indigo: { primary: '#6366f1', light: '#818cf8', dark: '#4338ca', bg: 'rgba(99,102,241,0.10)',  grad: 'linear-gradient(135deg, #6366f1, #8b5cf6)' },
+      amber:  { primary: '#f59e0b', light: '#fbbf24', dark: '#b45309', bg: 'rgba(245,158,11,0.10)',  grad: 'linear-gradient(135deg, #f59e0b, #f97316)' },
+      lime:   { primary: '#84cc16', light: '#a3e635', dark: '#4d7c0f', bg: 'rgba(132,204,22,0.10)',  grad: 'linear-gradient(135deg, #84cc16, #10b981)' },
     };
-    const t = themes[preset] || themes.cyan;
-    document.documentElement.style.setProperty('--primary', t.primary);
-    document.documentElement.style.setProperty('--primary-gradient', t.primaryGrad);
+    const t = themes[preset] || themes.teal;
+    const root = document.documentElement.style;
+    root.setProperty('--primary', t.primary);
+    root.setProperty('--primary-light', t.light);
+    root.setProperty('--primary-dark', t.dark);
+    root.setProperty('--primary-bg', t.bg);
+    root.setProperty('--primary-gradient', t.grad);
+    root.setProperty('--gradient-bubble-sent', t.grad);
+    root.setProperty('--gradient-btn', t.grad);
+    root.setProperty('--shadow-primary', `0 4px 14px ${t.bg.replace(/0\.\d+\)/, '0.28)')}`);
   };
   // ===== 简易 markdown 渲染（粗体 + 代码块 + 换行）
   const renderMarkdown = (text) => {
@@ -966,8 +980,9 @@ function App() {
     if (!query || !text) return text;
     const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
     const parts = text.split(regex);
+    // split 带捕获组时，匹配项一定在奇数位
     return parts.map((part, i) =>
-      regex.test(part) ? <mark key={i} className="search-highlight">{part}</mark> : part
+      i % 2 === 1 ? <mark key={i} className="search-highlight">{part}</mark> : part
     );
   };
 
@@ -992,7 +1007,7 @@ function App() {
 
   const handleResetPassword = async () => {
     if (!resetPwCode || resetPwCode.length !== 6) { showToast('请输入6位验证码', 'error'); return; }
-    if (!resetPwNewPw || resetPwNewPw.length < 3) { showToast('新密码至少3位', 'error'); return; }
+    if (!resetPwNewPw || resetPwNewPw.length < 6) { showToast('新密码至少6位', 'error'); return; }
     try {
       await axios.post(`${API_URL}/api/user/reset-password`, {
         phone: resetPwPhone, code: resetPwCode, newPassword: resetPwNewPw
@@ -1128,16 +1143,6 @@ function App() {
     socketRef.current.emit('setWelcomeMessage', { roomId: currentRoomId, message });
   };
 
-  // 设置聊天背景
-  const setChatBackground = (bg) => {
-    setChatBackgrounds(prev => ({ ...prev, [currentRoomId]: bg }));
-  };
-
-  // 引用回复
-
-  // 取消引用
-
-
   // === 通讯录字母分组 ===
   const getContactsGrouped = () => {
     const groups = {};
@@ -1211,14 +1216,6 @@ function App() {
     showToast('涂鸦卡片已发送', 'success');
   };
 
-  // @提及
-
-  // 获取已读人数文本
-
-  // 获取@提及的用户列表
-
-  // 获取过滤后的@用户列表
-
   // 开始录音
   const startRecording = async () => {
     try {
@@ -1235,7 +1232,7 @@ function App() {
       };
       
       recorder.start();
-      setMediaRecorder(recorder);
+      mediaRecorderRef.current = recorder;
       setIsRecording(true);
       setRecordingTime(0);
       
@@ -1251,8 +1248,8 @@ function App() {
 
   // 停止录音
   const stopRecording = () => {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
     }
     setIsRecording(false);
     if (recordingTimerRef.current) {
@@ -1263,8 +1260,8 @@ function App() {
 
   // 取消录音
   const cancelRecording = () => {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
     }
     setIsRecording(false);
     if (recordingTimerRef.current) {
@@ -1325,9 +1322,410 @@ function App() {
     );
   }
 
+  // 主内容区路由：按 Tab / view / 当前房间 分发，替代深层嵌套三元
+  const renderMainContent = () => {
+    if (bottomTab === 'contacts') {
+      return (
+        <ContactsView
+          friends={friends}
+          friendRequests={friendRequests}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          setContactsLetter={setContactsLetter}
+          startChatWithFriend={startChatWithFriend}
+          acceptFriendRequest={acceptFriendRequest}
+          rejectFriendRequest={rejectFriendRequest}
+          onlineUsers={onlineUsers}
+          urgentContacts={urgentContacts}
+          toggleUrgentContact={toggleUrgentContact}
+        />
+      );
+    }
+    if (bottomTab === 'discover') {
+      return (
+        <DiscoverView
+          setView={setView}
+          setBottomTab={setBottomTab}
+          setShowImageGen={setShowImageGen}
+          fetchDailyDigest={fetchDailyDigest}
+          setShowBotModal={setShowBotModal}
+          fetchBots={fetchBots}
+          setShowMusicPanel={setShowMusicPanel}
+          setShowGifPanel={setShowGifPanel}
+          fetchNews={fetchNews}
+          setShowMoments={setShowMoments}
+          setShowGameModal={setShowGameModal}
+          setShowWeatherPanel={setShowWeatherPanel}
+          setShowMapPanel={setShowMapPanel}
+          wrappedLoading={wrappedLoading}
+          fetchWrapped={fetchWrapped}
+          setShowBackupModal={setShowBackupModal}
+          socketRef={socketRef}
+          showToast={showToast}
+        />
+      );
+    }
+    if (bottomTab === 'me') {
+      return (
+        <MeView
+          user={user}
+          setShowProfileModal={setShowProfileModal}
+          balance={balance}
+          setShowMoments={setShowMoments}
+          setShowRechargeModal={setShowRechargeModal}
+          fetchRechargeHistory={fetchRechargeHistory}
+          setShowTransferModal={setShowTransferModal}
+          fetchTransferHistory={fetchTransferHistory}
+          setShowBackupModal={setShowBackupModal}
+          phoneInfo={phoneInfo}
+          fetchPhoneInfo={fetchPhoneInfo}
+          setShowPhoneModal={setShowPhoneModal}
+          setShowChangelogModal={setShowChangelogModal}
+          otaInfo={otaInfo}
+          appVersion={appVersion}
+          socketRef={socketRef}
+          setUser={setUser}
+          showToast={showToast}
+        />
+      );
+    }
+    if (view === 'ai') {
+      return (
+        <AiView
+          user={user}
+          balance={balance}
+          setView={setView}
+          setBottomTab={setBottomTab}
+          fetchDailyDigest={fetchDailyDigest}
+          showToast={showToast}
+          aiModel={aiModel}
+          setAiModel={setAiModel}
+          aiModels={aiModels}
+          aiMessages={aiMessages}
+          aiInput={aiInput}
+          setAiInput={setAiInput}
+          aiLoading={aiLoading}
+          handleAiKeyPress={handleAiKeyPress}
+          sendAiMessage={sendAiMessage}
+          renderMarkdown={renderMarkdown}
+          aiMessagesEndRef={aiMessagesEndRef}
+          documentStatus={documentStatus}
+          documentName={documentName}
+          documentMeta={documentMeta}
+          documentInputRef={documentInputRef}
+          uploadDocument={uploadDocument}
+          clearDocumentContext={clearDocumentContext}
+          setShowRechargeModal={setShowRechargeModal}
+          fetchRechargeHistory={fetchRechargeHistory}
+          resetAiChat={resetAiChat}
+          openAdminCenter={openAdminCenter}
+        />
+      );
+    }
+    if (view === 'video') {
+      return (
+        <BilibiliView
+          setView={setView}
+          setBottomTab={setBottomTab}
+          bilibiliQuery={bilibiliQuery}
+          setBilibiliQuery={setBilibiliQuery}
+          bilibiliLoading={bilibiliLoading}
+          searchBilibili={searchBilibili}
+          selectedBiliVideo={selectedBiliVideo}
+          setSelectedBiliVideo={setSelectedBiliVideo}
+          bilibiliResults={bilibiliResults}
+          shareBilibiliToChat={shareBilibiliToChat}
+          observeVideo={observeVideo}
+        />
+      );
+    }
+    if (view === 'twin') {
+      return <DigitalTwinView showToast={showToast} onBack={() => { setView(null); setBottomTab('discover'); }} />;
+    }
+    if (view === 'intelligence') {
+      return <IntelligenceView showToast={showToast} onBack={() => { setView(null); setBottomTab('discover'); }} />;
+    }
+    if (view === 'socialGraph') {
+      return <SocialGraphView showToast={showToast} onBack={() => { setView(null); setBottomTab('discover'); }} />;
+    }
+    if (view === 'encrypted') {
+      return <EncryptedChat showToast={showToast} onBack={() => { setView(null); setBottomTab('discover'); }} user={user} />;
+    }
+    if (view === 'whiteboard') {
+      return <WhiteboardView showToast={showToast} onBack={() => { setView(null); setBottomTab('discover'); }} />;
+    }
+    if (view === 'voiceRoom') {
+      return <VoiceRoomView showToast={showToast} onBack={() => { setView(null); setBottomTab('discover'); }} user={user} />;
+    }
+    if (currentRoom) {
+      return (
+        <ChatView
+          currentRoom={currentRoom}
+          currentRoomId={currentRoomId}
+          setCurrentRoom={setCurrentRoom}
+          setCurrentRoomId={setCurrentRoomId}
+          setMessages={setMessages}
+          setView={setView}
+          setBottomTab={setBottomTab}
+          socketRef={socketRef}
+          showToast={showToast}
+          unreadCount={unreadCounts[currentRoomId] || 0}
+          startSyncMedia={startSyncMedia}
+          sendCanvasCard={sendCanvasCard}
+          user={user}
+          allUsers={allUsers}
+          messages={messages}
+          pinnedMessages={pinnedMessages}
+          starredMessages={starredMessages}
+          getReadInfo={getReadInfo}
+          highlightText={highlightText}
+          typingUser={typingUser}
+          aiSummary={aiSummary}
+          aiSummaryLoading={aiSummaryLoading}
+          setAiSummary={setAiSummary}
+          summarizeChat={summarizeChat}
+          setShowImageGen={setShowImageGen}
+          setShowBotModal={setShowBotModal}
+          fetchBots={fetchBots}
+          isSharingLocation={isSharingLocation}
+          startSharingLocation={startSharingLocation}
+          stopSharingLocation={stopSharingLocation}
+          setShowCheckIn={setShowCheckIn}
+          fetchCheckIns={fetchCheckIns}
+          setShowMusicPanel={setShowMusicPanel}
+          setShowGifPanel={setShowGifPanel}
+          setShowNewsPanel={setShowNewsPanel}
+          fetchNews={fetchNews}
+          setShowWeatherPanel={setShowWeatherPanel}
+          setShowMapPanel={setShowMapPanel}
+          startCall={startCall}
+          showSearch={showSearch}
+          setShowSearch={setShowSearch}
+          setShowRoomManage={setShowRoomManage}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          autoTranslate={autoTranslate}
+          setAutoTranslate={setAutoTranslate}
+          translateLang={translateLang}
+          setTranslateLang={setTranslateLang}
+          translatedMessages={translatedMessages}
+          translations={translations}
+          openImageViewer={openImageViewer}
+          descLoading={descLoading}
+          imageDesc={imageDesc}
+          describeImage={describeImage}
+          observeVideo={observeVideo}
+          translatingMsg={translatingMsg}
+          translateMessage={translateMessage}
+          openLocationMap={openLocationMap}
+          claimRedPacket={claimRedPacket}
+          votePoll={votePoll}
+          joinSolitaire={joinSolitaire}
+          toggleReaction={toggleReaction}
+          recallMessage={recallMessage}
+          startEditMessage={startEditMessage}
+          deleteMessage={deleteMessage}
+          openReactionPicker={openReactionPicker}
+          startReply={startReply}
+          openForwardModal={openForwardModal}
+          toggleStarMessage={toggleStarMessage}
+          togglePinMessage={togglePinMessage}
+          reactionPicker={reactionPicker}
+          setReactionPicker={setReactionPicker}
+          REACTION_EMOJIS={REACTION_EMOJIS}
+          setMessageEndRef={setMessageEndRef}
+          roomAnnouncements={roomAnnouncements}
+          replyToMessage={replyToMessage}
+          cancelReply={cancelReply}
+          editingMessage={editingMessage}
+          cancelEdit={cancelEdit}
+          fileInputRef={fileInputRef}
+          isRecording={isRecording}
+          startRecording={startRecording}
+          stopRecording={stopRecording}
+          cancelRecording={cancelRecording}
+          recordingTime={recordingTime}
+          showEmojiPicker={showEmojiPicker}
+          setShowEmojiPicker={setShowEmojiPicker}
+          showMentionPicker={showMentionPicker}
+          setShowMentionPicker={setShowMentionPicker}
+          showQuickReplies={showQuickReplies}
+          setShowQuickReplies={setShowQuickReplies}
+          sendDice={sendDice}
+          setShowGameModal={setShowGameModal}
+          setShowRedPacketModal={setShowRedPacketModal}
+          setShowPollModal={setShowPollModal}
+          setShowSolitaireModal={setShowSolitaireModal}
+          setShowMusicModal={setShowMusicModal}
+          handleFileSelect={handleFileSelect}
+          fetchSmartReplies={fetchSmartReplies}
+          smartRepliesLoading={smartRepliesLoading}
+          setPolishText={setPolishText}
+          setPolishResult={setPolishResult}
+          setShowPolishModal={setShowPolishModal}
+          newMessage={newMessage}
+          setNewMessage={setNewMessage}
+          insertEmoji={insertEmoji}
+          mentionFilter={mentionFilter}
+          setMentionFilter={setMentionFilter}
+          getFilteredMentionUsers={getFilteredMentionUsers}
+          insertMention={insertMention}
+          quickReplies={quickReplies}
+          insertQuickReply={insertQuickReply}
+          smartReplies={smartReplies}
+          setSmartReplies={setSmartReplies}
+          handleInputChange={handleInputChange}
+          handleKeyDown={handleKeyDown}
+          sendMessage={sendMessage}
+          onlineUsers={onlineUsers}
+          isChannelAdmin={isChannelAdmin}
+          isChannelSubscribed={isChannelSubscribed}
+          subscribeChannel={subscribeChannel}
+          unsubscribeChannel={unsubscribeChannel}
+          openThreads={openThreads}
+          threadsCount={currentRoom?.threadCount ?? threads.length}
+        />
+      );
+    }
+    // bottomTab === 'chats' 且未选中房间：空状态 + 移动端房间列表
+    return (
+      <>
+        <div className="page-empty-shell chat-empty-desktop">
+          <EmptyState icon="chat" title="选择一个聊天室开始对话" desc="从左侧聊天列表中进入一个聊天室，或新建对话" />
+        </div>
+        <div className="mobile-room-list">
+          <div className="search-box">
+            <div className="search-wrapper">
+              <span className="search-icon"><I name="search" size={16} /></span>
+              <input type="text" placeholder="搜索聊天..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+            </div>
+          </div>
+          <div className="room-list room-list-mobile">
+            <div className="room-list-header">
+              {rooms?.filter(r => r.type !== 'private')?.length || 0} 个聊天
+            </div>
+            {(() => {
+              const filtered = rooms?.filter(r => r.type !== 'private')?.filter(room =>
+                !searchQuery || room.name?.toLowerCase().includes(searchQuery.toLowerCase())
+              ) || [];
+              const pinned = filtered.filter(r => pinnedChats.has(r.id));
+              const unpinned = filtered.filter(r => !pinnedChats.has(r.id));
+              return (
+                <>
+                  {pinned.length > 0 && <div className="pinned-divider"><I name="pin" size={14} /> 置顶聊天</div>}
+                  {[...pinned, ...unpinned].map(room => {
+                    const isPinned = pinnedChats.has(room.id);
+                    return (
+                      <div key={room.id} className={`room-item ${isPinned ? 'pinned-chat' : ''} ${currentRoomId === room.id ? 'active' : ''}`} onClick={() => handleRoomClick(room)}>
+                        <RoomAvatar name={room.name} size="lg" />
+                        <div className="room-info">
+                          <div className="room-name">{room.name}</div>
+                          <div className="last-message">{formatMessagePreview(room.lastMessage)}</div>
+                        </div>
+                        <div className="room-side">
+                          {room.lastMessage?.timestamp && <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>}
+                          {unreadCounts[room.id] > 0 && currentRoomId !== room.id && <span className="unread-badge">{unreadCounts[room.id]}</span>}
+                        </div>
+                        {room.id !== 'global' && <button className="room-pin-btn danger" onClick={(e) => deleteChat(room.id, e)} title="删除聊天"><I name="delete" size={14} /></button>}
+                      </div>
+                    );
+                  })}
+                </>
+              );
+            })()}
+            {(!rooms || rooms.filter(r => r.type !== 'private').length === 0) && (
+              <EmptyState icon="chat" title="暂无聊天" desc="点击添加好友开始新的对话" />
+            )}
+          </div>
+        </div>
+      </>
+    );
+  };
+
   return (
     <div className={`app-container ${bottomTab !== 'chats' ? 'sidebar-hidden' : ''} ${contextTheme.className}`}>
       <ContextThemeLayer rain={contextTheme.isRain} />
+      
+      {/* 桌面端极窄导航坞 (Navigation Rail) */}
+      <nav className="nav-rail" aria-label="桌面端全局导航">
+        <div className="nav-rail-top">
+          <div className="nav-rail-avatar" onClick={() => setShowProfileModal(true)} title={`${user?.username || '用户'} (点击查看资料)`}>
+            <AvatarImg src={getAvatarUrl(user?.avatar)} alt={user?.username} />
+            <span className="nav-rail-online-dot" />
+          </div>
+        </div>
+
+        <div className="nav-rail-tabs">
+          <button
+            type="button"
+            className={`nav-rail-btn ${bottomTab === 'chats' ? 'active' : ''}`}
+            onClick={() => setBottomTab('chats')}
+            title="消息聊天"
+          >
+            <span className="nav-rail-icon"><I name="chat" size={20} /></span>
+            <span className="nav-rail-label">聊天</span>
+          </button>
+
+          <button
+            type="button"
+            className={`nav-rail-btn ${bottomTab === 'contacts' ? 'active' : ''}`}
+            onClick={() => { setBottomTab('contacts'); fetchFriendRequests(); }}
+            title="通讯录"
+          >
+            <span className="nav-rail-icon"><I name="contacts" size={20} /></span>
+            <span className="nav-rail-label">通讯录</span>
+            {friendRequests?.length > 0 && <span className="nav-rail-badge">{friendRequests.length}</span>}
+          </button>
+
+          <button
+            type="button"
+            className={`nav-rail-btn ${bottomTab === 'discover' ? 'active' : ''}`}
+            onClick={() => setBottomTab('discover')}
+            title="发现与应用"
+          >
+            <span className="nav-rail-icon"><I name="discover" size={20} /></span>
+            <span className="nav-rail-label">发现</span>
+          </button>
+
+          <button
+            type="button"
+            className={`nav-rail-btn ${bottomTab === 'me' ? 'active' : ''}`}
+            onClick={() => setBottomTab('me')}
+            title="个人中心"
+          >
+            <span className="nav-rail-icon"><I name="me" size={20} /></span>
+            <span className="nav-rail-label">我</span>
+          </button>
+        </div>
+
+        <div className="nav-rail-bottom">
+          <button
+            type="button"
+            className="nav-rail-icon-btn"
+            onClick={toggleDarkMode}
+            title={darkMode ? '切换浅色模式' : '切换深色模式'}
+          >
+            <I name={darkMode ? 'moon' : 'sun'} size={17} />
+          </button>
+          <button
+            type="button"
+            className="nav-rail-icon-btn"
+            onClick={() => setShowProfileModal(true)}
+            title="设置"
+          >
+            <I name="settings" size={17} />
+          </button>
+          <button
+            type="button"
+            className="nav-rail-icon-btn danger"
+            onClick={handleLogout}
+            title="退出登录"
+          >
+            <I name="logout" size={17} />
+          </button>
+        </div>
+      </nav>
+
       <div className="sidebar">
         <div className="sidebar-header">
           <div className="user-info sidebar-user" onClick={() => setShowProfileModal(true)}>
@@ -1369,6 +1767,8 @@ function App() {
             ) || [];
             const pinnedList = filteredRooms.filter(r => pinnedChats.has(r.id));
             const unpinnedList = filteredRooms.filter(r => !pinnedChats.has(r.id));
+            const foldedGroups = unpinnedList.filter(r => mutedRooms?.has(r.id) && r.members?.length > 2);
+            const normalUnpinnedList = unpinnedList.filter(r => !(mutedRooms?.has(r.id) && r.members?.length > 2));
             return (
               <>
                 {pinnedList.length > 0 && <div className="pinned-divider"><I name="pin" size={14} /> 置顶聊天</div>}
@@ -1387,7 +1787,7 @@ function App() {
                     {room.id !== 'global' && <button className="room-pin-btn danger" onClick={(e) => deleteChat(room.id, e)} title="删除聊天"><I name="delete" size={14} /></button>}
                   </div>
                 ))}
-                {unpinnedList.map(room => (
+                {normalUnpinnedList.map(room => (
                   <div key={room.id} className={`room-item ${currentRoomId === room.id ? 'active' : ''}`} onClick={() => handleRoomClick(room)}>
                     <RoomAvatar name={room.name} />
                     <div className="room-info">
@@ -1402,6 +1802,36 @@ function App() {
                     {room.id !== 'global' && <button className="room-pin-btn danger" onClick={(e) => deleteChat(room.id, e)} title="删除聊天"><I name="delete" size={14} /></button>}
                   </div>
                 ))}
+                {foldedGroups.length > 0 && (
+                  <div className="folded-groups-box">
+                    <div className="folded-groups-header" onClick={() => setShowFoldedGroups(s => !s)}>
+                      <div className="folded-groups-left">
+                        <span className="folded-groups-icon"><I name="folder" size={16} /></span>
+                        <div>
+                          <div className="folded-groups-title">折叠的群聊</div>
+                          <div className="folded-groups-preview">{foldedGroups.length} 个群聊已免打扰折叠</div>
+                        </div>
+                      </div>
+                      <span className="folded-groups-arrow">{showFoldedGroups ? '▲' : '▼'}</span>
+                    </div>
+                    {showFoldedGroups && (
+                      <div className="folded-groups-list">
+                        {foldedGroups.map(room => (
+                          <div key={room.id} className={`room-item ${currentRoomId === room.id ? 'active' : ''}`} onClick={() => handleRoomClick(room)}>
+                            <RoomAvatar name={room.name} />
+                            <div className="room-info">
+                              <div className="room-name">{room.name}</div>
+                              <div className="last-message">{formatMessagePreview(room.lastMessage)}</div>
+                            </div>
+                            <div className="room-side">
+                              {room.lastMessage?.timestamp && <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             );
           })()}
@@ -1423,323 +1853,7 @@ function App() {
       </div>
 
       <div className={`main-chat ${bottomTab !== 'chats' && !currentRoom ? 'full-view' : ''}`}>
-        {bottomTab === 'contacts' ? (
-          /* ===== 通讯录页面 ===== */
-          <ContactsView
-            friends={friends}
-            friendRequests={friendRequests}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            setContactsLetter={setContactsLetter}
-            startChatWithFriend={startChatWithFriend}
-            acceptFriendRequest={acceptFriendRequest}
-            rejectFriendRequest={rejectFriendRequest}
-            onlineUsers={onlineUsers}
-          />
-        ) : bottomTab === 'discover' ? (
-          /* ===== 发现页面 ===== */
-          <DiscoverView
-            setView={setView}
-            setBottomTab={setBottomTab}
-            setShowImageGen={setShowImageGen}
-            fetchDailyDigest={fetchDailyDigest}
-            setShowBotModal={setShowBotModal}
-            fetchBots={fetchBots}
-            setShowMusicPanel={setShowMusicPanel}
-            setShowGifPanel={setShowGifPanel}
-            fetchNews={fetchNews}
-            setShowMoments={setShowMoments}
-            setShowGameModal={setShowGameModal}
-            setShowWeatherPanel={setShowWeatherPanel}
-            setShowMapPanel={setShowMapPanel}
-            wrappedLoading={wrappedLoading}
-            fetchWrapped={fetchWrapped}
-            setShowBackupModal={setShowBackupModal}
-            socketRef={socketRef}
-            showToast={showToast}
-          />
-        ) : bottomTab === 'me' ? (
-          /* ===== 我的页面 ===== */
-          <MeView
-            user={user}
-            setShowProfileModal={setShowProfileModal}
-            balance={balance}
-            setShowMoments={setShowMoments}
-            setShowRechargeModal={setShowRechargeModal}
-            fetchRechargeHistory={fetchRechargeHistory}
-            setShowTransferModal={setShowTransferModal}
-            fetchTransferHistory={fetchTransferHistory}
-            setShowBackupModal={setShowBackupModal}
-            phoneInfo={phoneInfo}
-            fetchPhoneInfo={fetchPhoneInfo}
-            setShowPhoneModal={setShowPhoneModal}
-            setShowChangelogModal={setShowChangelogModal}
-            otaInfo={otaInfo}
-            appVersion={appVersion}
-          />
-        ) : view === 'ai' ? (
-          <AiView
-            user={user}
-            balance={balance}
-            setView={setView}
-            setBottomTab={setBottomTab}
-            fetchDailyDigest={fetchDailyDigest}
-            showToast={showToast}
-            aiModel={aiModel}
-            setAiModel={setAiModel}
-            aiModels={aiModels}
-            aiMessages={aiMessages}
-            aiInput={aiInput}
-            setAiInput={setAiInput}
-            aiLoading={aiLoading}
-            handleAiKeyPress={handleAiKeyPress}
-            sendAiMessage={sendAiMessage}
-            renderMarkdown={renderMarkdown}
-            aiMessagesEndRef={aiMessagesEndRef}
-
-            documentStatus={documentStatus}
-            documentName={documentName}
-            documentInputRef={documentInputRef}
-            uploadDocument={uploadDocument}
-            clearDocumentContext={clearDocumentContext}
-            setShowRechargeModal={setShowRechargeModal}
-            fetchRechargeHistory={fetchRechargeHistory}
-            resetAiChat={resetAiChat}
-            openAdminCenter={openAdminCenter}
-          />
-        ) : view === 'video' ? (
-          <BilibiliView
-            setView={setView}
-            setBottomTab={setBottomTab}
-            bilibiliQuery={bilibiliQuery}
-            setBilibiliQuery={setBilibiliQuery}
-            bilibiliLoading={bilibiliLoading}
-            searchBilibili={searchBilibili}
-            selectedBiliVideo={selectedBiliVideo}
-            setSelectedBiliVideo={setSelectedBiliVideo}
-            bilibiliResults={bilibiliResults}
-            shareBilibiliToChat={shareBilibiliToChat}
-            observeVideo={observeVideo}
-          />
-        ) : view === 'twin' ? (
-          <DigitalTwinView
-            showToast={showToast}
-            onBack={() => { setView(null); setBottomTab('discover'); }}
-          />
-        ) : view === 'intelligence' ? (
-          <IntelligenceView
-            showToast={showToast}
-            onBack={() => { setView(null); setBottomTab('discover'); }}
-          />
-        ) : view === 'socialGraph' ? (
-          <SocialGraphView
-            showToast={showToast}
-            onBack={() => { setView(null); setBottomTab('discover'); }}
-          />
-        ) : view === 'encrypted' ? (
-          <EncryptedChat
-            showToast={showToast}
-            onBack={() => { setView(null); setBottomTab('discover'); }}
-            user={user}
-          />
-        ) : view === 'whiteboard' ? (
-          <WhiteboardView
-            showToast={showToast}
-            onBack={() => { setView(null); setBottomTab('discover'); }}
-          />
-        ) : view === 'voiceRoom' ? (
-          <VoiceRoomView
-            showToast={showToast}
-            onBack={() => { setView(null); setBottomTab('discover'); }}
-            user={user}
-          />
-        ) : currentRoom ? (
-          <ChatView
-            currentRoom={currentRoom}
-            currentRoomId={currentRoomId}
-            setCurrentRoom={setCurrentRoom}
-            setCurrentRoomId={setCurrentRoomId}
-            setMessages={setMessages}
-            setView={setView}
-            setBottomTab={setBottomTab}
-            socketRef={socketRef}
-            showToast={showToast}
-            unreadCount={unreadCounts[currentRoomId] || 0}
-            startSyncMedia={startSyncMedia}
-            sendCanvasCard={sendCanvasCard}
-            user={user}
-            allUsers={allUsers}
-            messages={messages}
-            pinnedMessages={pinnedMessages}
-            starredMessages={starredMessages}
-            getReadInfo={getReadInfo}
-            highlightText={highlightText}
-            typingUser={typingUser}
-            aiSummary={aiSummary}
-            aiSummaryLoading={aiSummaryLoading}
-            setAiSummary={setAiSummary}
-            summarizeChat={summarizeChat}
-            setShowImageGen={setShowImageGen}
-            setShowBotModal={setShowBotModal}
-            fetchBots={fetchBots}
-            isSharingLocation={isSharingLocation}
-            startSharingLocation={startSharingLocation}
-            stopSharingLocation={stopSharingLocation}
-            setShowCheckIn={setShowCheckIn}
-            fetchCheckIns={fetchCheckIns}
-            setShowMusicPanel={setShowMusicPanel}
-            setShowGifPanel={setShowGifPanel}
-            setShowNewsPanel={setShowNewsPanel}
-            fetchNews={fetchNews}
-            setShowWeatherPanel={setShowWeatherPanel}
-            setShowMapPanel={setShowMapPanel}
-            startCall={startCall}
-            showSearch={showSearch}
-            setShowSearch={setShowSearch}
-            setShowRoomManage={setShowRoomManage}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            autoTranslate={autoTranslate}
-            setAutoTranslate={setAutoTranslate}
-            translateLang={translateLang}
-            setTranslateLang={setTranslateLang}
-            translatedMessages={translatedMessages}
-            translations={translations}
-            openImageViewer={openImageViewer}
-            descLoading={descLoading}
-            imageDesc={imageDesc}
-            describeImage={describeImage}
-            observeVideo={observeVideo}
-            translatingMsg={translatingMsg}
-            translateMessage={translateMessage}
-            openLocationMap={openLocationMap}
-            claimRedPacket={claimRedPacket}
-            votePoll={votePoll}
-            joinSolitaire={joinSolitaire}
-            toggleReaction={toggleReaction}
-            recallMessage={recallMessage}
-            startEditMessage={startEditMessage}
-            deleteMessage={deleteMessage}
-            openReactionPicker={openReactionPicker}
-            startReply={startReply}
-            openForwardModal={openForwardModal}
-            toggleStarMessage={toggleStarMessage}
-            togglePinMessage={togglePinMessage}
-            reactionPicker={reactionPicker}
-            setReactionPicker={setReactionPicker}
-            REACTION_EMOJIS={REACTION_EMOJIS}
-            setMessageEndRef={setMessageEndRef}
-            roomAnnouncements={roomAnnouncements}
-            replyToMessage={replyToMessage}
-            cancelReply={cancelReply}
-            editingMessage={editingMessage}
-            cancelEdit={cancelEdit}
-            fileInputRef={fileInputRef}
-            isRecording={isRecording}
-            startRecording={startRecording}
-            stopRecording={stopRecording}
-            cancelRecording={cancelRecording}
-            recordingTime={recordingTime}
-            showEmojiPicker={showEmojiPicker}
-            setShowEmojiPicker={setShowEmojiPicker}
-            showMentionPicker={showMentionPicker}
-            setShowMentionPicker={setShowMentionPicker}
-            showQuickReplies={showQuickReplies}
-            setShowQuickReplies={setShowQuickReplies}
-            sendDice={sendDice}
-            setShowGameModal={setShowGameModal}
-            setShowRedPacketModal={setShowRedPacketModal}
-            setShowPollModal={setShowPollModal}
-            setShowSolitaireModal={setShowSolitaireModal}
-            setShowMusicModal={setShowMusicModal}
-            handleFileSelect={handleFileSelect}
-            fetchSmartReplies={fetchSmartReplies}
-            smartRepliesLoading={smartRepliesLoading}
-            setPolishText={setPolishText}
-            setPolishResult={setPolishResult}
-            setShowPolishModal={setShowPolishModal}
-            newMessage={newMessage}
-            setNewMessage={setNewMessage}
-            insertEmoji={insertEmoji}
-            mentionFilter={mentionFilter}
-            setMentionFilter={setMentionFilter}
-            getFilteredMentionUsers={getFilteredMentionUsers}
-            insertMention={insertMention}
-            quickReplies={quickReplies}
-            insertQuickReply={insertQuickReply}
-            smartReplies={smartReplies}
-            setSmartReplies={setSmartReplies}
-            handleInputChange={handleInputChange}
-            handleKeyDown={handleKeyDown}
-            sendMessage={sendMessage}
-            onlineUsers={onlineUsers}
-            isChannelAdmin={isChannelAdmin}
-            isChannelSubscribed={isChannelSubscribed}
-            subscribeChannel={subscribeChannel}
-            unsubscribeChannel={unsubscribeChannel}
-            openThreads={openThreads}
-            threadsCount={currentRoom?.threadCount ?? threads.length}
-          />
-        ) : bottomTab === 'chats' ? (
-          <>
-            <div className="page-empty-shell chat-empty-desktop">
-              <EmptyState icon="chat" title="选择一个聊天室开始对话" desc="从左侧聊天列表中进入一个聊天室，或新建对话" />
-            </div>
-            <div className="mobile-room-list">
-              <div className="search-box">
-                <div className="search-wrapper">
-                  <span className="search-icon"><I name="search" size={16} /></span>
-                  <input type="text" placeholder="搜索聊天..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-                </div>
-              </div>
-              <div className="room-list room-list-mobile">
-                <div className="room-list-header">
-                  {rooms?.filter(r => r.type !== 'private')?.length || 0} 个聊天
-                </div>
-                {(() => {
-                  const filtered = rooms?.filter(r => r.type !== 'private')?.filter(room =>
-                    !searchQuery || room.name?.toLowerCase().includes(searchQuery.toLowerCase())
-                  ) || [];
-                  const pinned = filtered.filter(r => pinnedChats.has(r.id));
-                  const unpinned = filtered.filter(r => !pinnedChats.has(r.id));
-                  return (
-                    <>
-                      {pinned.length > 0 && <div className="pinned-divider"><I name="pin" size={14} /> 置顶聊天</div>}
-                      {[...pinned, ...unpinned].map(room => {
-                        const isPinned = pinnedChats.has(room.id);
-                        return (
-                          <div key={room.id} className={`room-item ${isPinned ? 'pinned-chat' : ''} ${currentRoomId === room.id ? 'active' : ''}`} onClick={() => handleRoomClick(room)}>
-                            <RoomAvatar name={room.name} size="lg" />
-                            <div className="room-info">
-                              <div className="room-name">{room.name}</div>
-                              <div className="last-message">{formatMessagePreview(room.lastMessage)}</div>
-                            </div>
-                            <div className="room-side">
-                              {room.lastMessage?.timestamp && <div className="room-time">{formatTime(room.lastMessage.timestamp)}</div>}
-                              {unreadCounts[room.id] > 0 && currentRoomId !== room.id && <span className="unread-badge">{unreadCounts[room.id]}</span>}
-                            </div>
-                            {room.id !== 'global' && <button className="room-pin-btn danger" onClick={(e) => deleteChat(room.id, e)} title="删除聊天"><I name="delete" size={14} /></button>}
-                          </div>
-                        );
-                      })}
-                    </>
-                  );
-                })()}
-                {(!rooms || rooms.filter(r => r.type !== 'private').length === 0) && (
-                  <EmptyState icon="chat" title="暂无聊天" desc="点击添加好友开始新的对话" />
-                )}
-              </div>
-            </div>
-          </>
-        ) : bottomTab !== 'chats' ? (
-          <div className="page-empty-shell">
-            <EmptyState icon="chat" title="请选择一个功能" desc="使用底部导航进入通讯录、发现或我的页面" />
-          </div>
-        ) : (
-          <div className="page-empty-shell">
-            <EmptyState icon="chat" title="选择一个聊天室开始对话" desc="从左侧聊天列表中进入一个聊天室，或新建对话" />
-          </div>
-        )}
+        {renderMainContent()}
       </div>
 
       <PhoneModal showPhoneModal={showPhoneModal} closePhoneModal={closePhoneModal} phoneInfo={phoneInfo} phoneStep={phoneStep} phoneInput={phoneInput} setPhoneInput={setPhoneInput} codeInput={codeInput} setCodeInput={setCodeInput} codeCountdown={codeCountdown} phoneSendingCode={phoneSendingCode} phoneBinding={phoneBinding} handleSendCode={handleSendCode} handleVerifyAndBind={handleVerifyAndBind} handleUnbindPhone={handleUnbindPhone} />
@@ -1915,8 +2029,39 @@ function App() {
       {/* ===== 天气面板 ===== */}
       <WeatherPanel showWeatherPanel={showWeatherPanel} setShowWeatherPanel={setShowWeatherPanel} setWeatherData={setWeatherData} setWeatherCity={setWeatherCity} weatherCity={weatherCity} weatherLoading={weatherLoading} searchWeather={searchWeather} weatherData={weatherData} shareWeather={shareWeather} />
 
-      {/* ===== 地图面板 ===== */}
-      <MapPanel showMapPanel={showMapPanel} setShowMapPanel={setShowMapPanel} setShowMapViewer={setShowMapViewer} setMapResults={setMapResults} mapSearch={mapSearch} setMapSearch={setMapSearch} mapLoading={mapLoading} searchMap={searchMap} getMyLocation={getMyLocation} mapResults={mapResults} showMapViewer={showMapViewer} shareMap={shareMap} isCapacitor={isCapacitor} API_URL={API_URL} />
+      {/* ===== 全屏强提醒 ===== */}
+      <UrgentAlertBanner
+        alertData={urgentAlert}
+        onDismiss={() => setUrgentAlert(null)}
+        onOpenChat={(roomId, sender) => {
+          if (roomId) {
+            const targetRoom = rooms.find((r) => r.id === roomId);
+            if (targetRoom) {
+              setCurrentRoom(targetRoom);
+              setCurrentRoomId(roomId);
+            }
+          }
+          setView('chat');
+        }}
+      />
+
+      {/* ===== AI 离线代答简报 ===== */}
+      <BriefingModal
+        show={showBriefingModal}
+        onClose={() => setShowBriefingModal(false)}
+        briefings={briefings}
+        onClearBriefings={clearBriefings}
+        onOpenChat={(roomId, sender) => {
+          if (roomId) {
+            const targetRoom = rooms.find((r) => r.id === roomId);
+            if (targetRoom) {
+              setCurrentRoom(targetRoom);
+              setCurrentRoomId(roomId);
+            }
+          }
+          setView('chat');
+        }}
+      />
 
       {/* ===== Toast ===== */}
       <Toast toast={toast} />

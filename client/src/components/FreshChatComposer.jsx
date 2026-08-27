@@ -426,12 +426,20 @@ export default function FreshChatComposer({
             <input
               type="text"
               className="mention-search-input"
-              placeholder="搜索用户..."
+              placeholder="搜索成员或@所有人..."
               value={mentionFilter}
               onChange={(e) => setMentionFilter(e.target.value)}
               autoFocus
             />
             <div className="mention-list">
+              {currentRoom?.members?.length > 2 && (!mentionFilter || '所有人'.includes(mentionFilter) || 'all'.includes(mentionFilter.toLowerCase())) && (
+                <button className="mention-item mentions-item-all" onClick={() => insertMention('所有人')}>
+                  <span className="mention-avatar" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--primary-bg)', color: 'var(--primary)' }}>
+                    <I name="users" size={14} />
+                  </span>
+                  <span><strong>@所有人</strong> (全员提醒)</span>
+                </button>
+              )}
               {getFilteredMentionUsers().map((u) => (
                 <button key={u.id} className="mention-item" onClick={() => insertMention(u.username)}>
                   <AvatarImg src={getAvatarUrl(u.avatar)} alt="" className="mention-avatar" />

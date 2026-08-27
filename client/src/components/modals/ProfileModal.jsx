@@ -65,6 +65,17 @@ export default function ProfileModal({ showProfileModal, setShowProfileModal, us
             在微信中生成收款码，复制链接或截图内容填入此处
           </div>
         </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>朋友拍了拍我 +</label>
+          <input
+            type="text"
+            value={profileEdit.patSuffix || ''}
+            onChange={(e) => setProfileEdit({ ...profileEdit, patSuffix: e.target.value })}
+            style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid var(--border-color)', fontFamily: 'inherit', marginTop: 4 }}
+            placeholder="例如：的西瓜、并递过来一杯奶茶（默认：的肩膀）"
+            maxLength={30}
+          />
+        </div>
         <div className="modal-buttons">
           <button className="cancel" onClick={() => setShowProfileModal(false)}>关闭</button>
           <button className="confirm" onClick={updateProfile}>保存</button>

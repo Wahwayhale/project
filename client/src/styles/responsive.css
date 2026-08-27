@@ -1,4 +1,4 @@
-﻿/* ==========================================
+/* ==========================================
    Responsive Design — 统一响应式
    ========================================== */
 
@@ -29,7 +29,6 @@
     border: 0;
     border-left: none;
     border-right: none;
-    display: block;
     overflow: hidden;
   }
 
@@ -76,10 +75,9 @@
 
   .main-chat {
     flex: 1;
-    min-height: 55vh;
     width: 100% !important;
     height: calc(100dvh - var(--mobile-tab-offset)) !important;
-    min-height: calc(100dvh - var(--mobile-tab-offset)) !important;
+    min-height: 0;
     padding: 10px 10px 0;
     gap: 10px;
   }
@@ -102,7 +100,6 @@
     overflow-x: auto;
     max-width: calc(100vw - 128px);
     padding-bottom: 2px;
-    max-width: 148px;
   }
 
   .chat-header-main {
@@ -311,11 +308,6 @@
   .discover-page,
   .contacts-page {
     height: calc(100dvh - var(--mobile-tab-height));
-  }
-
-  .main-chat,
-  .sidebar {
-    padding: 10px;
   }
 
   .bottom-tab-bar {

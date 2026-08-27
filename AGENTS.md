@@ -24,13 +24,19 @@
 ```
 client/
   src/
-    App.js          ← 单文件主组件（~4500行），可拆分但非必须
-    index.js        ← ReactDOM 入口 + ErrorBoundary
-    index.css       ← 全局样式 + 设计 Token（CSS 变量）
+    App.js              ← 主组件（~1800行），含路由分发（renderMainContent）
+    index.js            ← ReactDOM 入口 + ErrorBoundary
+    index.css           ← 样式入口（仅 @import，实际样式在 styles/ 目录）
+    components/         ← UI 组件（ChatView、ContactsView、各 Modal 等）
+    hooks/              ← 自定义 Hooks（useAuth、useChat、useSocket、usePanels、useSettings 等）
+    services/           ← 服务层（api.js、callAIFree.js 等）
+    config/             ← 配置（icons.js 图标映射）
+    styles/             ← CSS 模块（layout/chat/sidebar/components/themes/responsive 等）
+    utils/              ← 工具函数（constants.js 等）
   public/
-    index.html      ← PWA meta、viewport、全局重置
-    manifest.json   ← PWA 配置
-  capacitor.config.ts ← Android OTA 模式配置
+    index.html          ← PWA meta、viewport、全局重置
+    manifest.json       ← PWA 配置
+  capacitor.config.ts   ← Android OTA 模式配置
 ```
 
 ### 1.2 图标系统
@@ -43,16 +49,17 @@ client/
 <I name="delete" size={14} color="var(--danger)" />
 ```
 
-完整映射表在 `App.js` 第 19-34 行 `map` 对象。
+完整映射表在 `config/icons.js` 的 `iconMap` 对象。新增图标需先在该文件注册。
 
 ### 1.3 样式规则
 
 - **颜色**必须用 CSS 变量：`var(--primary)` `var(--bg)` `var(--text)` `var(--border)` `var(--danger)` 等
 - **间距**基准 4px：用 4、8、12、16、20、24
 - **圆角**：6/8/10/12/16px 五级
-- **新样式**加在 `index.css` 末尾，不要改已有规则除非修复 bug
+- **新样式**加在对应模块 CSS 文件末尾（如 chat.css、components.css），不要改已有规则除非修复 bug
 - **禁止**内联 `style={{}}` 写颜色、字体大小、间距；仅限动态值
 - 移动端断点 `768px`，小屏 `480px`，横屏 `(orientation: landscape)`
+- **z-index 层级**：toast/闪屏/通话 9999 > modal-overlay 2000 > bottom-tab-bar 1001 > 普通浮层 100
 
 ### 1.4 状态管理
 
@@ -104,10 +111,10 @@ client/
 
 ```
 server/
-  server.js     ← 主文件（~2700行），Express + Socket.io
+  server.js     ← 主文件（~5300行），Express + Socket.io
   db.js         ← JSON 持久化层（Collection 类）
   data/         ← JSON 数据文件
-  .env          ← 密钥和配置
+  .env          ← 密钥和配置（必须配置 JWT_SECRET）
   uploads/      ← 用户上传文件
 ```
 
@@ -121,11 +128,12 @@ server/
 ### 2.3 安全规则（强制）
 
 - **每个私有路由**必须通过 `verifyToken` 中间件
+- **Socket.io 连接**必须通过 `io.use()` 中间件校验 JWT（握手时 `auth.token` 传入），未认证连接直接拒绝
 - **房间访问**：`isRoomMember(room, username)` 检查后才能 join/sendMessage/readMessages
 - **管理员操作**：额外检查 `user.username === 'admin'`
-- **密码**：bcrypt hash，10 轮
-- **JWT**：7 天过期，Secret 从 `.env` 读取
-- **文件上传**：500MB 限制，multer 处理
+- **密码**：bcrypt hash，10 轮；注册/重置密码长度 6-64 位
+- **JWT**：7 天过期，Secret 必须从 `.env` 的 `JWT_SECRET` 读取，未配置则启动失败
+- **文件上传**：500MB 限制，multer 处理；`BLOCKED_UPLOAD_EXTS` 禁止可执行/脚本类扩展名（.exe/.html/.svg/.js 等）
 - **禁止**在代码中硬编码密钥、密码
 
 ### 2.4 数据持久化
@@ -228,7 +236,7 @@ users.save();
 完整规范见 `huashu-design.md`。
 
 核心速查：
-- **主色**：`#42d6a4`（清新薄荷绿）
+- **主色**：`#14B8A6`（teal 青绿色），默认主题预设 `teal`
 - **字体**：系统字体栈，14px 正文
 - **图标**：Lucide 1.2px 线性，24×24 基准
 - **圆角**：6/8/10/12/16 px

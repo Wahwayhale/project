@@ -58,3 +58,7 @@
 
 /* --- 新功能：赛博遗产 / 谁是卧底 / 匿名树洞 / AI 日报 --- */
 @import './styles/new-features.css';
+
+/* --- 微信杀手级功能：拍一拍 / 状态 / 合并转发 / @浮层 --- */
+@import './styles/new-wechat-features.css';
+

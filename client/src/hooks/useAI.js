@@ -32,10 +32,11 @@ export function useAI({
   const [aiStatusLoading, setAiStatusLoading] = useState(false);
   const aiMessagesEndRef = useRef(null);
 
-  // ===== AI 文档解析（上传 PDF/Word/TXT → 纯文本，作为一次性 system 上下文喂给 AI） =====
+  // ===== AI 文档解析（上传 PDF/Word/TXT/MD 等 → 纯文本，作为一次性 system 上下文喂给 AI） =====
   const [documentContext, setDocumentContext] = useState('');
   const [documentStatus, setDocumentStatus] = useState('idle'); // idle | uploading | parsing | done | error
   const [documentName, setDocumentName] = useState('');
+  const [documentMeta, setDocumentMeta] = useState(null);
   const documentInputRef = useRef(null);
 
   // ===== AI 增强功能 =====
@@ -70,19 +71,25 @@ export function useAI({
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
 
   // ===== AI 对话函数 =====
-  const sendAiMessage = async () => {
-    const text = aiInput.trim();
+  const sendAiMessage = async (overridePrompt) => {
+    const text = typeof overridePrompt === 'string' ? overridePrompt.trim() : aiInput.trim();
     if (!text || aiLoading) return;
     const ctx = documentContext; // 捕获本次文档上下文（一次性注入）
-    setAiMessages(prev => [...prev, { role: 'user', content: text }]);
-    setAiInput('');
+    const docInfo = documentName ? { name: documentName, charCount: documentMeta?.charCount } : null;
+    setAiMessages(prev => [...prev, { role: 'user', content: text, documentRef: docInfo }]);
+    if (typeof overridePrompt !== 'string') {
+      setAiInput('');
+    }
     setAiLoading(true);
     try {
       const res = await axios.post(`${API_URL}/api/ai/chat`, {
         message: text,
         model: aiModel,
         ...(ctx ? { systemContext: ctx } : {})
-      }, { headers: { Authorization: token } });
+      }, {
+        headers: { Authorization: token },
+        timeout: 120000
+      });
       setAiMessages(prev => [...prev, {
         role: 'assistant',
         content: res.data.reply || '（无回复）',
@@ -109,12 +116,6 @@ export function useAI({
       }]);
     } finally {
       setAiLoading(false);
-      // 文档上下文一次性使用，发送后清除
-      if (ctx) {
-        setDocumentContext('');
-        setDocumentName('');
-        setDocumentStatus('idle');
-      }
     }
   };
 
@@ -146,6 +147,7 @@ export function useAI({
 
   const resetAiChat = async () => {
     setAiMessages([]);
+    clearDocumentContext();
     try {
       await axios.post(`${API_URL}/api/ai/reset`, {}, {
         headers: { Authorization: token }
@@ -167,11 +169,13 @@ export function useAI({
     setDocumentStatus('uploading');
     setDocumentName(file.name || '');
     setDocumentContext('');
+    setDocumentMeta(null);
     try {
       const formData = new FormData();
       formData.append('file', file);
       const res = await axios.post(`${API_URL}/api/ai/parse-document`, formData, {
         headers: { Authorization: token },
+        timeout: 120000,
         onUploadProgress: (progressEvent) => {
           // 文件已交给浏览器，进入后端解析阶段
           if (progressEvent.total && progressEvent.loaded >= progressEvent.total) {
@@ -182,12 +186,18 @@ export function useAI({
       const parsedText = res.data?.data?.text || '';
       if (!parsedText) {
         setDocumentStatus('error');
-        showToast('文档解析结果为空', 'error');
+        showToast('文档解析结果为空，可能是扫描件或空文件', 'error');
         return;
       }
       setDocumentContext(parsedText);
+      const meta = {
+        size: res.data?.data?.size || file.size,
+        charCount: res.data?.data?.charCount || parsedText.length,
+        filename: res.data?.data?.filename || file.name
+      };
+      setDocumentMeta(meta);
       setDocumentStatus('done');
-      showToast(`文档解析完成（${(parsedText.length / 1000).toFixed(1)}k 字符）`, 'success');
+      showToast(`文档《${file.name}》解析完成（${(parsedText.length / 1000).toFixed(1)}k 字符）`, 'success');
     } catch (err) {
       setDocumentStatus('error');
       const msg = err.response?.data?.error || err.message || '文档解析失败';
@@ -198,6 +208,7 @@ export function useAI({
   const clearDocumentContext = () => {
     setDocumentContext('');
     setDocumentName('');
+    setDocumentMeta(null);
     setDocumentStatus('idle');
   };
 
@@ -276,7 +287,7 @@ export function useAI({
     try {
       const res = await axios.post(`${API_URL}/api/ai/tldr`,
         { roomId: currentRoomId, messageCount: count },
-        { headers: { Authorization: token } }
+        { headers: { Authorization: token }, timeout: 90000 }
       );
       setAiSummary({ text: res.data.summary });
       showToast('AI 摘要完成', 'success');
@@ -294,7 +305,7 @@ export function useAI({
     try {
       const res = await axios.post(`${API_URL}/api/ai/generate-image`,
         { prompt: genPrompt.trim(), style: genStyle || '' },
-        { headers: { Authorization: token } }
+        { headers: { Authorization: token }, timeout: 120000 }
       );
       setGenResult(res.data.imageUrl);
       showToast('图片生成成功！', 'success');
@@ -342,7 +353,7 @@ export function useAI({
     aiStatusLoading, setAiStatusLoading,
     aiMessagesEndRef,
     // AI document parsing
-    documentStatus, documentName, documentInputRef,
+    documentStatus, documentName, documentMeta, documentInputRef,
     // AI enhanced features
     smartReplies, setSmartReplies,
     smartRepliesLoading, setSmartRepliesLoading,

@@ -126,6 +126,30 @@
   /* 领域语义 */
   --bili-pink: #fb7299;
   --bili-pink-light: #ff8fc7;
+
+  /* Glass 补齐 — glass-theme.css 引用 */
+  --glass-panel: rgba(255, 255, 255, 0.72);
+  --glass-stroke: inset 0 0.5px 0 rgba(255, 255, 255, 0.5);
+  --gradient-input: linear-gradient(180deg, #FFFFFF 0%, #FAFBFC 100%);
+  --danger-light: #f87171;
+  --danger-glass: #ef4444;
+
+  /* 气泡色板 */
+  --bubble-sent-bg: linear-gradient(135deg, #14B8A6 0%, #2DD4BF 60%, #5EEAD4 100%);
+  --bubble-received-bg: #FFFFFF;
+  --bubble-received-border: #E8ECF0;
+
+  /* 悬浮卡片 */
+  --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.12);
+
+  /* Tab indicator */
+  --tab-indicator: linear-gradient(135deg, #14B8A6, #2DD4BF);
+
+  /* 头像光环 */
+  --avatar-ring: 0 0 0 2px var(--bg-elevated), 0 0 0 3.5px var(--primary);
+
+  /* 输入框聚焦光晕 */
+  --input-focus-glow: 0 0 0 4px rgba(20, 184, 166, 0.12), 0 0 20px rgba(20, 184, 166, 0.08);
 }
 
 /* 深色模式 */
@@ -162,4 +186,19 @@
   --glow-lg: 0 0 40px rgba(20, 184, 166, 0.30);
   --glow-btn: 0 0 20px rgba(20, 184, 166, 0.36);
   --glow-card: 0 0 12px rgba(0, 0, 0, 0.14);
+
+  /* Glass 补齐 — 深色 */
+  --bg-secondary: #283345;
+  --glass-panel: rgba(30, 41, 59, 0.72);
+  --glass-stroke: inset 0 0.5px 0 rgba(255, 255, 255, 0.06);
+  --gradient-input: linear-gradient(180deg, #1E293B 0%, #253040 100%);
+  --danger-light: #f87171;
+  --danger-glass: #dc2626;
+
+  /* 气泡色板 — 深色 */
+  --bubble-sent-bg: linear-gradient(135deg, #0D9488 0%, #14B8A6 60%, #2DD4BF 100%);
+  --bubble-received-bg: #1E293B;
+  --bubble-received-border: #334155;
+
+  --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.35);
 }

@@ -1062,6 +1062,7 @@ textarea {
 
 /* 统一「我」页卡片栅格：去掉旧 margin，由页面 gap 控距（卡片贴 12px 边距，与发现页一致） */
 .me-header,
+.me-hero-card,
 .me-menu,
 .me-footer {
   margin: 0;
@@ -1072,6 +1073,7 @@ textarea {
 }
 
 .me-header,
+.me-hero-card,
 .me-menu,
 .me-footer,
 .me-page > .me-menu-item,

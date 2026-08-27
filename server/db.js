@@ -10,7 +10,9 @@ const FILES = {
   recharges: 'recharges.json',
   transfers: 'transfers.json',
   dailyReport: 'dailyReport.json',
-  pushTokens: 'pushTokens.json'
+  pushTokens: 'pushTokens.json',
+  favorites: 'favorites.json',
+  offlineBriefings: 'offlineBriefings.json'
 };
 
 function ensureDir() {
@@ -80,15 +82,35 @@ function saveJson(filename, data) {
   }
 }
 
-const saveQueues = {};
+const saveQueues = {};   // collection -> { timer, data }（data 用于退出时同步刷盘）
 function debouncedSave(collection, data, delay = 200) {
   if (saveQueues[collection]) {
-    clearTimeout(saveQueues[collection]);
+    clearTimeout(saveQueues[collection].timer);
   }
-  saveQueues[collection] = setTimeout(() => {
-    saveJson(FILES[collection], data);
-    delete saveQueues[collection];
-  }, delay);
+  saveQueues[collection] = {
+    data,
+    timer: setTimeout(() => {
+      saveJson(FILES[collection], data);
+      delete saveQueues[collection];
+    }, delay)
+  };
+}
+
+// 同步原子写入：仅用于进程退出时刷盘（exit 回调无法等待异步写入）
+function saveJsonSync(filename, data) {
+  ensureDir();
+  const filePath = path.join(DATA_DIR, filename);
+  const tmpPath = filePath + '.tmp';
+  const bakPath = filePath + '.bak';
+  try {
+    if (fs.existsSync(filePath)) {
+      try { fs.copyFileSync(filePath, bakPath); } catch {}
+    }
+    fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
+    fs.renameSync(tmpPath, filePath);
+  } catch (e) {
+    console.error(`Error saving ${filename} on exit:`, e.message);
+  }
 }
 
 let autoFlushTimer = null;
@@ -176,11 +198,27 @@ class Collection {
 
   flush() {
     if (saveQueues[this.name]) {
-      clearTimeout(saveQueues[this.name]);
+      clearTimeout(saveQueues[this.name].timer);
       delete saveQueues[this.name];
     }
     if (this._dirty) {
       this.save();
+    }
+  }
+
+  // 同步刷盘：用于进程退出/优雅关闭，立即写盘不排队
+  flushSync() {
+    if (saveQueues[this.name]) {
+      clearTimeout(saveQueues[this.name].timer);
+      delete saveQueues[this.name];
+    }
+    if (this._dirty) {
+      const obj = {};
+      for (const [key, value] of this._data.entries()) {
+        obj[key] = value;
+      }
+      saveJsonSync(FILES[this.name], obj);
+      this._dirty = false;
     }
   }
 }
@@ -267,18 +305,22 @@ function init() {
   return collections;
 }
 
-function flushAll(collections) {
+function flushAll(collections, { sync = false } = {}) {
   for (const name of Object.keys(FILES)) {
     if (collections[name]) {
-      collections[name].flush();
+      if (sync) collections[name].flushSync();
+      else collections[name].flush();
     }
   }
 }
 
 process.on('exit', () => {
+  // 退出前把防抖队列里未落盘的数据同步写入，避免丢数据
   for (const name of Object.keys(FILES)) {
-    if (saveQueues[name]) {
-      clearTimeout(saveQueues[name]);
+    const pending = saveQueues[name];
+    if (pending) {
+      clearTimeout(pending.timer);
+      saveJsonSync(FILES[name], pending.data);
       delete saveQueues[name];
     }
   }

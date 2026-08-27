@@ -1,4 +1,4 @@
-﻿/* ==========================================
+/* ==========================================
    Empty State
    ========================================== */
 .empty-state,
@@ -212,54 +212,8 @@
   box-shadow: var(--shadow-xl);
 }
 
-html.dark {
-  --bg: #1a1a2e;
-  --bg-card: #16213e;
-  --bg-secondary: #0f3460;
-  --text: #e4e6eb;
-  --text-secondary: #b0b3b8;
-  --text-tertiary: #8a8d91;
-  --border: #2d2d3f;
-  --primary: #6c5ce7;
-  --primary-light: #a29bfe;
-  --success: #00b894;
-  --danger: #ff6b6b;
-  --info: #74b9ff;
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.6);
-}
+/* Dark mode overrides removed — unified in themes.css .dark */
 
-html.dark .sidebar {
-  background: var(--bg-card);
-}
-
-html.dark .chat-area {
-  background: var(--bg);
-}
-
-html.dark .bubble {
-  background: var(--bg-secondary);
-}
-
-html.dark .bubble.sent {
-  background: var(--primary);
-}
-
-html.dark .modal {
-  background: var(--bg-card);
-}
-
-html.dark .chat-input {
-  background: var(--bg-secondary);
-  color: var(--text);
-}
-
-html.dark .search-highlight {
-  background: #856404;
-  color: #fff3cd;
-}
 
 /* ==========================================
    Stats Bar
@@ -433,6 +387,82 @@ html.dark .search-highlight {
   font-weight: 500;
 }
 
+/* ==========================================
+   Error Boundary
+   ========================================== */
+.error-boundary {
+  padding: var(--space-10);
+  max-width: 650px;
+  margin: var(--space-10) auto;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+}
+
+.error-boundary-icon {
+  margin-bottom: var(--space-3);
+  color: var(--danger);
+}
+
+.error-boundary h2 {
+  color: var(--danger);
+  margin-bottom: var(--space-4);
+}
+
+.error-boundary-message {
+  background: var(--danger-bg);
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-4);
+  font-size: var(--text-base);
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.error-boundary-stack {
+  margin-bottom: var(--space-4);
+}
+
+.error-boundary-stack summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.error-boundary-stack pre {
+  background: var(--bg-hover);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  overflow: auto;
+  max-height: 150px;
+  margin-top: var(--space-2);
+}
+
+.error-boundary-reload {
+  padding: 12px 28px;
+  background: var(--primary-gradient);
+  color: var(--text-white);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--text-md);
+  font-weight: 700;
+  transition: transform var(--duration-md) var(--ease);
+}
+
+.error-boundary-reload:hover {
+  transform: translateY(-1px);
+}
+
+.error-boundary-reload:active {
+  transform: translateY(0);
+}
+
 .splash-loader {
   width: 160px;
   height: 4px;
@@ -479,3 +509,107 @@ html.dark .search-highlight {
   color: var(--text-secondary);
 }
 
+/* ==========================================
+   Phase 2 — Tab 胶囊指示器 + 图标弹动
+   ========================================== */
+.bottom-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--tab-indicator);
+  animation: tabIndicatorIn 0.3s var(--ease-bounce);
+}
+
+@keyframes tabIndicatorIn {
+  from { width: 0; opacity: 0; }
+  to { width: 24px; opacity: 1; }
+}
+
+.bottom-tab.active .tab-icon {
+  animation: tabIconPop 0.35s var(--ease-spring);
+}
+
+@keyframes tabIconPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+/* ==========================================
+   Phase 2 — 空状态呼吸光晕
+   ========================================== */
+.empty-state .empty-state-icon-wrap,
+.empty-chat .empty-state-icon-wrap,
+.empty-state .empty-icon,
+.empty-chat .empty-icon {
+  position: relative;
+  background: linear-gradient(135deg, var(--primary-bg), rgba(94, 234, 212, 0.15));
+}
+
+.empty-state .empty-state-icon-wrap::before,
+.empty-chat .empty-state-icon-wrap::before,
+.empty-state .empty-icon::before,
+.empty-chat .empty-icon::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 28px;
+  background: var(--primary-bg);
+  animation: breatheGlow 3s ease-in-out infinite;
+  z-index: -1;
+}
+
+@keyframes breatheGlow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.08); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-6px) rotate(-1deg); }
+  75% { transform: translateY(-3px) rotate(1deg); }
+}
+
+/* ==========================================
+   Phase 3 — 按钮涟漪效果
+   ========================================== */
+.send-button,
+.sidebar-btn.primary,
+.auth-form .auth-btn,
+.modal .modal-buttons .confirm {
+  position: relative;
+  overflow: hidden;
+}
+
+.send-button::after,
+.sidebar-btn.primary::after,
+.auth-form .auth-btn::after,
+.modal .modal-buttons .confirm::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.5s, height 0.5s, opacity 0.5s;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.send-button:active::after,
+.sidebar-btn.primary:active::after,
+.auth-form .auth-btn:active::after,
+.modal .modal-buttons .confirm:active::after {
+  width: 250px;
+  height: 250px;
+  opacity: 0;
+  transition: 0s;
+}

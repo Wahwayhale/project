@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { I } from './Icon';
 import FreshChatComposer from './FreshChatComposer';
 import SyncMediaRoom from './SyncMediaRoom';
@@ -7,16 +7,12 @@ import UndercoverGame from './UndercoverGame';
 import CanvasCollaborativeCard from './CanvasCollaborativeCard';
 import AvatarImg from './ui/AvatarImg';
 import CodeSandbox from './CodeSandbox';
+import MergedForwardModal from './modals/MergedForwardModal';
+import ScreenshotModal from './modals/ScreenshotModal';
 import { getAvatarUrl } from '../utils/avatar';
 import { formatTime, formatFileSize, getFileIcon, parseBilibiliUrl } from '../utils/format';
 import { API_URL } from '../utils/constants';
 
-/**
- * ChatView — 聊天主视图组件
- *
- * 渲染聊天头部（房间信息、工具栏、AI摘要、搜索）、消息列表（所有消息类型、
- * 反应选择器）和输入区域（工具栏、表情/@/快捷回复选择器、组合输入行）。
- */
 export default function ChatView({
   // === 房间 ===
   currentRoom,
@@ -34,13 +30,13 @@ export default function ChatView({
 
   // === 用户 ===
   user,
-  allUsers,
+  allUsers = [],
   onlineUsers = [],
 
   // === 消息列表 ===
-  messages,
-  pinnedMessages,
-  starredMessages,
+  messages = [],
+  pinnedMessages = {},
+  starredMessages = new Set(),
   getReadInfo,
   highlightText,
   typingUser,
@@ -182,6 +178,75 @@ export default function ChatView({
   const [showMoreTools, setShowMoreTools] = React.useState(false);
   const closeMoreTools = () => setShowMoreTools(false);
 
+  // 微信对标功能状态：多选模式与合并转发、拍一拍
+  const [isMultiSelecting, setIsMultiSelecting] = useState(false);
+  const [selectedMsgIds, setSelectedMsgIds] = useState(new Set());
+  const [selectedMergedForward, setSelectedMergedForward] = useState(null);
+
+  const toggleSelectMsg = (id) => {
+    setSelectedMsgIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const startMultiSelectWithMsg = (id) => {
+    setIsMultiSelecting(true);
+    setSelectedMsgIds(new Set([id]));
+  };
+
+  const handleAvatarDoubleClick = (targetUsername) => {
+    if (!targetUsername || !currentRoomId) return;
+    socketRef?.current?.emit('patUser', { targetUsername, roomId: currentRoomId });
+    if (navigator.vibrate) {
+      try { navigator.vibrate(40); } catch(e) {}
+    }
+  };
+
+  const handleMergedForward = () => {
+    if (selectedMsgIds.size === 0) return;
+    const selectedMsgs = messages.filter((m) => selectedMsgIds.has(m.id));
+    const forwardPayload = {
+      type: 'merged_forward',
+      title: `${currentRoom?.name || '群聊'}的聊天记录`,
+      messages: selectedMsgs.map((m) => ({
+        id: m.id,
+        content: m.content,
+        type: m.type,
+        fileUrl: m.fileUrl,
+        mimeType: m.mimeType,
+        sender: m.sender,
+        timestamp: m.timestamp
+      }))
+    };
+    openForwardModal(forwardPayload);
+    setIsMultiSelecting(false);
+    setSelectedMsgIds(new Set());
+  };
+
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+
+  const handleSetGroupTodo = (msg) => {
+    if (!currentRoomId || !msg) return;
+    const text = msg.content || (msg.type === 'image' ? '[图片]' : '[多媒体消息]');
+    socketRef?.current?.emit('setGroupTodo', { roomId: currentRoomId, text, messageId: msg.id });
+    showToast?.('已设为群待办', 'success');
+  };
+
+  const handleCompleteGroupTodo = () => {
+    if (!currentRoomId) return;
+    socketRef?.current?.emit('completeGroupTodo', { roomId: currentRoomId });
+    showToast?.('已标记完成待办', 'success');
+  };
+
+  const handleDeleteGroupTodo = () => {
+    if (!currentRoomId) return;
+    socketRef?.current?.emit('deleteGroupTodo', { roomId: currentRoomId });
+    showToast?.('已移除群待办', 'info');
+  };
+
   return (
     <div className="chat-shell">
       <div className="chat-top-stack">
@@ -191,7 +256,15 @@ export default function ChatView({
               <I name="arrowLeft" size={20} />
             </button>
             <div className="chat-header-copy">
-              <h3>{currentRoom.name}</h3>
+              <div className="chat-header-title-row">
+                <h3>{currentRoom.name}</h3>
+                {isPrivateChat && otherUser?.status && (
+                  <span className="user-status-capsule" title="好友当前状态">
+                    <span>{otherUser.status.icon}</span>
+                    <span>{otherUser.status.text}</span>
+                  </span>
+                )}
+              </div>
               <div className="chat-header-meta">
                 {isPrivateChat ? (
                   <div className={`online-badge ${isOtherOnline ? '' : 'offline'}`}>{isOtherOnline ? '在线' : '离线'}</div>
@@ -316,6 +389,28 @@ export default function ChatView({
           </div>
         )}
         <SyncMediaRoom roomId={currentRoomId} socketRef={socketRef} user={user} showToast={showToast} />
+        {currentRoom?.groupTodo && (
+          <div className="group-todo-bar">
+            <div className="group-todo-left">
+              <span className="group-todo-badge">📌 群待办</span>
+              <span className="group-todo-text">{currentRoom.groupTodo.text}</span>
+            </div>
+            <div className="group-todo-actions">
+              {(currentRoom.groupTodo.doneUsers || []).includes(user?.username) ? (
+                <span className="group-todo-done-badge">✓ 已完成</span>
+              ) : (
+                <button type="button" className="group-todo-btn complete" onClick={handleCompleteGroupTodo}>
+                  完成待办
+                </button>
+              )}
+              {(currentRoom.owner === user?.username || (currentRoom.admins || []).includes(user?.username)) && (
+                <button type="button" className="group-todo-btn" onClick={handleDeleteGroupTodo} title="移除此待办">
+                  <I name="close" size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         {unreadCount > 50 && !aiSummary && (
           <button className="tldr-sticky-btn" type="button" onClick={() => summarizeChat(50)} disabled={aiSummaryLoading}>
             <I name="ai" size={16} />
@@ -324,8 +419,20 @@ export default function ChatView({
         )}
       </div>
       <div className="chat-thread">
-        <div className="messages-container" role="log" aria-live="polite" aria-relevant="additions text">
+        <div className={`messages-container${!isPrivateChat ? ' group-chat' : ''}`} role="log" aria-live="polite" aria-relevant="additions text">
         {messages.map((msg, index) => {
+          // 渲染系统拍一拍消息
+          if (msg.type === 'system' && msg.subType === 'pat') {
+            return (
+              <div key={msg.id || index} className="pat-message-item">
+                <div className="pat-bubble">
+                  <span className="pat-icon">👋</span>
+                  <span>{msg.content}</span>
+                </div>
+              </div>
+            );
+          }
+
           const isSearchMatch = searchQuery && !msg.recalled && msg.content?.toLowerCase().includes(searchQuery.toLowerCase());
           const isPinned = pinnedMessages[currentRoomId]?.includes(msg.id);
           const isStarred = starredMessages.has(msg.id);
@@ -390,8 +497,7 @@ export default function ChatView({
 
           const contentToRender = msg.recalled ? null : (
             <>
-              {msg.replyTo && renderReply(messages.find(m => m.id === msg.replyTo))}
-              {msg.type === 'undercoverEvent' && (
+              {msg.replyTo && renderReply(messages.find(m => m.id === msg.replyTo))}              {msg.type === 'undercoverEvent' && (
                 <div className="ucg-event-card">
                   <span className="ucg-event-icon"><I name="crown" size={14} /></span>
                   <span>{msg.content}</span>
@@ -561,6 +667,25 @@ export default function ChatView({
                   )}
                 </div>
               )}
+              {msg.type === 'merged_forward' && (
+                <div className="merged-forward-bubble" onClick={() => setSelectedMergedForward(msg)}>
+                  <div className="merged-card-title">
+                    <I name="chat" size={15} />
+                    <span>{msg.title || '聊天记录'}</span>
+                  </div>
+                  <div className="merged-card-preview-list">
+                    {(msg.messages || []).slice(0, 4).map((m, i) => (
+                      <div key={i} className="merged-preview-line">
+                        {m.sender?.username}: {m.content || '[多媒体消息]'}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="merged-card-footer">
+                    <span>聊天记录</span>
+                    <span>共 {(msg.messages || []).length} 条 ›</span>
+                  </div>
+                </div>
+              )}
               {(() => {
                 const bvid = parseBilibiliUrl(msg.content);
                 if (!bvid) return null;
@@ -574,7 +699,19 @@ export default function ChatView({
           );
           return (
           <div key={msg.id || index} id={`msg-${msg.id}`} className={`message ${isMine ? 'sent' : 'received'} ${isSearchMatch ? 'highlighted' : ''} ${isPinned ? 'pinned' : ''}`}>
-            <AvatarImg className="avatar" src={getAvatarUrl(msg.sender?.avatar || user?.avatar)} alt="" />
+            {isMultiSelecting && (
+              <div className="msg-checkbox-wrap">
+                <input
+                  type="checkbox"
+                  className="msg-checkbox"
+                  checked={selectedMsgIds.has(msg.id)}
+                  onChange={() => toggleSelectMsg(msg.id)}
+                />
+              </div>
+            )}
+            <div onDoubleClick={() => handleAvatarDoubleClick(msg.sender?.username)} title="双击头像拍一拍">
+              <AvatarImg className="avatar" src={getAvatarUrl(msg.sender?.avatar || user?.avatar)} alt="" />
+            </div>
             <div className="message-content">
               {isPinned && <div className="pinned-badge"><I name="pin" size={12} /> 置顶</div>}
               {!isMine && !msg.recalled && (
@@ -630,6 +767,10 @@ export default function ChatView({
                     <button onClick={() => togglePinMessage(msg.id)} title={isPinned ? '取消置顶' : '置顶'}>
                       <I name="pin" size={15} color={isPinned ? 'var(--primary)' : undefined} />
                     </button>
+                    <button onClick={() => startMultiSelectWithMsg(msg.id)} title="多选 / 合并转发"><I name="check" size={15} /></button>
+                    {currentRoom?.members?.length > 2 && (currentRoom.owner === user?.username || (currentRoom.admins || []).includes(user?.username)) && (
+                      <button onClick={() => handleSetGroupTodo(msg)} title="设为群待办"><I name="todo" size={15} /></button>
+                    )}
                   </div>
                 </>
               )}
@@ -690,6 +831,42 @@ export default function ChatView({
       </div>
       <TamagotchiPet socketRef={socketRef} roomId={currentRoomId} user={user} showToast={showToast} />
       <UndercoverGame socketRef={socketRef} roomId={currentRoomId} user={user} showToast={showToast} />
+      {isMultiSelecting && (
+        <div className="multi-select-bar">
+          <button type="button" className="multi-select-btn" onClick={handleMergedForward} disabled={selectedMsgIds.size === 0}>
+            <I name="forward" size={16} />
+            <span>合并转发 ({selectedMsgIds.size})</span>
+          </button>
+          <button type="button" className="multi-select-btn" onClick={() => {
+            selectedMsgIds.forEach(id => {
+              const m = messages.find(x => x.id === id);
+              if (m) openForwardModal(m);
+            });
+            setIsMultiSelecting(false);
+            setSelectedMsgIds(new Set());
+          }} disabled={selectedMsgIds.size === 0}>
+            <I name="share" size={16} />
+            <span>逐条转发</span>
+          </button>
+          <button type="button" className="multi-select-btn" onClick={() => setShowScreenshotModal(true)} disabled={selectedMsgIds.size === 0}>
+            <I name="camera" size={16} />
+            <span>生成长图</span>
+          </button>
+          <button type="button" className="multi-select-btn danger" onClick={() => {
+            setIsMultiSelecting(false);
+            setSelectedMsgIds(new Set());
+          }}>
+            <I name="close" size={16} />
+            <span>取消</span>
+          </button>
+        </div>
+      )}
+      <MergedForwardModal
+        show={!!selectedMergedForward}
+        onClose={() => setSelectedMergedForward(null)}
+        forwardData={selectedMergedForward}
+        showToast={showToast}
+      />
       <FreshChatComposer
         currentRoom={currentRoom}
         currentRoomId={currentRoomId}

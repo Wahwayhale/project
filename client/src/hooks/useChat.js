@@ -425,6 +425,7 @@ export function useChat({ socketRef, user, currentRoomId, currentRoom, showToast
     handleKeyDown,
     handleInputChange,
     handleFileSelect,
+    uploadFile,
     recallMessage,
     deleteMessage,
     startEditMessage,

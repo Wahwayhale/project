@@ -1,4 +1,4 @@
-﻿/* ==========================================
+/* ==========================================
    Sidebar — 聊天列表侧边栏
    ========================================== */
 .sidebar {
@@ -561,3 +561,169 @@
 .room-list-mobile .room-pin-btn {
   opacity: 1;
 }
+
+/* ==========================================
+   Navigation Rail — 桌面端极窄导航坞 (~68px)
+   ========================================== */
+.nav-rail {
+  display: none;
+  width: 68px;
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border-light);
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) 0;
+  flex-shrink: 0;
+  z-index: 30;
+  position: relative;
+}
+
+@media (min-width: 769px) {
+  .nav-rail {
+    display: flex;
+  }
+  /* 桌面端隐藏底部 TabBar，由 Navigation Rail 替代 */
+  .bottom-tab-bar {
+    display: none !important;
+  }
+}
+
+.nav-rail-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: var(--space-4);
+}
+
+.nav-rail-avatar {
+  position: relative;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--radius-lg);
+  transition: transform var(--duration-md) var(--ease);
+}
+
+.nav-rail-avatar:hover {
+  transform: scale(1.06);
+}
+
+.nav-rail-avatar img,
+.nav-rail-avatar .avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  border: 2px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-rail-online-dot {
+  position: absolute;
+  bottom: 0px;
+  right: 0px;
+  width: 11px;
+  height: 11px;
+  background: var(--success);
+  border: 2px solid var(--bg-elevated);
+  border-radius: var(--radius-full);
+}
+
+.nav-rail-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: center;
+  flex: 1;
+  width: 100%;
+  padding: 0 var(--space-2);
+}
+
+.nav-rail-btn {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-lg);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: all var(--duration-md) var(--ease);
+}
+
+.nav-rail-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.nav-rail-btn.active {
+  background: var(--primary-bg);
+  color: var(--primary);
+}
+
+.nav-rail-btn.active .nav-rail-icon {
+  animation: tabIconPop 0.35s var(--ease-spring);
+}
+
+.nav-rail-label {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.nav-rail-badge {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  min-width: 16px;
+  height: 16px;
+  background: var(--danger);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+}
+
+.nav-rail-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.nav-rail-icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--duration-md) var(--ease);
+}
+
+.nav-rail-icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+  transform: scale(1.08);
+}
+
+.nav-rail-icon-btn.danger:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+

@@ -1,6 +1,7 @@
 import React from 'react';
 import { getAvatarUrl } from '../utils/avatar';
 import AvatarImg from './ui/AvatarImg';
+import { I } from './Icon';
 
 function getContactsGrouped(friends, friendRequests) {
   const groups = {};
@@ -30,6 +31,8 @@ export default function ContactsView({
   acceptFriendRequest,
   rejectFriendRequest,
   onlineUsers = [],
+  urgentContacts = [],
+  toggleUrgentContact,
 }) {
   const onlineIds = new Set((onlineUsers || []).map(u => u.id));
   const filtered = searchQuery
@@ -71,13 +74,34 @@ export default function ContactsView({
             <div className="contacts-section-title">{letter}</div>
             {groups[letter].map(friend => {
               const isOnline = friend.id && onlineIds.has(friend.id);
+              const isUrgent = urgentContacts.includes(friend.username);
               return (
                 <div key={friend.id || friend.username} className="contact-item" onClick={() => { if (!friend.isRequest) startChatWithFriend(friend); }}>
                   <AvatarImg src={getAvatarUrl(friend.avatar)} alt="" className="contact-avatar" />
                   <div className="contact-info">
-                    <div className="contact-name">{friend.username}</div>
+                    <div className="contact-name">
+                      <span>{friend.username}</span>
+                      {friend.status && (
+                        <span className="user-status-capsule mini" title={friend.status.text}>
+                          <span>{friend.status.icon}</span>
+                        </span>
+                      )}
+                    </div>
                     {!friend.isRequest && <div className={`contact-desc ${isOnline ? '' : 'offline'}`}>{isOnline ? '在线' : '离线'}</div>}
                   </div>
+                  {!friend.isRequest && toggleUrgentContact && (
+                    <button
+                      type="button"
+                      className={`contact-urgent-btn ${isUrgent ? 'active' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleUrgentContact(friend.username);
+                      }}
+                      title={isUrgent ? '已开启全屏强提醒（点击关闭）' : '开启全屏强提醒'}
+                    >
+                      <I name="bell" size={15} color={isUrgent ? 'var(--danger)' : 'var(--text-tertiary)'} />
+                    </button>
+                  )}
                 </div>
               );
             })}

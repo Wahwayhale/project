@@ -8,10 +8,18 @@
   min-height: 100vh;
   min-height: 100dvh;
   width: 100%;
-  background: var(--bg);
+  background: linear-gradient(-45deg, #f3fffd, #eef4ff, #fdf2f8, #edfdf9);
+  background-size: 400% 400%;
+  animation: gradientFlow 15s ease infinite;
   position: relative;
   overflow: hidden;
   padding: var(--space-4);
+}
+
+@keyframes gradientFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 .auth-container::before,
@@ -50,7 +58,20 @@
   position: relative;
   z-index: 1;
   animation: authFadeIn 0.55s var(--ease-bounce);
+  overflow: hidden;
+}
 
+/* 品牌光束 */
+.auth-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20%;
+  right: 20%;
+  height: 3px;
+  border-radius: 0 0 4px 4px;
+  background: var(--primary-gradient);
+  box-shadow: 0 0 20px rgba(20, 184, 166, 0.4);
 }
 
 @keyframes authFadeIn {

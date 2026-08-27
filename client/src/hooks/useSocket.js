@@ -49,17 +49,19 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
         reconnectionDelayMax: 10000,
         timeout: 20000,
         upgrade: false,
-        perMessageDeflate: true
+        perMessageDeflate: true,
+        auth: { token: tokenRef.current }
       });
 
       socketRef.current.on('connect', () => {
         console.log('Socket connected');
-        socketRef.current.emit('authenticate', tokenRef.current);
       });
 
       socketRef.current.on('disconnect', (reason) => {
         console.log('Socket disconnected:', reason);
-        h.showToast('连接已断开，正在重连...', 'info');
+        if (reason !== 'io client disconnect') {
+          h.showToast('连接已断开，正在重连...', 'info');
+        }
       });
 
       socketRef.current.on('connect_error', (err) => {
@@ -89,6 +91,19 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
         setOnlineUsers(prev => prev.filter(u => u.id !== data.id));
         h.setFriends(prev => prev.map(f => f.id === data.id ? { ...f, online: false } : f));
         h.setAllUsers(prev => prev.map(u => u.id === data.id ? { ...u, online: false } : u));
+      });
+
+      socketRef.current.on('userStatusUpdated', (data) => {
+        h.setAllUsers(prev => (prev || []).map(u => u.username === data.username ? { ...u, status: data.status } : u));
+        h.setFriends(prev => (prev || []).map(f => f.username === data.username ? { ...f, status: data.status } : f));
+        if (h.setUser && data.username === userRef.current?.username) {
+          h.setUser(prev => prev ? { ...prev, status: data.status } : prev);
+        }
+      });
+
+      socketRef.current.on('groupTodoUpdated', (data) => {
+        h.setCurrentRoom(prev => (prev && prev.id === data.roomId ? { ...prev, groupTodo: data.groupTodo } : prev));
+        h.setRooms(prev => (prev || []).map(r => r.id === data.roomId ? { ...r, groupTodo: data.groupTodo } : r));
       });
 
       socketRef.current.on('newMessage', (message) => {
@@ -136,6 +151,9 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
           return room;
         }));
         const currentUser = userRef.current;
+        if (h.onUrgentMessage && message.sender && message.sender.username !== currentUser?.username) {
+          h.onUrgentMessage(message);
+        }
         // 桌面通知 - 仅在页面隐藏、消息发送者不是自己、且启用通知时弹出
         if (typeof Notification !== 'undefined' && h.notifyEnabled && !h.notifyMuted && message.sender?.id !== currentUser?.id && document.hidden) {
           try {
@@ -624,7 +642,7 @@ export function useSocket({ token, user, isAuthenticated, handlers, socketRef: e
       }
     };
     // eslint-disable-next-line
-  }, [isAuthenticated, user, token]);
+  }, [isAuthenticated, user?.username, token]);
 
   return { socketRef, onlineUsers };
 }

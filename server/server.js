@@ -25,6 +25,8 @@ function resolveEnvConfig() {
 const envConfigFile = resolveEnvConfig();
 dotenv.config({ path: envConfigFile.fullPath });
 console.log(`[SERVER] Using config: ${envConfigFile.name}, Port: ${process.env.PORT || 3001}`);
+// 允许的跨域来源：生产 ngrok 域名 + 本地开发 + Capacitor 客户端，可用环境变量 ALLOWED_ORIGINS（逗号分隔）覆盖
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://parakeet-nimble-cage.ngrok-free.dev,http://localhost:3000,http://localhost,capacitor://localhost').split(',').map(s => s.trim()).filter(Boolean);
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
@@ -37,7 +39,7 @@ const db = require('./db');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: { origin: ALLOWED_ORIGINS, methods: ["GET", "POST"] },
   maxHttpBufferSize: 100 * 1024 * 1024,
   transports: ['websocket'],          // 仅 WebSocket，不用 HTTP 轮询
   pingInterval: 25000,                // 25s 心跳
@@ -46,6 +48,24 @@ const io = new Server(server, {
   allowUpgrades: false,               // 禁止降级到轮询
   perMessageDeflate: true,            // WebSocket 压缩
   maxDisconnectionDuration: 120000    // 2分钟断线缓冲
+});
+
+// ========== Socket.io 连接认证中间件 ==========
+// 握手阶段校验 JWT，未认证连接直接拒绝
+io.use((socket, next) => {
+  try {
+    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+    if (!token) return next(new Error('未提供认证令牌'));
+    const raw = token.startsWith('Bearer ') ? token.slice(7) : token;
+    const decoded = jwt.verify(raw, JWT_SECRET);
+    const user = users.get(decoded.username);
+    if (!user) return next(new Error('用户不存在'));
+    socket.user = user;
+    socket.username = user.username;
+    next();
+  } catch (err) {
+    next(new Error('认证失败'));
+  }
 });
 
 // ========== 生产级中间件 ==========
@@ -58,7 +78,7 @@ app.use(helmet({
   contentSecurityPolicy: false // SPA 内联样式多，关闭 CSP
 })); // 安全头：XSS/点击劫持/嗅探防护
 app.use(compression({ level: 6, threshold: 256 }));
-app.use(cors());
+app.use(cors({ origin: ALLOWED_ORIGINS }));
 
 // 全局限流：每个 IP 每分钟 120 次
 app.use(rateLimit({
@@ -71,6 +91,11 @@ app.use(rateLimit({
 const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: '操作频繁，请稍后再试' } });
 app.use('/api/login', authLimiter);
 app.use('/api/register', authLimiter);
+app.use('/api/user/send-reset-code', authLimiter);
+// 验证码校验限流：15 分钟内同一 IP 最多 20 次（防验证码暴力枚举）
+const codeVerifyLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: '验证尝试过多，请稍后重新获取验证码' } });
+app.use('/api/user/reset-password', codeVerifyLimiter);
+app.use('/api/user/verify-and-bind', codeVerifyLimiter);
 
 app.use(express.json({ limit: '10mb' }));
 // 静态文件缓存
@@ -78,7 +103,11 @@ const staticOpts = { maxAge: '7d', etag: true, lastModified: true, setHeaders: (
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), staticOpts));
 app.use('/releases', express.static(path.join(__dirname, '..', 'client', 'releases'), staticOpts));
 
-const JWT_SECRET = 'wechat-secret-key-2024';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('[FATAL] JWT_SECRET 未配置，请在 .env 中设置');
+  process.exit(1);
+}
 const PORT = process.env.PORT || 3001;
 
 const collections = db.init();
@@ -91,6 +120,8 @@ const recharges = collections.recharges;
 const transfers = collections.transfers;
 const dailyReport = collections.dailyReport;
 const pushTokens = collections.pushTokens;
+const favorites = collections.favorites;
+const offlineBriefings = collections.offlineBriefings;
 const AUDIT_FILE = path.join(DATA_DIR, 'adminAudit.json');
 let auditLog = [];
 
@@ -323,15 +354,33 @@ const storage = multer.diskStorage({
   }
 });
 
+// 文件上传安全：禁止可执行/脚本类扩展名，防止存储型 XSS 与恶意文件分发
+const BLOCKED_UPLOAD_EXTS = new Set([
+  '.exe', '.bat', '.cmd', '.com', '.scr', '.msi', '.ps1', '.sh', '.bash',
+  '.html', '.htm', '.xhtml', '.svg', '.xml',
+  '.js', '.mjs', '.jar', '.php', '.jsp', '.asp', '.aspx', '.cgi',
+  '.dll', '.so', '.dylib', '.app', '.deb', '.rpm', '.apk'
+]);
+
+function uploadFileFilter(req, file, cb) {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  if (BLOCKED_UPLOAD_EXTS.has(ext)) {
+    return cb(new Error(`不支持的文件类型: ${ext}`));
+  }
+  cb(null, true);
+}
+
 const upload = multer({
   storage,
-  limits: { fileSize: 500 * 1024 * 1024 }
+  limits: { fileSize: 500 * 1024 * 1024 },
+  fileFilter: uploadFileFilter
 });
 
 // 简单文件上传用内存存储（前端仅 <2MB 走此路径），解析直接用 buffer 避开落盘竞态
 const simpleUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 }
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: uploadFileFilter
 });
 
 function verifyToken(req, res, next) {
@@ -363,10 +412,16 @@ function ensureUserData(userId) {
 app.post('/api/register', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password required' });
+    return res.status(400).json({ error: '用户名和密码不能为空' });
+  }
+  if (typeof username !== 'string' || username.length < 2 || username.length > 20) {
+    return res.status(400).json({ error: '用户名长度需为 2-20 个字符' });
+  }
+  if (typeof password !== 'string' || password.length < 6 || password.length > 64) {
+    return res.status(400).json({ error: '密码长度需为 6-64 个字符' });
   }
   if (users.has(username)) {
-    return res.status(400).json({ error: 'Username already exists' });
+    return res.status(400).json({ error: '用户名已存在' });
   }
   const hashedPassword = await bcrypt.hash(password, 10);
   let sixDigitId = generateSixDigitId();
@@ -397,9 +452,12 @@ app.post('/api/register', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
+  if (typeof username !== 'string' || typeof password !== 'string') {
+    return res.status(400).json({ error: '用户名或密码错误' });
+  }
   const user = users.get(username);
   if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(401).json({ error: 'Invalid credentials' });
+    return res.status(401).json({ error: '用户名或密码错误' });
   }
   const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: { id: user.id, username: user.username, avatar: user.avatar, sixDigitId: user.sixDigitId, bio: user.bio } });
@@ -539,8 +597,8 @@ app.get('/api/users/:username/paycode', verifyToken, (req, res) => {
 
 // ========== 充值系统 ==========
 
-// 管理员收款码（用户充值时显示）
-const ADMIN_PAY_CODE = '/paycode.jpg'; // 收款码图片路径
+// 管理员收款码（用户充值时显示，可通过 .env ADMIN_PAY_CODE 覆盖）
+const ADMIN_PAY_CODE = process.env.ADMIN_PAY_CODE || '/paycode.jpg';
 
 // AI调用价格（每次调用扣费金额，单位：元）
 const AI_CALL_PRICE = 0.02; // 每次调用0.02元
@@ -870,8 +928,7 @@ app.post('/api/friends/accept', verifyToken, (req, res) => {
   }
   
   ensureUserData(req.user.id);
-  ensureUserData(req.user.id);
-  
+
   const requests = friendRequests.get(req.user.id) || [];
   if (!requests.includes(username)) {
     return res.status(400).json({ error: 'No friend request from this user' });
@@ -920,6 +977,62 @@ const https = require('https');
 
 let ZHIPU_API_KEY = process.env.ZHIPU_API_KEY || '';
 let KIMI_API_KEY = process.env.KIMI_API_KEY || '';
+// ===== 微信功能：我的收藏与笔记 (Favorites & Notes) =====
+app.get('/api/favorites', verifyToken, (req, res) => {
+  const userFavorites = [];
+  for (const [id, fav] of favorites.entries()) {
+    if (fav.username === req.user.username) {
+      userFavorites.push({ id, ...fav });
+    }
+  }
+  userFavorites.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json({ favorites: userFavorites });
+});
+
+app.post('/api/favorites', verifyToken, (req, res) => {
+  const { type = 'note', title, content, data, tags = [] } = req.body;
+  if (!content && !data) {
+    return res.status(400).json({ error: '内容不能为空' });
+  }
+  const id = uuidv4();
+  const fav = {
+    id,
+    username: req.user.username,
+    type,
+    title: (title || '我的收藏').slice(0, 60),
+    content: content || '',
+    data: data || null,
+    tags: Array.isArray(tags) ? tags.slice(0, 5) : [],
+    createdAt: new Date()
+  };
+  favorites.set(id, fav);
+  favorites.save();
+  res.json({ success: true, favorite: fav });
+});
+
+app.delete('/api/favorites/:id', verifyToken, (req, res) => {
+  const { id } = req.params;
+  const fav = favorites.get(id);
+  if (!fav || fav.username !== req.user.username) {
+    return res.status(404).json({ error: '收藏项不存在或无权删除' });
+  }
+  favorites.delete(id);
+  favorites.save();
+  res.json({ success: true });
+});
+
+// ===== 微信功能：AI 离线代答简报 (Offline AI Briefings) =====
+app.get('/api/briefings', verifyToken, (req, res) => {
+  const list = offlineBriefings.get(req.user.username) || [];
+  res.json({ briefings: list });
+});
+
+app.delete('/api/briefings', verifyToken, (req, res) => {
+  offlineBriefings.set(req.user.username, []);
+  offlineBriefings.save();
+  res.json({ success: true });
+});
+
 let DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 let QIANFAN_API_KEY = process.env.QIANFAN_API_KEY || '';
 const ZHIPU_BASE = 'open.bigmodel.cn';
@@ -1277,6 +1390,15 @@ app.post('/api/ai/chat', verifyToken, async (req, res) => {
   }
   
   const history = aiConversations.get(userId);
+
+  // 如果传入了文档 systemContext，更新会话的 system 提示词，使后续连续多轮提问都能识别该文档
+  if (systemContext && systemContext.trim()) {
+    history[0] = {
+      role: 'system',
+      content: `你是一个友好、专业、乐于助人的AI助手。\n\n【用户已上传的文档资料】：\n=== 文档内容开始 ===\n${systemContext.trim()}\n=== 文档内容结束 ===\n\n请在接下来的对话中，充分基于上述文档资料，详实、准确、有条理地回答用户关于该文档的所有提问。`
+    };
+  }
+
   history.push({ role: 'user', content: message });
   
   if (history.length > 21) {
@@ -1298,16 +1420,7 @@ app.post('/api/ai/chat', verifyToken, async (req, res) => {
     });
   }
 
-  // 构造本次调用上下文：若传入文档 systemContext，临时注入一条 system message，不污染持久会话
-  let callMessages = history;
-  if (systemContext && systemContext.trim()) {
-    const docSystem = {
-      role: 'system',
-      content: `以下是用户上传的文档内容，请据此回答用户接下来的问题：\n\n${systemContext.trim()}`
-    };
-    callMessages = [history[0], docSystem, ...history.slice(1)];
-  }
-
+  const callMessages = history;
   const result = await callSelectedAIModel(callMessages, useModel);
 
   if (!result.ok) {
@@ -1633,28 +1746,85 @@ app.get('/api/bilibili/popular', verifyToken, (req, res) => {
   });
 });
 
-app.get('/api/bilibili/proxy-image', (req, res) => {
+// B 站图片代理：域名白名单 + DNS 内网地址拦截，防止 SSRF 探测内网
+const dns = require('dns');
+const BILI_IMG_HOSTS = ['hdslb.com', 'bilibili.com', 'bilivideo.com', 'bilivideo.cn', 'alicdn.com'];
+function isPrivateIP(ip) {
+  if (!ip) return true;
+  if (ip === '::1' || ip === '::' || ip === '0.0.0.0') return true;
+  if (ip.toLowerCase().startsWith('fc') || ip.toLowerCase().startsWith('fd') || ip.toLowerCase().startsWith('fe80')) return true;
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some(p => isNaN(p))) return true;
+  if (parts[0] === 127) return true;                 // 回环
+  if (parts[0] === 10) return true;                  // A 类私网
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true; // B 类私网
+  if (parts[0] === 192 && parts[1] === 168) return true; // C 类私网
+  if (parts[0] === 169 && parts[1] === 254) return true; // 链路本地/云元数据
+  return false;
+}
+
+app.get('/api/bilibili/proxy-image', verifyToken, (req, res) => {
   let imageUrl = req.query.url;
   if (!imageUrl) {
     return res.status(400).json({ error: 'Invalid url' });
   }
   // 协议相对 URL → 补全 https:
   if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl;
-  if (!imageUrl.startsWith('http')) {
+  let parsed;
+  try {
+    parsed = new URL(imageUrl);
+  } catch {
     return res.status(400).json({ error: 'Invalid url' });
   }
-  https.get(imageUrl, {
-    headers: {
-      'Referer': 'https://www.bilibili.com',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-  }, (response) => {
-    res.setHeader('Content-Type', response.headers['content-type'] || 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // 浏览器缓存24小时
-    response.pipe(res);
-  }).on('error', (err) => {
-    res.status(500).json({ error: err.message });
-  });
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return res.status(400).json({ error: 'Invalid url' });
+  }
+  // 域名白名单：仅允许 B 站/阿里 CDN 域名
+  const host = parsed.hostname.toLowerCase();
+  if (!BILI_IMG_HOSTS.some(d => host === d || host.endsWith('.' + d))) {
+    return res.status(403).json({ error: '不允许的图片来源' });
+  }
+  // DNS 解析后校验，拒绝内网/回环地址
+  dns.promises.lookup(host, { all: true })
+    .then(addrs => {
+      if (addrs.some(a => isPrivateIP(a.address))) {
+        return res.status(403).json({ error: '不允许的图片来源' });
+      }
+      https.get(imageUrl, {
+        headers: {
+          'Referer': 'https://www.bilibili.com',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        timeout: 10000
+      }, (response) => {
+        // 拒绝跳转，防止绕过域名校验
+        if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
+          response.resume();
+          return res.status(403).json({ error: '不允许的重定向' });
+        }
+        res.setHeader('Content-Type', response.headers['content-type'] || 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400'); // 浏览器缓存24小时
+        let received = 0;
+        const MAX_SIZE = 20 * 1024 * 1024; // 20MB 上限
+        response.on('data', chunk => {
+          received += chunk.length;
+          if (received > MAX_SIZE) {
+            response.destroy();
+            if (!res.headersSent) res.status(413).json({ error: '图片过大' });
+            else res.end();
+          }
+        });
+        response.pipe(res);
+      }).on('timeout', function () {
+        this.destroy();
+        if (!res.headersSent) res.status(504).json({ error: '图片加载超时' });
+      }).on('error', () => {
+        if (!res.headersSent) res.status(502).json({ error: '图片加载失败' });
+      });
+    })
+    .catch(() => {
+      if (!res.headersSent) res.status(403).json({ error: '图片域名解析失败' });
+    });
 });
 
 app.get('/api/rooms', verifyToken, (req, res) => {
@@ -1722,7 +1892,7 @@ app.post('/api/upload/init', verifyToken, (req, res) => {
 });
 
 // 分片上传使用内存存储
-const chunkUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const chunkUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: uploadFileFilter });
 app.post('/api/upload/chunk', verifyToken, chunkUpload.single('chunk'), (req, res) => {
   const { uploadId, chunkIndex } = req.body;
   const uploadData = chunksStore.get(uploadId);
@@ -1750,7 +1920,12 @@ app.post('/api/upload/complete', verifyToken, (req, res) => {
     return res.status(400).json({ error: 'Not all chunks uploaded' });
   }
   const chunkPath = path.join(__dirname, 'uploads', 'chunks', uploadId);
-  const ext = path.extname(uploadData.filename);
+  const ext = path.extname(uploadData.filename).toLowerCase();
+  if (BLOCKED_UPLOAD_EXTS.has(ext)) {
+    fs.rmSync(chunkPath, { recursive: true, force: true });
+    chunksStore.delete(uploadId);
+    return res.status(400).json({ error: `不支持的文件类型: ${ext}` });
+  }
   const finalFileName = `${uploadId}${ext}`;
   const finalPath = path.join(__dirname, 'uploads', finalFileName);
   const writeStream = fs.createWriteStream(finalPath);
@@ -1768,27 +1943,93 @@ app.post('/api/upload/complete', verifyToken, (req, res) => {
   });
 });
 
-// ========== 文档解析（PDF/Word/文本） ==========
-const DOC_PARSE_EXTENSIONS = ['.pdf', '.docx', '.txt', '.md'];
+// ========== 文档解析（PDF/Word/Markdown/文本/代码） ==========
+const AI_DOC_PARSE_EXTENSIONS = [
+  '.pdf', '.docx', '.doc', '.txt', '.md', '.markdown',
+  '.json', '.csv', '.log', '.rtf', '.yaml', '.yml', '.xml',
+  '.html', '.htm', '.js', '.jsx', '.ts', '.tsx', '.py', '.java', '.c', '.cpp', '.sql', '.sh'
+];
+const DOC_PARSE_EXTENSIONS = AI_DOC_PARSE_EXTENSIONS;
 
-// 文档解析直接从内存 buffer 读取（pdf-parse 2.x / mammoth）
+// 健壮的多格式文本解码器（UTF-8 优先，自动回退 GBK / ASCII）
+function decodeTextBuffer(buffer) {
+  try {
+    const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+    return utf8Decoder.decode(buffer);
+  } catch (_) {
+    try {
+      const gbkDecoder = new TextDecoder('gbk', { fatal: false });
+      return gbkDecoder.decode(buffer);
+    } catch (e) {
+      return buffer.toString('utf-8');
+    }
+  }
+}
+
+// 文档解析直接从内存 buffer 读取（pdf-parse 2.x / mammoth / TextDecoder）
 async function extractDocumentText(buffer, ext) {
-  if (ext === '.pdf') {
-    const { PDFParse } = require('pdf-parse');
-    const parser = new PDFParse({ data: buffer });
-    const result = await parser.getText();
-    return (result.text || '').trim();
+  if (!buffer || buffer.length === 0) return '';
+  const cleanExt = (ext || '').toLowerCase();
+
+  // 1. PDF 文件解析
+  if (cleanExt === '.pdf') {
+    try {
+      const { PDFParse } = require('pdf-parse');
+      const parser = new PDFParse({ data: buffer });
+      const result = await parser.getText();
+      const text = (result?.text || '').trim();
+      if (text) return text;
+    } catch (e) {
+      console.warn('[extractDocumentText] PDFParse 错误，尝试流降级提取:', e.message);
+    }
+    // 降级：从 PDF 二进制流中提取可见文本
+    try {
+      const raw = buffer.toString('binary');
+      const matches = raw.match(/\(([^()]+)\)Tj/g) || [];
+      if (matches.length > 0) {
+        return matches.map(m => m.slice(1, -3)).join(' ').trim();
+      }
+    } catch (_) {}
+    return '';
   }
-  if (ext === '.docx' || ext === '.doc') {
-    // mammoth 原生仅支持 .docx；.doc 会自然抛错并由调用方返回具体错误
-    const mammoth = require('mammoth');
-    const result = await mammoth.extractRawText({ buffer });
-    return (result.value || '').trim();
+
+  // 2. Word .docx 文件解析
+  if (cleanExt === '.docx') {
+    try {
+      const mammoth = require('mammoth');
+      const result = await mammoth.extractRawText({ buffer });
+      return (result?.value || '').trim();
+    } catch (e) {
+      console.error('[extractDocumentText] mammoth docx 解析失败:', e.message);
+      throw new Error(`Word (.docx) 解析失败: ${e.message}`);
+    }
   }
-  if (ext === '.txt' || ext === '.md') {
-    return buffer.toString('utf-8').trim();
+
+  // 3. Word .doc (旧二进制格式) 解析
+  if (cleanExt === '.doc') {
+    try {
+      const mammoth = require('mammoth');
+      const result = await mammoth.extractRawText({ buffer });
+      if (result?.value?.trim()) return result.value.trim();
+    } catch (_) {}
+    // 提取 .doc 二进制中的中英文连续文本块
+    try {
+      const raw = buffer.toString('binary');
+      const matches = raw.match(/[\u0020-\u007E\u4E00-\u9FA5\r\n\t]{4,}/g) || [];
+      const extracted = matches.join(' ').replace(/\s+/g, ' ').trim();
+      if (extracted.length > 10) return extracted;
+    } catch (_) {}
+    return '';
   }
-  return '';
+
+  // 4. RTF 富文本解析（过滤控制字）
+  if (cleanExt === '.rtf') {
+    const raw = decodeTextBuffer(buffer);
+    return raw.replace(/\\([a-z]{1,32})(-?\d+)? ?|\\\'([0-9a-f]{2})|\\([^a-z])/gi, ' ').replace(/[{}]/g, '').trim();
+  }
+
+  // 5. 纯文本、Markdown、JSON、CSV、代码等
+  return decodeTextBuffer(buffer).trim();
 }
 
 app.post('/api/upload/simple', verifyToken, simpleUpload.single('file'), async (req, res) => {
@@ -1796,8 +2037,14 @@ app.post('/api/upload/simple', verifyToken, simpleUpload.single('file'), async (
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
+  // 处理中文文件名乱码
+  let originalName = req.file.originalname || '';
+  try {
+    originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+  } catch (_) {}
+
   // memoryStorage 不自动落盘，手动同步写盘（确保 fileUrl 可用）
-  const ext = path.extname(req.file.originalname || '').toLowerCase();
+  const ext = path.extname(originalName || '').toLowerCase();
   const filename = `${Date.now()}-${uuidv4()}${ext}`;
   const uploadDir = path.join(__dirname, 'uploads');
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -1805,7 +2052,7 @@ app.post('/api/upload/simple', verifyToken, simpleUpload.single('file'), async (
   fs.writeFileSync(filePath, req.file.buffer);
 
   const fileUrl = `/uploads/${filename}`;
-  const response = { url: fileUrl, filename: req.file.originalname };
+  const response = { url: fileUrl, filename: originalName };
 
   // 文档自动解析：PDF/Word/文本上传后生成 AI 摘要（解析失败不阻断上传，降级为普通文件消息）
   if (DOC_PARSE_EXTENSIONS.includes(ext)) {
@@ -1830,34 +2077,43 @@ app.post('/api/upload/simple', verifyToken, simpleUpload.single('file'), async (
   res.json(response);
 });
 
-// ========== AI 文档解析端点（PDF/Word/TXT → 纯文本，供前端作为 system 上下文喂给 AI） ==========
+// ========== AI 文档解析端点（PDF/Word/TXT/MD 等 → 纯文本，供前端作为 system 上下文喂给 AI） ==========
 // 仅做本地文档解析，不调用 AI 模型，因此不扣费（admin 与普通用户一致）。
 // 复用现有 upload 中间件（diskStorage，500MB 上限），解析后删除临时文件。
-const AI_DOC_PARSE_EXTENSIONS = ['.pdf', '.docx', '.doc', '.txt'];
-
 app.post('/api/ai/parse-document', verifyToken, upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, error: '未收到文件' });
   }
-  const originalName = req.file.originalname || '';
+
+  // 修复 multer 中文文件名 latin1 乱码
+  let originalName = req.file.originalname || '';
+  try {
+    originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+  } catch (_) {}
+
   const ext = path.extname(originalName).toLowerCase();
   if (!AI_DOC_PARSE_EXTENSIONS.includes(ext)) {
     try { fs.unlinkSync(req.file.path); } catch (_) {}
     return res.status(400).json({
       success: false,
-      error: `不支持的文件类型: ${ext || '无扩展名'}，仅支持 pdf/docx/doc/txt`
+      error: `不支持的文件类型: ${ext || '无扩展名'}，支持 pdf/word/txt/markdown/json/csv/代码 等常见文档`
     });
   }
   try {
     const buffer = fs.readFileSync(req.file.path);
     const text = await extractDocumentText(buffer, ext);
     if (!text) {
-      return res.status(422).json({ success: false, error: '文档解析结果为空，可能是扫描件或格式异常' });
+      return res.status(422).json({ success: false, error: '文档解析结果为空，可能是扫描件图片或空文档' });
     }
-    const truncated = text.slice(0, 50000);
+    const truncated = text.slice(0, 80000);
     res.json({
       success: true,
-      data: { text: truncated, filename: originalName, size: req.file.size }
+      data: {
+        text: truncated,
+        filename: originalName,
+        size: req.file.size,
+        charCount: truncated.length
+      }
     });
   } catch (e) {
     console.error('[AI-PARSE-DOC] 解析失败:', e.message);
@@ -1924,7 +2180,8 @@ app.post('/api/user/send-code', verifyToken, (req, res) => {
   verificationCodes.set(phone, {
     code,
     expiresAt: Date.now() + 5 * 60 * 1000, // 5 分钟有效
-    userId: user.id
+    userId: user.id,
+    attempts: 0 // 错误尝试次数，防暴力枚举
   });
   
   // 尝试发送短信（可配置，失败不影响流程）
@@ -1987,7 +2244,12 @@ app.post('/api/user/verify-and-bind', verifyToken, (req, res) => {
     return res.status(400).json({ error: '验证码已过期，请重新获取' });
   }
   if (stored.code !== code) {
-    return res.status(400).json({ error: '验证码错误' });
+    stored.attempts = (stored.attempts || 0) + 1;
+    if (stored.attempts >= 5) {
+      verificationCodes.delete(phone);
+      return res.status(429).json({ error: '错误次数过多，验证码已失效，请重新获取' });
+    }
+    return res.status(400).json({ error: `验证码错误，还可尝试 ${5 - stored.attempts} 次` });
   }
   if (stored.userId !== user.id) {
     return res.status(400).json({ error: '验证码与用户不匹配' });
@@ -2044,7 +2306,7 @@ app.post('/api/user/send-reset-code', (req, res) => {
     return res.status(429).json({ error: '请 60 秒后再试' });
   }
   const code = generateCode();
-  verificationCodes.set(phone, { code, expiresAt: Date.now() + 5 * 60 * 1000, userId: user.id });
+  verificationCodes.set(phone, { code, expiresAt: Date.now() + 5 * 60 * 1000, userId: user.id, attempts: 0 });
   sendSms(phone, code).catch(err => console.error('短信发送失败:', err.message));
   res.json({ success: true, message: '验证码已发送' });
 });
@@ -2054,16 +2316,24 @@ app.post('/api/user/reset-password', async (req, res) => {
   if (!phone || !code || !newPassword) {
     return res.status(400).json({ error: '缺少参数' });
   }
-  if (newPassword.length < 3) {
-    return res.status(400).json({ error: '密码至少3位' });
+  if (typeof newPassword !== 'string' || newPassword.length < 6 || newPassword.length > 64) {
+    return res.status(400).json({ error: '密码长度需为 6-64 个字符' });
   }
   const user = Array.from(users.values()).find(u => u.phone === phone);
   if (!user) {
     return res.status(404).json({ error: '该手机号未绑定任何账号' });
   }
   const stored = verificationCodes.get(phone);
-  if (!stored || stored.code !== code || Date.now() > stored.expiresAt) {
-    return res.status(400).json({ error: '验证码错误或已过期' });
+  if (!stored || Date.now() > stored.expiresAt) {
+    return res.status(400).json({ error: '验证码不存在或已过期，请重新获取' });
+  }
+  if (stored.code !== code) {
+    stored.attempts = (stored.attempts || 0) + 1;
+    if (stored.attempts >= 5) {
+      verificationCodes.delete(phone);
+      return res.status(429).json({ error: '错误次数过多，验证码已失效，请重新获取' });
+    }
+    return res.status(400).json({ error: `验证码错误，还可尝试 ${5 - stored.attempts} 次` });
   }
   user.password = await bcrypt.hash(newPassword, 10);
   users.set(user.username, user);
@@ -2893,19 +3163,25 @@ app.get('/api/map/poi', verifyToken, (req, res) => {
 // 高德静态地图 (无需 Key 的 HTML iframe，使用高德 JS API)
 app.get('/api/map/static', (req, res) => {
   const { lat, lng, zoom } = req.query;
-  if (!lat || !lng) return res.status(400).json({ error: '缺少坐标' });
-  const z = zoom || 15;
+  // 严格数值校验：杜绝注入（原实现直接拼接原始字符串导致反射型 XSS）
+  const latNum = parseFloat(lat);
+  const lngNum = parseFloat(lng);
+  const zNum = parseInt(zoom, 10);
+  if (!lat || !lng || isNaN(latNum) || isNaN(lngNum)) return res.status(400).json({ error: '缺少有效坐标' });
+  if (latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) return res.status(400).json({ error: '坐标超出范围' });
+  const z = !isNaN(zNum) && zNum >= 3 && zNum <= 20 ? zNum : 15;
   const akScript = AMAP_KEY ? `<script src="https://webapi.amap.com/maps?v=2.0&key=${AMAP_KEY}"></script>` : '';
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>*{margin:0;padding:0}html,body{width:100%;height:100%}#map{width:100%;height:100%}</style>
 ${akScript}</head><body><div id="map"></div>
 <script>
-var m = new AMap.Map('map', { center: [${lng},${lat}], zoom: ${z}, resizeEnable: true });
-var marker = new AMap.Marker({ position: [${lng},${lat}] });
+var m = new AMap.Map('map', { center: [${lngNum},${latNum}], zoom: ${z}, resizeEnable: true });
+var marker = new AMap.Marker({ position: [${lngNum},${latNum}] });
 m.add(marker);
 m.setFitView(null, false, [60, 60, 60, 60]);
 </script></body></html>`;
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   res.send(html);
 });
 
@@ -4030,44 +4306,45 @@ app.post('/api/voice/kick', verifyToken, (req, res) => {
 });
 
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  console.log('User connected:', socket.id, socket.username);
 
-  socket.on('authenticate', (token) => {
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      socket.userId = decoded.id;
-      socket.username = decoded.username;
-      // 追踪连接数，支持多端在线
-      const prevCount = userConnectionCount.get(decoded.id) || 0;
-      userConnectionCount.set(decoded.id, prevCount + 1);
-      onlineUsers.set(decoded.id, { id: decoded.id, username: decoded.username });
-      userSockets.set(decoded.id, socket);
-      socket.emit('authenticated', { user: { id: decoded.id, username: decoded.username } });
-      // 仅首次连接时广播上线事件
-      if (prevCount === 0) {
-        io.emit('userOnline', { id: decoded.id, username: decoded.username });
-      }
-      // 向新连接的客户端发送当前所有在线用户
-      const onlineList = Array.from(onlineUsers.values()).map(u => ({ id: u.id, username: u.username }));
-      socket.emit('onlineUsersList', onlineList);
-      
-      ensureUserData(decoded.id);
-      if (socket.pendingVoiceRoomId) {
-        joinVoiceSocket(socket, socket.pendingVoiceRoomId);
-      }
-      
-      const globalRoom = rooms.get('global');
-      if (globalRoom) {
-        socket.join('global');
-        socket.currentRoom = 'global';
-        socket.emit('joinedRoom', { roomId: 'global', messages: globalRoom.messages.slice(-100) });
-        socket.emit('roomCreated', { id: 'global', name: '全局聊天', type: 'public' });
-      }
-      
-      console.log(`User ${decoded.username} authenticated`);
-    } catch (err) {
-      socket.emit('authError', { error: 'Invalid token' });
-    }
+  // 认证已由 io.use() 中间件完成，socket.username / socket.user 已就绪
+  const userId = socket.user.id;
+  const username = socket.user.username;
+  socket.userId = userId;
+
+  // 追踪连接数，支持多端在线
+  const prevCount = userConnectionCount.get(userId) || 0;
+  userConnectionCount.set(userId, prevCount + 1);
+  onlineUsers.set(userId, { id: userId, username });
+  userSockets.set(userId, socket);
+  socket.emit('authenticated', { user: { id: userId, username } });
+  // 仅首次连接时广播上线事件
+  if (prevCount === 0) {
+    io.emit('userOnline', { id: userId, username });
+  }
+  // 向新连接的客户端发送当前所有在线用户
+  const onlineList = Array.from(onlineUsers.values()).map(u => ({ id: u.id, username: u.username }));
+  socket.emit('onlineUsersList', onlineList);
+
+  ensureUserData(userId);
+  if (socket.pendingVoiceRoomId) {
+    joinVoiceSocket(socket, socket.pendingVoiceRoomId);
+  }
+
+  const globalRoom = rooms.get('global');
+  if (globalRoom) {
+    socket.join('global');
+    socket.currentRoom = 'global';
+    socket.emit('joinedRoom', { roomId: 'global', messages: globalRoom.messages.slice(-100) });
+    socket.emit('roomCreated', { id: 'global', name: '全局聊天', type: 'public' });
+  }
+
+  console.log(`User ${username} authenticated`);
+
+  // 兼容旧客户端：旧版连接后仍会 emit('authenticate')，直接返回成功
+  socket.on('authenticate', () => {
+    socket.emit('authenticated', { user: { id: userId, username } });
   });
 
   socket.on('joinRoom', (roomId) => {
@@ -4288,6 +4565,102 @@ io.on('connection', (socket) => {
     }
     rooms.set(roomId, room);
     io.to(roomId).emit('messageForwarded', message);
+  });
+
+  // 双击拍一拍
+  socket.on('patUser', ({ targetUsername, roomId }) => {
+    if (!targetUsername || !roomId) return;
+    const room = rooms.get(roomId);
+    if (!room || !isRoomMember(room, socket.username)) return;
+    const targetUser = users.get(targetUsername);
+    const suffix = targetUser?.patSuffix || '的肩膀';
+    const content = `${socket.username} 拍了拍 ${targetUsername}${suffix}`;
+    const patMsg = {
+      id: uuidv4(),
+      content,
+      type: 'system',
+      subType: 'pat',
+      patSender: socket.username,
+      patTarget: targetUsername,
+      roomId,
+      timestamp: new Date(),
+      readBy: [socket.userId]
+    };
+    room.messages.push(patMsg);
+    if (room.messages.length > 3000) room.messages = room.messages.slice(-3000);
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('newMessage', patMsg);
+  });
+
+  // 设置微信状态
+  socket.on('setUserStatus', (statusData) => {
+    const user = users.get(socket.username);
+    if (!user) return;
+    user.status = statusData; // { icon, text, updatedAt }
+    users.set(socket.username, user);
+    users.save();
+    io.emit('userStatusUpdated', { username: socket.username, status: user.status });
+  });
+
+  // 设置拍一拍后缀
+  socket.on('updatePatSuffix', ({ suffix }) => {
+    const user = users.get(socket.username);
+    if (!user) return;
+    user.patSuffix = (suffix || '').slice(0, 30);
+    users.set(socket.username, user);
+    users.save();
+    socket.emit('patSuffixUpdated', { patSuffix: user.patSuffix });
+  });
+
+  // 群待办: 设置
+  socket.on('setGroupTodo', ({ roomId, text, messageId }) => {
+    if (!roomId || !text) return;
+    const room = rooms.get(roomId);
+    if (!room || !isRoomMember(room, socket.username)) return;
+    if (room.owner !== socket.username && !(room.admins || []).includes(socket.username)) {
+      socket.emit('sendError', { error: '仅群主和管理员可发布群待办' });
+      return;
+    }
+    room.groupTodo = {
+      id: uuidv4(),
+      messageId: messageId || null,
+      text: text.slice(0, 100),
+      creator: socket.username,
+      doneUsers: [],
+      createdAt: new Date()
+    };
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('groupTodoUpdated', { roomId, groupTodo: room.groupTodo });
+  });
+
+  // 群待办: 标记完成
+  socket.on('completeGroupTodo', ({ roomId }) => {
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room || !room.groupTodo || !isRoomMember(room, socket.username)) return;
+    if (!room.groupTodo.doneUsers) room.groupTodo.doneUsers = [];
+    if (!room.groupTodo.doneUsers.includes(socket.username)) {
+      room.groupTodo.doneUsers.push(socket.username);
+      rooms.set(roomId, room);
+      rooms.save();
+      io.to(roomId).emit('groupTodoUpdated', { roomId, groupTodo: room.groupTodo });
+    }
+  });
+
+  // 群待办: 删除/下线
+  socket.on('deleteGroupTodo', ({ roomId }) => {
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room || !isRoomMember(room, socket.username)) return;
+    if (room.owner !== socket.username && !(room.admins || []).includes(socket.username)) {
+      return;
+    }
+    room.groupTodo = null;
+    rooms.set(roomId, room);
+    rooms.save();
+    io.to(roomId).emit('groupTodoUpdated', { roomId, groupTodo: null });
   });
 
   // 消息已读回执
@@ -4761,10 +5134,12 @@ io.on('connection', (socket) => {
 
   // 发布朋友圈
   socket.on('publishMoment', ({ content, images }) => {
+    if (typeof content !== 'string' || !content.trim() || content.length > 2000) return;
+    const imgList = Array.isArray(images) ? images.slice(0, 9).filter(u => typeof u === 'string' && u.length <= 500) : [];
     const moment = {
       id: uuidv4(),
-      content,
-      images: images || [],
+      content: content.trim(),
+      images: imgList,
       author: { id: socket.userId, username: socket.username, avatar: users.get(socket.username)?.avatar },
       timestamp: new Date(),
       likes: [],
@@ -4780,9 +5155,10 @@ io.on('connection', (socket) => {
 
   // 评论朋友圈
   socket.on('commentMoment', ({ momentId, content }) => {
+    if (typeof momentId !== 'string' || !momentId || typeof content !== 'string' || !content.trim() || content.length > 1000) return;
     const comment = {
       id: uuidv4(),
-      content,
+      content: content.trim(),
       author: { id: socket.userId, username: socket.username, avatar: users.get(socket.username)?.avatar },
       timestamp: new Date()
     };
@@ -4802,8 +5178,9 @@ io.on('connection', (socket) => {
     socket.emit('chatExport', { roomId, roomName: room.name, messages: exportData });
   });
 
-  // 获取统计
+  // 获取统计（仅管理员，防止泄露全局运营数据）
   socket.on('getStats', () => {
+    if (socket.username !== 'admin') return;
     let totalMessages = 0;
     let todayCount = 0;
     const today = new Date().toDateString();
@@ -5302,8 +5679,10 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('newMessage', poll);
   });
 
-  // ===== Bot 触发回复 =====
+  // ===== Bot 触发回复（需为房间成员） =====
   socket.on('triggerBot', ({ botId, roomId, message }) => {
+    const room = rooms.get(roomId);
+    if (!room || !isRoomMember(room, socket.username)) return;
     const bot = bots.get(botId);
     if (bot && bot.autoReply) triggerBotReply(bot, roomId, message);
   });
@@ -5607,6 +5986,15 @@ if (fs.existsSync(clientBuildPath)) {
     }
   });
 }
+
+// Express 全局错误处理（含 multer 文件过滤/大小限制错误）
+app.use((err, req, res, next) => {
+  if (err) {
+    const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    return res.status(status).json({ error: err.message || '上传失败' });
+  }
+  next();
+});
 
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
